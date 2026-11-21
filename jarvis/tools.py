@@ -264,12 +264,17 @@ def spending_summary(ctx: ToolContext, days: int = 30) -> dict:
 @tool("publish_report", "Save a finished report to the dashboard and send it to the owner's configured "
       "channels (email / Telegram). Use for briefings, daily/weekly reports and completed research.",
       {"kind": {"type": "string", "description": "morning_brief | evening_report | weekly_review | research | alert | other"},
-       "title": S, "body": {"type": "string", "description": "Markdown body"}, "send": {"type": "boolean"}},
-      ["kind", "title", "body"])
-def publish_report(ctx: ToolContext, kind: str, title: str, body: str, send: bool = True) -> dict:
+       "title": S, "body": {"type": "string", "description": "Markdown body"}, "send": {"type": "boolean"},
+       "spoken": {"type": "string", "description": "1-3 sentences to SAY OUT LOUD to the owner, in your voice and "
+                                                   "personality: the headline and what needs them. No lists, no "
+                                                   "Markdown."}},
+      ["kind", "title", "body", "spoken"])
+def publish_report(ctx: ToolContext, kind: str, title: str, body: str, send: bool = True, spoken: str = "") -> dict:
+    from .speech import announce
     rid = ctx.store.save_report(kind, ctx.agent, title, body)
     ctx.bus.publish({"type": "report", "id": rid, "agent": ctx.agent, "title": title, "kind": kind})
     delivery = notify_owner(f"[{ctx.agent}] {title}", body) if send else ["not sent"]
+    announce(ctx.bus, ctx.agent, spoken or title, critical=(kind == "alert"))
     return {"report_id": rid, "delivery": delivery}
 
 

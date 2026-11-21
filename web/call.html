@@ -95,7 +95,7 @@ function speakBrowser(a, text, done){
 function say(a, text){
   text = plain(text).trim(); if(!text || !speakOn) return chain;
   const g = gen, clip = {a, text};
-  if(provider === "elevenlabs") clip.audio = fetch("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({agent:a, text})}).then(r => { if(!r.ok) throw 0; return r.blob(); });
+  if(provider !== "browser") clip.audio = fetch("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({agent:a, text})}).then(r => { if(!r.ok) throw 0; return r.blob(); });
   speaking++; stopListening();
   chain = chain.then(() => new Promise(res => {
     if(g !== gen) return res();
@@ -170,7 +170,7 @@ const es = new EventSource("/api/stream");
 es.onmessage = e => { const ev = JSON.parse(e.data);
   if(ev.type === "delta" && streams[ev.rid]) feed(ev.rid, ev.agent, ev.text, false);
   else if(ev.type === "delta_end" && streams[ev.rid]) feed(ev.rid, ev.agent, "", true);
-  else if(ev.type === "ask" && inCall){ addLog(ev.agent, ev.say); say(ev.agent, ev.say); } };
+  else if((ev.type === "ask" || ev.type === "say") && inCall){ addLog(ev.agent, ev.say || ev.text); say(ev.agent, ev.say || ev.text); } };
 
 (async () => {
   try {

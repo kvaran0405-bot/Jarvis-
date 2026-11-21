@@ -110,6 +110,12 @@ class Settings:
     # PIN that protects the dashboard when opened from your phone (not needed on the laptop itself)
     access_pin: str = field(default_factory=lambda: _env("JARVIS_PIN"))
 
+    # Voices: auto (ElevenLabs if a key is set, else free neural voices, else the computer's) | edge | elevenlabs | browser
+    tts: str = field(default_factory=lambda: _env("JARVIS_TTS", "auto").lower())
+    # Agents speak up on their own (briefs, reminders, ideas, alerts) on the laptop and as Telegram voice notes
+    proactive_voice: bool = field(default_factory=lambda: _env("JARVIS_PROACTIVE_VOICE", "on").lower() != "off")
+    telegram_voice: bool = field(default_factory=lambda: _env("JARVIS_TELEGRAM_VOICE", "on").lower() != "off")
+
     # Premium voices (ElevenLabs). Without a key the dashboard uses your computer's built-in voices.
     elevenlabs_key: str = field(default_factory=lambda: _env("ELEVENLABS_API_KEY"))
     elevenlabs_model: str = field(default_factory=lambda: _env("JARVIS_ELEVENLABS_MODEL", "eleven_flash_v2_5"))

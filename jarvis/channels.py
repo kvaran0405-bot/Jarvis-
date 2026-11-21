@@ -207,6 +207,8 @@ def deliver(store, bus, msg: dict) -> bool:
             if not tg.ready():
                 raise RuntimeError("Telegram is not linked")
             tg.send(msg["body"])
+            from .speech import announce
+            announce(bus, msg["agent"], msg["body"].replace("⏰", "").strip())  # reminders are spoken too
         elif msg["channel"] == "whatsapp":
             if not whatsapp_ready():
                 raise RuntimeError("WhatsApp is off (JARVIS_WHATSAPP=on and run the bridge)")

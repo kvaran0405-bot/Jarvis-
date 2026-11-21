@@ -455,8 +455,8 @@ def propose(ctx: ToolContext, title: str, plan: str, why: str = "") -> dict:
 
 def _announce(ctx: ToolContext, kind: str, row: dict) -> None:
     from .answers import spoken_question
-    ctx.bus.publish({"type": "ask", "agent": ctx.agent,
-                     "say": spoken_question(kind, row, ctx.agent, ctx.settings.owner_name)})
+    from .speech import announce
+    announce(ctx.bus, ctx.agent, spoken_question(kind, row, ctx.agent, ctx.settings.owner_name), kind="ask")
 
 
 def decide_proposal(engine, pid: int, yes: bool) -> str:
@@ -531,5 +531,7 @@ def call_owner(ctx: ToolContext, message: str, level: str = "urgent") -> dict:
         else:
             result["call"] = f"not placed: {why}"
     ctx.bus.log(ctx.agent, f"🚨 {message} - call: {result['call']}", "job")
-    ctx.bus.publish({"type": "ask", "agent": ctx.agent, "say": f"Urgent, {ctx.settings.owner_name}. {message}"})
+    from .speech import announce
+    announce(ctx.bus, ctx.agent, f"Urgent, {ctx.settings.owner_name}. {message}", kind="ask",
+             critical=(level == "critical"), phone=not phonecall.ready())   # a real call already rings the phone
     return result

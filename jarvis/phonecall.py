@@ -10,7 +10,7 @@ import base64
 import json
 import urllib.parse
 import urllib.request
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from xml.sax.saxutils import escape
 
 from .config import settings
@@ -21,13 +21,8 @@ def ready() -> bool:
 
 
 def _in_quiet_hours(now: datetime) -> bool:
-    try:
-        start_s, end_s = settings.quiet_hours.split("-")
-        start, end = time.fromisoformat(start_s.strip()), time.fromisoformat(end_s.strip())
-    except ValueError:
-        return False
-    t = now.time()
-    return (start <= t or t < end) if start > end else (start <= t < end)
+    from .speech import in_quiet_hours
+    return in_quiet_hours(now)
 
 
 def twiml(message: str) -> str:

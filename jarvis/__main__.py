@@ -6,6 +6,30 @@ import sys
 import webbrowser
 
 
+def open_jarvis_window(url: str) -> bool:
+    """The always-on JARVIS window: its own Edge/Chrome app window (no tabs or address bar), allowed to speak
+    without a click, with its own profile so the microphone permission is remembered. False if no browser found."""
+    import os
+    import shutil
+    import subprocess
+    from pathlib import Path
+    from .config import ROOT
+    candidates = [shutil.which(n) for n in ("msedge", "chrome", "google-chrome", "chromium", "chromium-browser")]
+    for base in (os.environ.get("PROGRAMFILES(X86)", ""), os.environ.get("PROGRAMFILES", ""),
+                 os.environ.get("LOCALAPPDATA", "")):
+        if base:
+            candidates += [str(Path(base) / "Microsoft/Edge/Application/msedge.exe"),
+                           str(Path(base) / "Google/Chrome/Application/chrome.exe")]
+    exe = next((c for c in candidates if c and Path(c).exists()), None)
+    if not exe:
+        return False
+    profile = ROOT / "data" / "jarvis-window"
+    profile.mkdir(parents=True, exist_ok=True)
+    subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", "--autoplay-policy=no-user-gesture-required",
+                      "--no-first-run", "--window-size=1440,900"])
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="jarvis", description="JARVIS OS - your personal multi-agent system")
     sub = p.add_subparsers(dest="cmd")
@@ -40,7 +64,8 @@ def main(argv: list[str] | None = None) -> int:
                 for _ in range(60):
                     try:
                         urllib.request.urlopen(f"http://{settings.host}:{settings.port}/api/agents", timeout=1)
-                        webbrowser.open(url)
+                        if not open_jarvis_window(f"http://127.0.0.1:{settings.port}/command-centre.html?kiosk=1"):
+                            webbrowser.open(url)
                         return
                     except Exception:  # noqa: BLE001 - not up yet
                         time.sleep(0.5)

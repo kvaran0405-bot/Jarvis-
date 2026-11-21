@@ -274,7 +274,7 @@ function speakBrowser(agent, text, done){
 let speechChain = Promise.resolve(), speechGen = 0, speaking = 0;
 function prepareClip(agent, text){
   const clip = {agent, text: plain(text), gen: speechGen};
-  if(VOICE_PROVIDER === "elevenlabs")
+  if(VOICE_PROVIDER !== "browser")
     clip.audio = fetch("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({agent, text: clip.text})})
       .then(r => { if(!r.ok) throw new Error(r.status); return r.blob(); });
   return clip;
@@ -324,11 +324,12 @@ function feedStream(rid, agent, text, final){
 }
 function openVoiceSettings(){
   const opts = browserVoices();
-  const premium = VOICE_PROVIDER === "elevenlabs";
+  const msg = {
+    edge: "Natural neural voices are on (free) - JARVIS is British, FRIDAY Irish, every agent has their own. Change one with JARVIS_EDGE_VOICE_&lt;AGENT&gt; in .env. The settings below are only used if the voice service can't be reached.",
+    elevenlabs: "Premium ElevenLabs voices are on. Each agent's voice is set in .env (JARVIS_VOICE_&lt;AGENT&gt;). The settings below are only used if the voice service can't be reached.",
+    browser: "Using your computer's built-in voices. Pick a voice, pitch and speed for each agent. For natural voices, run start.bat again (it installs them) or add an ELEVENLABS_API_KEY."}[VOICE_PROVIDER] || "";
   $("#modalBody").innerHTML = `<h2>Agent voices</h2>
-    <p style="color:var(--muted);font-size:12px">${premium
-      ? "Premium ElevenLabs voices are on. Each agent's voice is set in .env (JARVIS_VOICE_&lt;AGENT&gt;). The settings below are used only if the voice service is unreachable."
-      : "Using your computer's built-in voices. Pick a voice, pitch and speed for each agent. For realistic AI voices, add an ELEVENLABS_API_KEY to .env."}</p>
+    <p style="color:var(--muted);font-size:12px">${msg}</p>
     <div style="display:grid;gap:10px">${ORDER.map(n => { const v = voiceSettings(n); return `<div class="item" style="display:grid;grid-template-columns:90px minmax(0,1fr);gap:8px;align-items:center">
       <b class="hud" style="color:${AGENTS[n].color};font-size:11px">${n}</b>
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0">
@@ -590,6 +591,10 @@ function connect(){
     else if(ev.type === "delta_end"){ if(streams[ev.rid]) feedStream(ev.rid, ev.agent, "", true); }
     else if(ev.type === "status"){ setCard(ev.agent, ev.state); if(ev.state==="working") focus(ev.agent); }
     else if(ev.type === "brain"){ showBrain(ev); }
+    else if(ev.type === "say"){   // an agent speaking up on its own (brief, reminder, alert)
+      logLine(ev.agent, "🔊 " + ev.text, "reply");
+      queueSpeech(ev.agent, ev.text);
+    }
     else if(ev.type === "ask"){   // an agent needs a yes/no: say it, then listen for the answer (no wake word needed)
       logLine(ev.agent, "💡 " + ev.say, "reply");
       $("#target").value = "JARVIS";
@@ -615,7 +620,10 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
   $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";
   buildGrid(); focus("JARVIS"); await refresh(); connect();
   state.activity.slice(-25).forEach(a => logLine(a.agent, a.message, a.kind));
-  if(new URLSearchParams(location.search).get("autostart") === "true"){
+  const params = new URLSearchParams(location.search);
+  if(params.get("kiosk") === "1"){   // the always-on JARVIS window: audio allowed, no click needed
+    voiceOn = true; $("#voiceBtn").textContent = "🔊 Voice"; boot().then(() => { if(rec && !handsFree) setHandsFree(true); });
+  } else if(params.get("autostart") === "true"){
     $("#overlay").hidden = false; // browsers need one click before audio may play
     $("#engage").onclick = () => { $("#overlay").hidden = true; boot(); };
   } else ORDER.forEach(n => setCard(n, "online"));

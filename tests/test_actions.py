@@ -254,3 +254,48 @@ def test_call_owner_policy(env, monkeypatch):
     out, _ = execute("call_owner", ctx, {"message": "Mum says it's an emergency", "level": "critical"})
     assert "ringing" in out and len(calls) == 2                 # critical still rings
     assert "Polly.Brian" in phonecall.twiml("x") and "&lt;b&gt;" in phonecall.twiml("<b>")
+
+
+def test_agents_speak_up(env, monkeypatch):
+    """Briefs and reminders are announced out loud (laptop + Telegram voice note); quiet at night unless critical."""
+    from datetime import datetime
+    from jarvis import speech, voice
+    from jarvis import telegram as tg
+    store, ctx, _ = env
+    events, notes = [], []
+    ctx.bus.publish = lambda ev: events.append(ev)
+    monkeypatch.setattr(tg, "ready", lambda: True)
+    monkeypatch.setattr(tg, "send", lambda *a, **k: None)
+    monkeypatch.setattr(voice, "enabled", lambda: True)
+    monkeypatch.setattr(speech, "_voice_note", lambda agent, text: notes.append((agent, text)))
+    monkeypatch.setattr(speech.threading, "Thread", lambda target, args, daemon: type("T", (), {"start": lambda self: target(*args)})())
+    monkeypatch.setattr(settings, "proactive_voice", True)
+    monkeypatch.setattr(settings, "telegram_voice", True)
+    monkeypatch.setattr(settings, "quiet_hours", "23:00-07:00")
+    monkeypatch.setattr(speech, "in_quiet_hours", lambda now=None: False)
+    execute("publish_report", ctx, {"kind": "morning_brief", "title": "Brief", "body": "# x",
+                                    "spoken": "Good morning, Sir. Two exams this week; the phone bill comes first."})
+    says = [e for e in events if e.get("type") == "say"]
+    assert says and says[0]["text"].startswith("Good morning, Sir") and notes[0][0] == "HERALD"
+    events.clear(); notes.clear()
+    monkeypatch.setattr(speech, "in_quiet_hours", lambda now=None: True)      # 2 a.m.
+    execute("publish_report", ctx, {"kind": "evening_report", "title": "Night", "body": "x", "spoken": "hi"})
+    assert not [e for e in events if e.get("type") == "say"] and not notes   # silent at night
+    execute("publish_report", ctx, {"kind": "alert", "title": "Exam in 1 hour", "body": "x", "spoken": "Exam soon"})
+    assert [e for e in events if e.get("type") == "say"]                    # critical alerts still speak
+    assert speech.in_quiet_hours.__name__ == "<lambda>"
+    monkeypatch.undo()
+    assert speech.in_quiet_hours(datetime(2026, 11, 23, 2, 0, tzinfo=settings.tz)) is True
+    assert speech.in_quiet_hours(datetime(2026, 11, 23, 12, 0, tzinfo=settings.tz)) is False
+
+
+def test_voice_provider_choice(monkeypatch):
+    from jarvis import voice
+    monkeypatch.setattr(settings, "tts", "auto")
+    monkeypatch.setattr(settings, "elevenlabs_key", "")
+    assert voice.provider() == "edge" and voice.voice_for("jarvis") == "en-GB-RyanNeural"   # edge-tts installed
+    assert voice.voice_for("FRIDAY") == "en-IE-EmilyNeural"
+    monkeypatch.setattr(settings, "elevenlabs_key", "k")
+    assert voice.provider() == "elevenlabs"
+    monkeypatch.setattr(settings, "tts", "browser")
+    assert voice.provider() == "browser" and not voice.enabled()

@@ -343,14 +343,14 @@ async def _mcp_handle(agent, depth: int, msg: dict, approved: bool = False) -> d
 
 @app.get("/api/voices")
 def voices():
-    return {"provider": "elevenlabs" if voice.enabled() else "browser", "voices": voice.voices(),
+    return {"provider": voice.provider(), "voices": voice.voices(),
             "wake_words": [w.strip().lower() for w in settings.wake_words.split(",") if w.strip()]}
 
 
 @app.post("/api/tts")
 async def tts(sp: Speech):
     if not voice.enabled():
-        raise HTTPException(404, "No ElevenLabs key - the browser voice is used instead")
+        raise HTTPException(404, "No voice service - the browser's own voice is used instead")
     try:
         path = await asyncio.to_thread(voice.synthesize, sp.agent, sp.text)
     except Exception as exc:  # noqa: BLE001

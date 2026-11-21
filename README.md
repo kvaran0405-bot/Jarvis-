@@ -128,6 +128,18 @@ python -m jarvis job morning_brief       # run any routine now
 python -m jarvis agents
 ```
 
+## Like in the movie: agents that talk
+
+- **Natural voices, free:** every agent has its own neural voice. JARVIS is British, FRIDAY is Irish, and the others
+  have their own. With an ElevenLabs key you get premium voices instead; if the voice service is unreachable,
+  your computer's own voices take over.
+- **They speak up on their own:** the morning brief, reminders, new ideas for your yes/no, email briefings
+  and urgent alerts are **said out loud** in the JARVIS window as they happen, and arrive as **Telegram voice
+  notes** on your phone. At night (quiet hours) they stay silent unless something is critical.
+- **Always-on JARVIS window:** `start.bat` opens JARVIS in its own app window that can talk without a click and
+  turns hands-free listening on, so you can just say *"Jarvis, …"* from across the room. Allow the microphone once
+  and it remembers. With `install-autostart.bat`, it's there every time you log in.
+
 ## Talk to JARVIS (voice)
 
 - **Hands-free:** click **👂 Hands-free** in the dashboard (Chrome or Edge), then just speak:
