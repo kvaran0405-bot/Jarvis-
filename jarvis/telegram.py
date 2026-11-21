@@ -229,5 +229,5 @@ class Bot:
             from .agents import AGENTS
             prefix, _, rest = reply.partition(":")
             agent, spoken = (prefix, rest) if prefix in AGENTS and rest else ("JARVIS", reply)
-            send_voice(str(tts.synthesize(agent, spoken)))
+            send_voice(str(tts.synthesize_for_phone(agent, spoken)))
 

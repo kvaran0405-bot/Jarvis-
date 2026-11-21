@@ -23,7 +23,7 @@ def _voice_note(agent: str, text: str) -> None:
     from . import telegram as tg
     from . import voice
     try:
-        tg.send_voice(str(voice.synthesize(agent, text)))
+        tg.send_voice(str(voice.synthesize_for_phone(agent, text)))
     except Exception:  # noqa: BLE001 - the text message was already sent; a missing voice note is fine
         pass
 

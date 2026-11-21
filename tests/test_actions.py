@@ -291,3 +291,55 @@ def test_spoken_delivery():
         ("dry", "Ah. The bill."), ("excited", "But you got the interview!")]
     assert voice.strip_moods("[warm] Sleep well, Sir.") == "Sleep well, Sir."
     assert voice._shift("-6%", 12, "%") == "+6%" and voice._shift("-2Hz", -5, "Hz") == "-7Hz"
+
+
+def test_voicestudio_backend(monkeypatch, tmp_path):
+    """JARVIS talks to VoiceStudio's OpenAI-style /v1/audio/speech; falls back to the free online voices."""
+    import json as _json
+    import threading
+    import wave
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from jarvis import voice
+    calls, mode = [], {"mp3": True}
+
+    class FakeVS(BaseHTTPRequestHandler):
+        def log_message(self, *a): pass
+        def do_GET(self):
+            self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
+            self.wfile.write(b'{"data": []}')
+        def do_POST(self):
+            body = _json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            calls.append(body)
+            if body["response_format"] == "mp3" and not mode["mp3"]:
+                self.send_response(400); self.end_headers(); self.wfile.write(b'{"error": {"message": "ffmpeg"}}'); return
+            self.send_response(200); self.end_headers()
+            self.wfile.write(b"ID3" + b"\0" * 500 if body["response_format"] == "mp3" else b"\1\0" * 2400)
+
+    srv = HTTPServer(("127.0.0.1", 0), FakeVS)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    monkeypatch.setattr(settings, "voicestudio_url", f"http://127.0.0.1:{srv.server_port}")
+    monkeypatch.setattr(settings, "tts", "auto")
+    monkeypatch.setattr(settings, "elevenlabs_key", "")
+    monkeypatch.setattr(voice, "CACHE", tmp_path)
+    voice._vs_seen.update(at=0.0)
+    assert voice.provider() == "voicestudio"
+    assert voice.voice_for("FRIDAY").startswith("female") and "irish" in voice.voice_for("FRIDAY")
+
+    p = voice.synthesize("JARVIS", "[amused] Good morning, Sir. [tired] The bill is still unpaid.")
+    assert p.suffix == ".mp3" and len(calls) == 2
+    assert calls[0]["input"] == "[laughter] Good morning Sir." and calls[0]["instructions"].startswith("male")
+    assert calls[1]["input"].startswith("[sigh] ") and calls[1]["speed"] < 1 and calls[0]["seed"] == calls[1]["seed"]
+    assert "[amused]" not in _json.dumps(calls)                           # our mood tags never reach VoiceStudio
+
+    mode["mp3"] = False                                                    # VoiceStudio without ffmpeg -> WAV
+    p = voice.synthesize("FRIDAY", "Morning, Sir!")
+    assert p.suffix == ".wav" and wave.open(str(p)).getframerate() == 24000
+
+    edge_calls = []
+    monkeypatch.setattr(voice, "_edge", lambda text, agent, path: edge_calls.append(text) or path.write_bytes(b"x" * 300))
+    phone = voice.synthesize_for_phone("FRIDAY", "Morning, Sir!")         # Telegram needs mp3
+    assert phone.suffix == ".mp3" and edge_calls
+
+    srv.shutdown(); srv.server_close()
+    voice._vs_seen.update(at=0.0)
+    assert voice.provider() == "edge"                                      # VoiceStudio off -> free online voices

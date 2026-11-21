@@ -104,7 +104,11 @@ class Settings:
     # PIN that protects the dashboard when opened from your phone (not needed on the laptop itself)
     access_pin: str = field(default_factory=lambda: _env("JARVIS_PIN"))
 
-    # Voices: auto (ElevenLabs if a key is set, else free neural voices, else the computer's) | edge | elevenlabs | browser
+    # VoiceStudio (free, open source, runs on this laptop): https://github.com/debpalash/VoiceStudio
+    voicestudio_url: str = field(default_factory=lambda: _env("JARVIS_VOICESTUDIO_URL", "http://127.0.0.1:3900"))
+    voicestudio_timeout: int = field(default_factory=lambda: int(_env("JARVIS_VOICESTUDIO_TIMEOUT", "25")))
+    # Voices: auto = ElevenLabs if a key is set, else VoiceStudio if it's running, else free online voices,
+    # else the computer's own | voicestudio | edge | elevenlabs | browser
     tts: str = field(default_factory=lambda: _env("JARVIS_TTS", "auto").lower())
     # Agents speak up on their own (briefs, reminders, ideas, alerts) on the laptop and as Telegram voice notes
     proactive_voice: bool = field(default_factory=lambda: _env("JARVIS_PROACTIVE_VOICE", "on").lower() != "off")

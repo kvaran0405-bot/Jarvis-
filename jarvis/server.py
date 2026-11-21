@@ -355,7 +355,7 @@ async def tts(sp: Speech):
         path = await asyncio.to_thread(voice.synthesize, sp.agent, sp.text)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(502, f"Voice service error: {exc}") from exc
-    return FileResponse(path, media_type="audio/mpeg")
+    return FileResponse(path, media_type="audio/wav" if path.suffix == ".wav" else "audio/mpeg")
 
 
 @app.get("/api/connections")

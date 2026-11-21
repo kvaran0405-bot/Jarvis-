@@ -133,6 +133,13 @@ python -m jarvis agents
 - **Natural voices, free:** every agent has its own neural voice. JARVIS is British, FRIDAY is Irish, and the others
   have their own. With an ElevenLabs key you get premium voices instead; if the voice service is unreachable,
   your computer's own voices take over.
+- **VoiceStudio (free, open source, on your laptop):** install [VoiceStudio](https://github.com/debpalash/VoiceStudio)
+  (Windows installer, about 10 GB, no graphics card needed) and keep it open. JARVIS then uses it automatically:
+  each agent gets a voice designed from a description (JARVIS: "male, middle-aged, British accent"; FRIDAY: "female,
+  young adult, Irish accent"…), fixed with a seed so it never changes, and moods become **real laughs, sighs and
+  "hmm"s**. You can also design or record a voice in VoiceStudio and assign it: `JARVIS_VS_VOICE_JARVIS=<name>`.
+  On a laptop without a graphics card it's slower; if a line takes longer than `JARVIS_VOICESTUDIO_TIMEOUT`
+  seconds, JARVIS uses the online voice for that line instead.
 - **They speak up on their own:** the morning brief, reminders, new ideas for your yes/no, email briefings
   and urgent alerts are **said out loud** in the JARVIS window as they happen, and arrive as **Telegram voice
   notes** on your phone. At night (quiet hours) they stay silent unless something is critical.
