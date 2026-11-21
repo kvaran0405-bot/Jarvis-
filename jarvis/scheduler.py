@@ -78,6 +78,11 @@ INBOX = ("Inbox sweep. Call check_email(new_only=true). For each new e-mail that
          "translation if it isn't in English, and 2-3 ready replies the owner can tap to send. Create tasks or "
          "events for requests and deadlines. Ignore newsletters, promotions and automated mail. If something is "
          "urgent, publish an 'alert' report. Finish with a 2-line summary, or just 'Inbox clear.'")
+MONEY = ("Weekly money report. Call bank_alerts(days=7) and spending_summary(days=7). List the week's transactions "
+         "from the alerts (date, merchant, amount, card/account last 4 digits), group them by category, total "
+         "money in and out, flag anything unusual (large, duplicate, unfamiliar merchant, foreign) and upcoming bills. "
+         "Log transactions that aren't already in the money log with log_transaction. Publish as 'money_weekly'. "
+         "If no alerts were found, say so and suggest turning on e-mail alerts in the bank's app.")
 WATCH = ("Deadline sweep: check overdue and next-48h tasks and events, clashes, stalled goals, applications "
          "without a next step. Fix what you can yourself. For anything that needs the owner's say-so (asking for an "
          "extension, dropping or moving something, a message to send) use `propose` with a ready-to-go plan. "
@@ -97,6 +102,9 @@ class Scheduler:
             Job("night_shift", "JARVIS", "Night shift", daily_at(s.night_shift_at), None),
         ]
         from . import channels as ch
+        if ch.email_read_ready():
+            self.jobs.append(Job("money_weekly", "VERONICA", "Weekly money report",
+                                 daily_at(s.money_weekly_at, weekday=6), MONEY))
         if s.inbox_sweep_minutes > 0 and (ch.email_read_ready() or ch.whatsapp_ready()):
             self.jobs.append(Job("inbox_sweep", "HERALD", "Inbox sweep", every_hours(s.inbox_sweep_minutes / 60), INBOX))
         self._stop = threading.Event()

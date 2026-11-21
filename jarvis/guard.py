@@ -37,4 +37,22 @@ def blocked(*texts: str | None) -> str | None:
     return None
 
 
+SECRET_RE = re.compile(r"(?<![a-z])(otp|one[\s-]?time[\s-]?(pass(word|code)?|pin)|verification code|passcode|"
+                       r"security code|tac|pin|password|login code|authori[sz]ation code)(?![a-z])", re.I)
+LONG_NUMBER_RE = re.compile(r"\b(\d[\d\s-]{5,}\d)\b")
+
+
+def is_secret(*texts: str | None) -> bool:
+    """OTPs, PINs, passwords and login codes: never shown to any agent, not even from your bank."""
+    return any(t and SECRET_RE.search(str(t)) for t in texts)
+
+
+def mask_numbers(text: str) -> str:
+    """Account and card numbers -> only the last 4 digits stay visible."""
+    def mask(m: re.Match) -> str:
+        digits = re.sub(r"\D", "", m.group(1))
+        return m.group(1) if len(digits) < 6 else "•••• " + digits[-4:]
+    return LONG_NUMBER_RE.sub(mask, text)
+
+
 REFUSAL = "🔒 Blocked: banking and payments are off-limits to JARVIS (matched '{word}'). Do this yourself."

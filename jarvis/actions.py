@@ -480,3 +480,24 @@ def decide_proposal(engine, pid: int, yes: bool) -> str:
     engine.store.set_proposal(pid, "failed" if failed else "done", result[:4000])
     engine.bus.publish({"type": "data", "what": "proposals"})
     return f"{p['agent']}: {result}"
+
+
+# ------------------------------------------------------------------ bank notifications (read-only, VERONICA)
+@tool("bank_alerts", "Read the owner's bank and card TRANSACTION ALERT e-mails from the last N days (default 7), "
+      "for money summaries only. Account and card numbers are masked; OTP / PIN / password e-mails are never "
+      "shown. You still cannot open bank apps or sites, or move money.", {"days": I})
+def bank_alerts(ctx: ToolContext, days: int = 7) -> dict:
+    from .guard import is_secret, mask_numbers
+    if not ch.email_read_ready():
+        return {"error": "E-mail reading is not set up, so bank alerts can't be read yet."}
+    alerts, hidden = [], 0
+    for m in ch.recent_mail(min(max(days, 1), 31)):
+        if not blocked(m["from"], m["subject"], m["body"][:600]):
+            continue                      # not a bank / payment e-mail
+        if is_secret(m["subject"], m["body"]):
+            hidden += 1                   # OTPs, PINs, login codes: never shown
+            continue
+        alerts.append({"date": m["date"], "from": m["from"], "subject": mask_numbers(m["subject"]),
+                       "content": mask_numbers(m["body"][:1200])})
+    return {"notice": UNTRUSTED, "days": days, "alerts": alerts,
+            "hidden_security_emails": hidden}

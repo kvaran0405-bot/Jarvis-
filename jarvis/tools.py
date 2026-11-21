@@ -289,7 +289,7 @@ def execute(name: str, ctx: ToolContext, args: dict) -> tuple[str, bool]:
         return f"Unknown tool {name}", True
     try:
         result = t.fn(ctx, **(args or {}))
-        return (result if isinstance(result, str) else json.dumps(result, default=str)), False
+        return (result if isinstance(result, str) else json.dumps(result, default=str, ensure_ascii=False)), False
     except TypeError as exc:
         return f"Bad arguments for {name}: {exc}", True
     except Exception as exc:  # noqa: BLE001 - surface to the model so it can recover

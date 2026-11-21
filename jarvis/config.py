@@ -50,6 +50,7 @@ class Settings:
     morning_brief_at: str = field(default_factory=lambda: _env("JARVIS_MORNING_AT", "07:00"))
     evening_report_at: str = field(default_factory=lambda: _env("JARVIS_EVENING_AT", "21:00"))
     night_shift_at: str = field(default_factory=lambda: _env("JARVIS_NIGHT_SHIFT_AT", "02:00"))
+    money_weekly_at: str = field(default_factory=lambda: _env("JARVIS_MONEY_WEEKLY_AT", "19:00"))  # Sundays
     weekly_review_at: str = field(default_factory=lambda: _env("JARVIS_WEEKLY_AT", "18:00"))  # Sundays
     watch_every_hours: int = field(default_factory=lambda: int(_env("JARVIS_WATCH_EVERY_HOURS", "3")))
 

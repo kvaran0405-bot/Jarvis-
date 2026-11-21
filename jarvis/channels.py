@@ -96,6 +96,26 @@ def list_inbox(limit: int = 15, unread_only: bool = True, since_uid: int = 0) ->
         box.logout()
 
 
+def recent_mail(days: int = 7, limit: int = 200) -> list[dict]:
+    """All mail from the last `days` days (read-only), with a longer text excerpt."""
+    from datetime import date, timedelta
+    box = _imap()
+    try:
+        since = (date.today() - timedelta(days=days)).strftime("%d-%b-%Y")
+        _, data = box.uid("search", None, f"SINCE {since}")
+        uids = [int(u) for u in (data[0] or b"").split()][-limit:]
+        out = []
+        for uid in reversed(uids):
+            _, msg_data = box.uid("fetch", str(uid), "(BODY.PEEK[])")
+            raw = next((p[1] for p in msg_data if isinstance(p, tuple)), b"")
+            m = email.message_from_bytes(raw)
+            out.append({"uid": uid, "from": _hdr(m["From"]), "subject": _hdr(m["Subject"]), "date": m["Date"],
+                        "body": _text_of(m)[:2500]})
+        return out
+    finally:
+        box.logout()
+
+
 def read_email(uid: int) -> dict:
     box = _imap()
     try:

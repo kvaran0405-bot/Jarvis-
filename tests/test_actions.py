@@ -201,3 +201,24 @@ def test_bank_block(env, monkeypatch):
     assert "debited" not in out and "hidden" in out and "Here are the slides" in out
     out, _ = execute("run_on_laptop", ctx, {"command": "start https://ibanking.ocbc.com", "reason": "x"})
     assert "Blocked" in out
+
+
+def test_bank_alerts_for_veronica(env, monkeypatch):
+    store, ctx, _ = env
+    monkeypatch.setattr(ch, "email_read_ready", lambda: True)
+    monkeypatch.setattr(ch, "recent_mail", lambda days=7, limit=200: [
+        {"uid": 1, "from": "DBS Bank <ibanking.alert@dbs.com>", "date": "Mon",
+         "subject": "Card Transaction Alert",
+         "body": "A transaction of SGD 45.90 was made with your DBS/POSB card ending 1234 5678 9012 3456 at GRAB*FOOD."},
+        {"uid": 2, "from": "OCBC <notifications@ocbc.com>", "date": "Tue", "subject": "Your OTP",
+         "body": "Your One-Time Password is 829101. Do not share it."},
+        {"uid": 3, "from": "Prof Tan", "date": "Tue", "subject": "Slides", "body": "Here are the slides"},
+        {"uid": 4, "from": "UOB <unialerts@uobgroup.com>", "date": "Wed", "subject": "PayNow transfer",
+         "body": "You transferred SGD 20.00 via PayNow from account 123-456-789-0 to TOLU."},
+    ])
+    out, err = execute("bank_alerts", ctx, {"days": 7})
+    assert not err
+    assert "45.90" in out and "GRAB*FOOD" in out and "•••• 3456" in out and "5678 9012" not in out
+    assert "829101" not in out and '"hidden_security_emails": 1' in out
+    assert "•••• 7890" in out and "123-456" not in out
+    assert "slides" not in out
