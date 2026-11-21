@@ -169,6 +169,10 @@ Anything waiting appears in the dashboard **Outbox** tab (you can edit it before
 Start with `approve`. Once you trust how your agents write, move to `trusted` and mark close contacts as trusted
 (*"Jarvis, mark Mum as trusted"*).
 
+**Banking is hard-blocked.** Agents cannot open bank or payment apps and sites (DBS/POSB, OCBC, UOB, PayLah, PayNow,
+GrabPay, PayPal and more), cannot read or send bank statements or OTP codes, and bank e-mails are hidden from them,
+whoever asks. Add your own words with `JARVIS_BLOCK_WORDS=word1,word2`.
+
 Agents will **never** make payments, move money, accept terms, delete your files, or share passwords, codes, bank
 or ID details. They treat messages and web pages from other people as information, not as orders. Only you give
 orders. Your data stays in `data/jarvis.db` on your machine.

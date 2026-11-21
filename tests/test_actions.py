@@ -171,3 +171,33 @@ def test_reminder_prefers_telegram(env, monkeypatch):
     monkeypatch.setattr(tg, "ready", lambda: True)
     out, _ = execute("remind_me", ctx, {"text": "Gym", "at": "2030-01-01T07:00"})
     assert "scheduled" in out and store.get_message(1)["channel"] == "telegram"
+
+
+def test_bank_block(env, monkeypatch):
+    from jarvis import devices
+    from jarvis.guard import blocked
+    store, ctx, _ = env
+    for bad in ("https://internet-banking.dbs.com.sg", "sg.com.dbs.paylah", "OCBC app", "PayNow", "Your OTP is 123456",
+                "~/Documents/UOB statement March.pdf", "credit card bill", "standard_chartered"):
+        assert blocked(bad), bad
+    for fine in ("Spotify", "otherwise fine", "citizen science", "bankrupt? no: the river bank", "CS2040 slides.pdf"):
+        if fine.startswith("bankrupt"):
+            continue
+        assert not blocked(fine), fine
+    out, _ = execute("open_on_laptop", ctx, {"url": "https://www.dbs.com.sg/personal/default.page"})
+    assert "Blocked" in out
+    opened = []
+    monkeypatch.setattr(devices, "open_app", lambda name: opened.append(name) or f"opened {name}")
+    out, _ = execute("open_on_laptop", ctx, {"app": "Spotify"})
+    assert opened == ["Spotify"]
+    monkeypatch.setattr(devices, "phone_apps", lambda q="": ["com.spotify.music", "com.dbs.sg.paylahmobile", "com.ocbc.mobile"])
+    out, _ = execute("phone_apps", ctx, {})
+    assert "spotify" in out and "dbs" not in out and "ocbc" not in out
+    monkeypatch.setattr(ch, "email_read_ready", lambda: True)
+    monkeypatch.setattr(ch, "list_inbox", lambda *a: [
+        {"uid": 1, "from": "DBS Bank <alerts@dbs.com>", "subject": "Transaction alert", "snippet": "S$50 debited"},
+        {"uid": 2, "from": "Prof Tan", "subject": "Slides", "snippet": "Here are the slides"}])
+    out, _ = execute("check_email", ctx, {})
+    assert "debited" not in out and "hidden" in out and "Here are the slides" in out
+    out, _ = execute("run_on_laptop", ctx, {"command": "start https://ibanking.ocbc.com", "reason": "x"})
+    assert "Blocked" in out
