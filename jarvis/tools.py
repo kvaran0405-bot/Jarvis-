@@ -19,6 +19,7 @@ class ToolContext:
     engine: Any
     agent: str
     depth: int = 0
+    approved: bool = False   # running a plan the owner already said yes to
 
     def now(self) -> datetime:
         return datetime.now(self.settings.tz)
@@ -56,6 +57,19 @@ def tool(name: str, description: str, properties: dict | None = None, required: 
 S = {"type": "string"}
 I = {"type": "integer"}
 AREA = {"type": "string", "enum": AREAS}
+
+
+def local_iso(ctx: ToolContext, value: str | None) -> str | None:
+    """Store every date-time in the owner's own timezone (agents sometimes write UTC 'Z' times)."""
+    if not value or len(value) <= 10:
+        return value
+    try:
+        dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return value
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(ctx.settings.tz).replace(tzinfo=None)
+    return dt.isoformat(timespec="minutes")
 
 
 def _days_ago(ctx: ToolContext, days: int) -> str:
@@ -104,7 +118,7 @@ def status_snapshot(ctx: ToolContext) -> dict:
       ["title"])
 def add_task(ctx: ToolContext, title: str, area: str = "personal", priority: int = 3, due: str | None = None,
              notes: str = "", assignee: str | None = None) -> dict:
-    task_id = ctx.store.add_task(title, area, priority, due, notes, assignee or None)
+    task_id = ctx.store.add_task(title, area, priority, local_iso(ctx, due), notes, assignee or None)
     ctx.bus.publish({"type": "data", "what": "tasks"})
     return {"created_task_id": task_id}
 
@@ -130,7 +144,7 @@ def update_task(ctx: ToolContext, task_id: int, **fields) -> dict:
        "area": AREA, "notes": S}, ["title", "start"])
 def add_event(ctx: ToolContext, title: str, start: str, end: str | None = None, location: str = "",
               area: str = "personal", notes: str = "") -> dict:
-    eid = ctx.store.add_event(title, start, end, location, area, notes)
+    eid = ctx.store.add_event(title, local_iso(ctx, start), local_iso(ctx, end), location, area, notes)
     ctx.bus.publish({"type": "data", "what": "events"})
     return {"created_event_id": eid}
 

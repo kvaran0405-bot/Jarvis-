@@ -35,7 +35,7 @@ LIMIT_RE = re.compile(r"(usage|rate|session|weekly)\s*limit|limit reached|hit yo
 
 def run_pro(agent, prompt: str, system_text: str, tool_names: list[str], *, depth: int, effort: str,
             session_id: str | None, on_text: Callable[[str], None] | None, log: Callable[[str], None],
-            model: str | None = None) -> tuple[str, str | None]:
+            model: str | None = None, approved: bool = False) -> tuple[str, str | None]:
     """Run one turn through `claude -p`. Returns (reply, session_id for the next turn)."""
     cli = brain.claude_cli()
     if not cli:
@@ -43,10 +43,10 @@ def run_pro(agent, prompt: str, system_text: str, tool_names: list[str], *, dept
     WORK.mkdir(parents=True, exist_ok=True)
     sys_file = WORK / f"system-{agent.name}.md"
     sys_file.write_text(system_text, encoding="utf-8")
-    mcp_file = WORK / f"mcp-{agent.name}-{depth}.json"
+    mcp_file = WORK / f"mcp-{agent.name}-{depth}{'-ok' if approved else ''}.json"
     mcp_file.write_text(json.dumps({"mcpServers": {"jarvis": {
         "type": "http",
-        "url": f"http://127.0.0.1:{settings.port}/mcp/{agent.name}?depth={depth}",
+        "url": f"http://127.0.0.1:{settings.port}/mcp/{agent.name}?depth={depth}&approved={int(approved)}",
         "headers": {"X-Jarvis-Token": settings.bridge_token},
     }}}), encoding="utf-8")
 

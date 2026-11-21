@@ -64,9 +64,12 @@ def parse_schedule(text: str):
 
 MORNING = ("Compile today's morning brief for the owner: schedule, top 3 priorities, deadlines in the next "
            "7 days, overdue items, habits, goals, career pipeline, money, and what the agents completed "
-           "overnight (recent reports and tasks done in the last 24h). Publish it as kind 'morning_brief'.")
+           "overnight (recent reports and tasks done in the last 24h). Publish it as kind 'morning_brief'. "
+           "Then think ahead like a chief of staff: `propose` up to 3 concrete actions that would make today or "
+           "this week go better (each a yes/no for the owner).")
 EVENING = ("Write the evening report: what got done today, what slipped (and reschedule it sensibly), habit "
-           "check-in, and a proposed plan for tomorrow with the top 3 priorities. Publish as 'evening_report'.")
+           "check-in, and a proposed plan for tomorrow with the top 3 priorities. Publish as 'evening_report'. "
+           "If tomorrow's plan needs changes the owner should OK (moving things, messages to send), `propose` them.")
 WEEKLY = ("Run the weekly review across personal life, career and academics: wins, misses, goal progress "
           "(update goal progress where the data supports it), next week's deadlines and a focused plan. "
           "Delegate to ATHENA and ZEUS for their sections if useful. Publish as 'weekly_review'.")
@@ -76,8 +79,9 @@ INBOX = ("Inbox sweep. Call check_email(new_only=true). For each new e-mail that
          "events for requests and deadlines. Ignore newsletters, promotions and automated mail. If something is "
          "urgent, publish an 'alert' report. Finish with a 2-line summary, or just 'Inbox clear.'")
 WATCH = ("Deadline sweep: check overdue and next-48h tasks and events, clashes, stalled goals, applications "
-         "without a next step. Fix what you can. Only publish an 'alert' if the owner must act soon; "
-         "otherwise reply with a one-line all-clear.")
+         "without a next step. Fix what you can yourself. For anything that needs the owner's say-so (asking for an "
+         "extension, dropping or moving something, a message to send) use `propose` with a ready-to-go plan. "
+         "Otherwise reply with a one-line all-clear.")
 
 
 class Scheduler:

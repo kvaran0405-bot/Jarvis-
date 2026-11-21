@@ -116,8 +116,10 @@ class Bot:
     `on_text(text, voice) -> reply`, `on_decision(id, yes) -> reply`."""
 
     def __init__(self, on_text: Callable[..., str], on_decision: Callable[[int, bool], str], log: Callable,
-                 on_reply: Callable[[int, int | None], str] | None = None):
+                 on_reply: Callable[[int, int | None], str] | None = None,
+                 on_proposal: Callable[[int, bool], str] | None = None):
         self.on_text, self.on_decision, self.log, self.on_reply = on_text, on_decision, log, on_reply
+        self.on_proposal = on_proposal
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -161,6 +163,8 @@ class Bot:
                 reply_markup={"inline_keyboard": []})
             if rest.isdigit() and action in ("ok", "no"):
                 send(self.on_decision(int(rest), action == "ok"))
+            elif action in ("pa", "pn") and rest.isdigit() and self.on_proposal:   # proposal yes / no
+                send(self.on_proposal(int(rest), action == "pa"))
             elif action in ("rp", "ri") and self.on_reply:   # suggested reply chosen / ignored
                 sid, _, opt = rest.partition(":")
                 if sid.isdigit():

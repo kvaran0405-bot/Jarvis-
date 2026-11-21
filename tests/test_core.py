@@ -85,3 +85,13 @@ def test_night_shift_with_fake_engine(monkeypatch):
     Scheduler(engine).night_shift()
     t = store.list_tasks("done")[0]
     assert t["result"] == "ZEUS finished it"
+
+
+def test_times_are_stored_in_owner_timezone(monkeypatch):
+    store, bus, settings, engine = make()
+    monkeypatch.setattr(settings, "timezone", "Africa/Lagos")
+    ctx = ToolContext(store, bus, settings, engine, "ATHENA")
+    execute("add_event", ctx, {"title": "Study", "start": "2026-11-23T17:00:00Z"})
+    assert store.list_events("2026-11-23", "2026-11-24")[0]["start"] == "2026-11-23T18:00"
+    execute("add_event", ctx, {"title": "Exam", "start": "2026-11-25T09:00"})
+    assert store.list_events("2026-11-25", "2026-11-26")[0]["start"] == "2026-11-25T09:00"

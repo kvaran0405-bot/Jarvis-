@@ -44,7 +44,7 @@ async def lifespan(_app):
     tg.attach(store)
     from . import stt
     stt.warm_up()
-    bot = tg.Bot(on_reply=pick_reply,
+    bot = tg.Bot(on_reply=pick_reply, on_proposal=answer_proposal,
                  on_text=lambda text, voice=False: handle_owner_message(text, "Telegram", voice),
                  on_decision=lambda msg_id, yes: approve_message(msg_id) if yes else reject_message(msg_id),
                  log=lambda m: bus.log("JARVIS", m, "system"))
@@ -123,6 +123,68 @@ def pick_reply(sid: int, option: int | None, custom: str = "") -> str:
     return f"✉ Sent to {r['to']}." if r["sent"] else f"Couldn't send: {r['error']}"
 
 
+# ---------------------------------------------------------------- natural answers ("yes", "nah", "send B")
+def answer_naturally(text: str) -> str | None:
+    """If `text` is a bare answer to the latest open question, act on it. Uses no AI."""
+    from . import answers
+    parsed = answers.parse(text)
+    if not parsed:
+        return None
+    latest = answers.latest_open(store)
+    if not latest:
+        return None  # nothing on file: let the agent you're talking to answer its own question ("Shall I…?" "Yes")
+    kind, row = latest
+    verdict, idx = parsed
+    if kind == "proposal":
+        if verdict == "option":
+            return None
+        return answer_proposal(row["id"], verdict == "yes")
+    if kind == "suggestion":
+        if verdict == "no":
+            return pick_reply(row["id"], None)
+        if verdict == "yes":
+            if len(row["options"]) == 1:
+                return pick_reply(row["id"], 0)
+            return "Which one - " + ", ".join(f"{'ABCD'[i]}: {o['label']}" for i, o in enumerate(row["options"])) + "?"
+        return pick_reply(row["id"], idx)
+    if verdict == "option":
+        return None
+    return approve_message(row["id"]) if verdict == "yes" else reject_message(row["id"])
+
+
+# ---------------------------------------------------------------- proposals (yes / no)
+def answer_proposal(pid: int, yes: bool) -> str:
+    """Owner answered a proposal. 'Yes' runs the agent's plan in the background and reports back when done."""
+    from .actions import decide_proposal
+    p = store.get_proposal(pid)
+    if not p or p["status"] != "open":
+        return f"Proposal #{pid} isn't waiting any more."
+    if not yes:
+        return decide_proposal(engine, pid, False)
+
+    def work():
+        result = decide_proposal(engine, pid, True)
+        bus.log(p["agent"], result, "reply")
+        if tg.ready():
+            try:
+                tg.send(f"✅ {result}")
+            except Exception as exc:  # noqa: BLE001
+                bus.log("JARVIS", f"Telegram send failed: {exc}", "error")
+
+    threading.Thread(target=work, daemon=True).start()
+    return f"👍 On it - {p['agent']} is doing it now."
+
+
+PROPOSAL_RE = re.compile(r"^\s*(yes|y|ok|do it|no|n|nope)\s+(?:to\s+)?(?:idea|proposal|p)\s*#?(\d+)\s*$", re.I)
+
+
+@app.post("/api/proposals/{pid}/{answer}")
+def proposal_answer(pid: int, answer: str):
+    if answer not in ("yes", "no"):
+        raise HTTPException(400, "answer must be yes or no")
+    return {"result": answer_proposal(pid, answer == "yes")}
+
+
 REPLY_RE = re.compile(r"^\s*reply\s+#?(\d+)\s*(?:[:,-]\s*|\s+)(?:([abcd])\s*$|(.+))", re.I | re.S)
 
 
@@ -175,7 +237,8 @@ def mcp_get(agent_name: str):
 
 
 @app.post("/mcp/{agent_name}")
-async def mcp(agent_name: str, request: Request, depth: int = 0, x_jarvis_token: str = Header(default="")):
+async def mcp(agent_name: str, request: Request, depth: int = 0, approved: int = 0,
+              x_jarvis_token: str = Header(default="")):
     if not settings.bridge_token or x_jarvis_token != settings.bridge_token:
         raise HTTPException(403, "bad token")
     agent = AGENTS.get(agent_name.upper())
@@ -183,13 +246,13 @@ async def mcp(agent_name: str, request: Request, depth: int = 0, x_jarvis_token:
         raise HTTPException(404, "unknown agent")
     payload = await request.json()
     batch = payload if isinstance(payload, list) else [payload]
-    answers = [a for a in [await _mcp_handle(agent, depth, m) for m in batch] if a is not None]
+    answers = [a for a in [await _mcp_handle(agent, depth, m, bool(approved)) for m in batch] if a is not None]
     if not answers:
         return Response(status_code=202)
     return JSONResponse(answers if isinstance(payload, list) else answers[0])
 
 
-async def _mcp_handle(agent, depth: int, msg: dict) -> dict | None:
+async def _mcp_handle(agent, depth: int, msg: dict, approved: bool = False) -> dict | None:
     method, msg_id, params = msg.get("method"), msg.get("id"), msg.get("params") or {}
     if msg_id is None:
         return None  # notification (e.g. notifications/initialized)
@@ -211,7 +274,7 @@ async def _mcp_handle(agent, depth: int, msg: dict) -> dict | None:
         else:
             from .engine import _describe_call
             bus.log(agent.name, _describe_call(name, args), "tool")
-            ctx = ToolContext(store, bus, settings, engine, agent.name, depth)
+            ctx = ToolContext(store, bus, settings, engine, agent.name, depth, approved)
             output, is_error = await asyncio.to_thread(execute, name, ctx, args)
         result = {"content": [{"type": "text", "text": output[:20000]}], "isError": is_error}
     else:
@@ -263,6 +326,8 @@ def state():
         "outbox_recent": [m for m in store.list_outbox(None, 30) if m["status"] != "pending"][:15],
         "routines": store.list_routines(),
         "suggestions": store.list_suggestions("open", 20),
+        "proposals": store.list_proposals("open", 20),
+        "proposals_done": store.list_proposals("done", 5),
     }
 
 
@@ -321,7 +386,7 @@ async def command(cmd: Command):
     if agent not in AGENTS:
         raise HTTPException(404, f"Unknown agent {agent}")
     bus.log("YOU", ("🎙 " if cmd.voice else "") + cmd.text, "command")
-    if (reply := control(cmd.text)) is not None:
+    if (reply := control(cmd.text)) is not None or (reply := answer_naturally(cmd.text)) is not None:
         bus.publish({"type": "delta", "rid": cmd.rid, "agent": "JARVIS", "text": reply})
         bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": "JARVIS"})
         bus.log("JARVIS", reply, "reply")
@@ -410,6 +475,11 @@ def handle_owner_message(text: str, via: str = "WhatsApp", voice: bool = False) 
     if (reply := control(text)) is not None:
         bus.log("YOU", f"({via}) {text}", "command")
         return reply
+    if (reply := answer_naturally(text)) is not None:  # "yes", "nah leave it", "send the second one"
+        bus.log("YOU", f"({via}) {text}", "command")
+        return reply
+    if m := PROPOSAL_RE.match(text):  # "yes idea 4" / "no idea 4"
+        return answer_proposal(int(m.group(2)), m.group(1).lower() in ("yes", "y", "ok", "do it"))
     if m := REPLY_RE.match(text):  # "reply 3: my own words"  /  "reply 3 b"
         letter, words = m.group(2), m.group(3)
         return pick_reply(int(m.group(1)), "abcd".index(letter.lower()) if letter else None, (words or "").strip())

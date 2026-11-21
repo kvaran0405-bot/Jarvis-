@@ -54,6 +54,8 @@ def _queue(ctx: ToolContext, channel: str, to: str, body: str, *, subject: str =
         address, name = _resolve(ctx, channel, to)
     when = _parse_when(ctx, send_at)
     status = ch.initial_status(ctx.store, channel, address)
+    if ctx.approved and channel != "computer":
+        status = "approved"  # part of a plan the owner already said yes to
     msg_id = ctx.store.queue_message(channel, address, body, ctx.agent, subject=subject, recipient_name=name,
                                      reply_to=reply_to, reason=reason, status=status, send_at=when)
     ctx.bus.publish({"type": "data", "what": "outbox"})
@@ -362,6 +364,7 @@ def suggest_replies(ctx: ToolContext, sender: str, gist: str, options: list, sen
         buttons = [[(f"{'ABCD'[i]}) {o['label'][:28]}", f"rp:{sid}:{i}")] for i, o in enumerate(options)]
         buttons.append([("🙈 Ignore", f"ri:{sid}")])
         tg.send(suggestion_card(s), buttons)
+    _announce(ctx, "suggestion", s)
     return {"suggestion_id": sid, "status": "shown to the owner with tap-to-send replies"}
 
 
@@ -398,3 +401,53 @@ def ignore_reply(store, bus, sid: int) -> str:
     ok = store.set_suggestion(sid, "ignored")
     bus.publish({"type": "data", "what": "suggestions"})
     return "Ignored. I won't reply." if ok else f"No suggestion #{sid}"
+
+
+# ------------------------------------------------------------------ proposals: agents think, the owner says yes / no
+@tool("propose", "Propose something you think the owner should do or let you do, for a simple yes/no. Use your own "
+      "judgment: spot what would help (a deadline to get ahead of, a reply to send, a plan to make, a habit slipping, "
+      "an opportunity) and turn it into one concrete proposal. Never ask open questions - make the decision ready to "
+      "approve. 'plan' must say exactly what you will do if they say yes, including the full text of any message and "
+      "who it goes to; saying yes approves exactly that.",
+      {"title": {"type": "string", "description": "One line, e.g. 'Ask Dr. Okafor for a deadline extension'"},
+       "why": {"type": "string", "description": "One or two lines: why this is worth doing now"},
+       "plan": {"type": "string", "description": "Exactly what you will do on 'yes'"}},
+      ["title", "plan"])
+def propose(ctx: ToolContext, title: str, plan: str, why: str = "") -> dict:
+    open_titles = {p["title"].lower() for p in ctx.store.list_proposals("open", 50)}
+    if title.lower() in open_titles:
+        return {"note": "Already proposed and waiting for the owner."}
+    pid = ctx.store.add_proposal(ctx.agent, title, plan, why)
+    ctx.bus.publish({"type": "data", "what": "proposals"})
+    card = f"💡 {ctx.agent}: {title}" + (f"\n\nWhy: {why}" if why else "") + f"\n\nIf yes: {plan[:1500]}"
+    if tg.ready():
+        tg.send(card, [[("✅ Yes, do it", f"pa:{pid}"), ("❌ No", f"pn:{pid}")]])
+    _announce(ctx, "proposal", ctx.store.get_proposal(pid))
+    return {"proposal_id": pid, "status": "waiting for the owner's yes/no"}
+
+
+def _announce(ctx: ToolContext, kind: str, row: dict) -> None:
+    from .answers import spoken_question
+    ctx.bus.publish({"type": "ask", "agent": ctx.agent,
+                     "say": spoken_question(kind, row, ctx.agent, ctx.settings.owner_name)})
+
+
+def decide_proposal(engine, pid: int, yes: bool) -> str:
+    """Owner said yes or no. On yes the proposing agent carries out its plan now (messages in it are pre-approved)."""
+    p = engine.store.get_proposal(pid)
+    if not p or p["status"] != "open":
+        return f"Proposal #{pid} isn't waiting any more."
+    if not yes:
+        engine.store.set_proposal(pid, "declined")
+        engine.store.add_agent_note(p["agent"], f"Owner said no to: {p['title']}")
+        engine.bus.publish({"type": "data", "what": "proposals"})
+        return "Understood, I'll leave it."
+    engine.store.set_proposal(pid, "approved")
+    engine.bus.publish({"type": "data", "what": "proposals"})
+    result = engine.run(p["agent"], f"The owner said YES to your proposal #{pid}: {p['title']}.\n"
+                                    f"Carry out exactly this plan now, nothing more:\n{p['plan']}\n\n"
+                                    "Then report in one or two sentences what you did.", approved=True)
+    failed = any(x in result for x in ("hit an error", "I'm paused", "AI limit is reached", "offline"))
+    engine.store.set_proposal(pid, "failed" if failed else "done", result[:4000])
+    engine.bus.publish({"type": "data", "what": "proposals"})
+    return f"{p['agent']}: {result}"

@@ -42,6 +42,24 @@ To queue work for the night, just say it, e.g. *"Oracle, research the best lapto
 or *"Athena, make me a 2-week revision plan for my calculus exam on Dec 3"*. JARVIS creates the task, assigns it
 to the right agent, and the result is in your morning brief.
 
+## Your agents think; you say yes or no
+
+Agents use their own judgment on everything. They keep your tasks, notes and study blocks up to date themselves,
+and when something needs your say-so they **propose** it:
+
+> 💡 **SENTINEL**: Ask Dr. Okafor for a 2-day extension
+> Why: assignment 3 is due tomorrow and you have two exams.
+> **[✅ Yes, do it] [❌ No]**
+
+Answer however you like: tap the button, or just **say it**. The dashboard reads new proposals out loud and
+then listens for your answer, no wake word needed: *"Yeah, go ahead"*, *"Nah, leave it"*, *"Send the second
+one"*. The same works by Telegram voice note or text. Saying yes to a proposal also approves the messages
+written in it, so you're never asked twice. Morning briefs, evening reports and the deadline watch all end
+with a few proposals to make your day go better.
+
+Your agents are also your friends. Chat about your day, vent, ask random things. They remember what matters to
+you, ask how the exam went, and keep you company at 2 a.m.
+
 ## Email briefings, Stark-style
 
 When a new e-mail arrives, HERALD briefs you on Telegram, in any language:

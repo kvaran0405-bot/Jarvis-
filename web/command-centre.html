@@ -346,8 +346,15 @@ async function refresh(){
   document.querySelectorAll("[data-r]").forEach(el => el.onclick = () => openReport(el.dataset.r));
 
   const pend = state.outbox_pending;
-  const sugg = state.suggestions || [];
-  $("#obadge").hidden = !(pend.length + sugg.length); $("#obadge").textContent = pend.length + sugg.length;
+  const sugg = state.suggestions || [], props = state.proposals || [];
+  const waiting = pend.length + sugg.length + props.length;
+  $("#obadge").hidden = !waiting; $("#obadge").textContent = waiting;
+  const propHtml = props.length ? `<div class="h">💡 Ideas waiting for your yes</div>` + props.map(p => `<div class="item">
+      <div class="t">${esc(p.title)}</div>
+      <div class="s"><span class="tag" style="color:${AGENTS[p.agent]?.color}">${p.agent}</span>#${p.id}</div>
+      ${p.why ? `<div class="s" style="margin-top:4px">Why: ${esc(p.why)}</div>` : ""}
+      <details class="s" style="margin-top:4px"><summary>What happens if you say yes</summary>${esc(p.plan)}</details>
+      <div class="acts"><button class="btn" data-pyes="${p.id}">✅ Yes, do it</button><button class="btn no" data-pno="${p.id}">❌ No</button></div></div>`).join("") : "";
   const suggHtml = sugg.length ? `<div class="h">📨 Emails waiting for your answer</div>` + sugg.map(g => `<div class="item">
       <div class="t">${esc(g.sender_name || g.sender)}${g.subject ? " — " + esc(g.subject) : ""}</div>
       <div class="s"><span class="tag" style="color:${AGENTS[g.agent]?.color}">${g.agent}</span>${g.language && !/^(en|english)$/i.test(g.language) ? "🌐 translated from " + esc(g.language) : ""}</div>
@@ -358,7 +365,7 @@ async function refresh(){
       <textarea id="sg-${g.id}" placeholder="…or write your own reply" aria-label="Your own reply"></textarea>
       <div class="acts"><button class="btn" data-sgown="${g.id}">Send mine</button><button class="btn no" data-sgno="${g.id}">Ignore</button></div></div>`).join("") : "";
   const who = m => m.channel === "computer" ? "⌘ Run on laptop" : `${m.channel === "email" ? "✉ Email" : "💬 WhatsApp"} → ${esc(m.recipient_name || m.recipient)}`;
-  if(!$("#p-outbox").contains(document.activeElement)) $("#p-outbox").innerHTML = suggHtml + `<div class="h">Waiting for your OK</div>` + (pend.length ? pend.map(m => `<div class="item"><div class="t">${who(m)}</div>
+  if(!$("#p-outbox").contains(document.activeElement)) $("#p-outbox").innerHTML = propHtml + suggHtml + `<div class="h">Waiting for your OK</div>` + (pend.length ? pend.map(m => `<div class="item"><div class="t">${who(m)}</div>
       <div class="s"><span class="tag" style="color:${AGENTS[m.agent]?.color}">${m.agent}</span>#${m.id}${m.send_at ? " · scheduled "+fmt(m.send_at) : ""}</div>
       ${m.subject ? `<div class="s">Subject: ${esc(m.subject)}</div>` : ""}
       <textarea id="ob-${m.id}" aria-label="Message text">${esc(m.body)}</textarea>
@@ -370,6 +377,9 @@ async function refresh(){
     b.textContent = "…"; const id = b.dataset.ok;
     const r = await (await fetch(`/api/outbox/${id}/approve`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({body: $("#ob-"+id).value})})).json();
     logLine("JARVIS", r.result, "job"); refresh(); });
+  const answer = async (id, a, b) => { b.textContent = "…"; const r = await (await fetch(`/api/proposals/${id}/${a}`, {method:"POST"})).json(); logLine("JARVIS", r.result, "job"); refresh(); };
+  document.querySelectorAll("[data-pyes]").forEach(b => b.onclick = () => answer(b.dataset.pyes, "yes", b));
+  document.querySelectorAll("[data-pno]").forEach(b => b.onclick = () => answer(b.dataset.pno, "no", b));
   const pickSugg = async (id, payload) => {
     const r = await (await fetch(`/api/suggestions/${id}/choose`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)})).json();
     logLine("HERALD", r.result, "job"); refresh(); };
@@ -472,7 +482,7 @@ if(SR){
     const CONTROL = /^(pause|sleep|resume|unpause|wake up|status|saver|saver mode|save my claude)\b/;
     if(w && (w.command.split(" ").length >= 2 || CONTROL.test(w.command))) return sendCommand(w.command, w.agent, true);
     if(w){ awaitingUntil = Date.now() + 8000; $("#target").value = w.agent; queueSpeech(w.agent, "Yes, Sir?"); return; }
-    if(Date.now() < awaitingUntil){ awaitingUntil = 0; sendCommand(text, $("#target").value, true); }
+    if(Date.now() < awaitingUntil){ awaitingUntil = 0; $("#cmd").placeholder = "Give an order… or say “Jarvis, …”"; sendCommand(text, $("#target").value, true); }
   };
   rec.onerror = e => { if(e.error === "not-allowed"){ setHandsFree(false); logLine("JARVIS", "Microphone blocked - allow it in the browser's address bar.", "error"); } };
   rec.onend = () => {
@@ -538,6 +548,13 @@ function connect(){
     else if(ev.type === "delta_end"){ if(streams[ev.rid]) feedStream(ev.rid, ev.agent, "", true); }
     else if(ev.type === "status"){ setCard(ev.agent, ev.state); if(ev.state==="working") focus(ev.agent); }
     else if(ev.type === "brain"){ showBrain(ev); }
+    else if(ev.type === "ask"){   // an agent needs a yes/no: say it, then listen for the answer (no wake word needed)
+      logLine(ev.agent, "💡 " + ev.say, "reply");
+      $("#target").value = "JARVIS";
+      queueSpeech(ev.agent, ev.say).then(() => { awaitingUntil = Date.now() + 15000;
+        if(handsFree) $("#cmd").placeholder = "👂 Listening for your answer… (“yes”, “no”, “send B”)"; });
+      refresh();
+    }
     else if(ev.type === "report"){ logLine(ev.agent, `📄 Report filed: ${ev.title}`, "job"); refresh(); }
     else if(ev.type === "data"){ clearTimeout(window._rt); window._rt = setTimeout(refresh, 400); }
   };

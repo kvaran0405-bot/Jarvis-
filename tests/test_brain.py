@@ -119,3 +119,85 @@ def test_agent_notebook_is_private(eng):
 def eng_agent(name):
     from jarvis.agents import AGENTS
     return AGENTS[name]
+
+
+def test_proposal_yes_runs_plan_with_messages_preapproved(eng, monkeypatch):
+    """An agent proposes; owner says yes; the agent's plan runs and its e-mail goes out without a second approval."""
+    from jarvis import channels as ch
+    from jarvis import telegram as tg
+    from jarvis.actions import decide_proposal
+    from jarvis.tools import ToolContext, execute
+    cards, mails = [], []
+    monkeypatch.setattr(tg, "ready", lambda: True)
+    monkeypatch.setattr(tg, "send", lambda text, buttons=None, to=None: cards.append((text, buttons)))
+    monkeypatch.setattr(ch, "email_ready", lambda: True)
+    monkeypatch.setattr(ch, "send_email", lambda to, subject, body, reply_to="": mails.append((to, body)))
+    eng.store.add_contact("Dr. Okafor", email="okafor@uni.edu")
+    ctx = ToolContext(eng.store, eng.bus, settings, eng, "SENTINEL")
+    out, _ = execute("propose", ctx, {"title": "Ask Dr. Okafor for a 2-day extension",
+                                      "why": "Assignment 3 is due tomorrow and you have 2 exams",
+                                      "plan": "Email Dr. Okafor: 'Could I have until Friday for assignment 3?'"})
+    assert '"proposal_id": 1' in out and cards[-1][1][0][0][1] == "pa:1"
+    out2, _ = execute("propose", ctx, {"title": "Ask Dr. Okafor for a 2-day extension", "plan": "same"})
+    assert "Already proposed" in out2
+
+    def fake_run(agent, prompt, approved=False, **kw):   # the agent carries out its plan
+        assert approved and "Carry out exactly this plan" in prompt
+        c = ToolContext(eng.store, eng.bus, settings, eng, agent, 0, approved)
+        r, _ = execute("send_email", c, {"to": "Dr. Okafor", "subject": "Assignment 3",
+                                         "body": "Could I have until Friday for assignment 3?", "reason": "proposal 1"})
+        return "Sent the extension request to Dr. Okafor."
+    monkeypatch.setattr(eng, "run", fake_run)
+    result = decide_proposal(eng, 1, True)
+    assert "Sent the extension request" in result
+    assert mails == [("okafor@uni.edu", "Could I have until Friday for assignment 3?")]   # no second approval needed
+    assert eng.store.get_proposal(1)["status"] == "done"
+    assert "isn't waiting" in decide_proposal(eng, 1, True)
+
+
+def test_proposal_no_is_remembered(eng):
+    from jarvis.actions import decide_proposal
+    pid = eng.store.add_proposal("STEVE", "Move gym to 6am", "Move the gym block to 06:00")
+    assert decide_proposal(eng, pid, False) == "Understood, I'll leave it."
+    assert "said no to: Move gym to 6am" in eng.store.agent_notes("STEVE")[0]["note"]
+
+
+def test_without_approval_email_still_waits(eng, monkeypatch):
+    from jarvis.tools import ToolContext, execute
+    monkeypatch.setattr(settings, "autonomy", "approve")
+    eng.store.add_contact("Tolu", email="tolu@x.com")
+    out, _ = execute("send_email", ToolContext(eng.store, eng.bus, settings, eng, "HERALD"),
+                     {"to": "Tolu", "subject": "hi", "body": "hi", "reason": "x"})
+    assert "approval" in out
+
+
+def test_natural_answers(eng, monkeypatch):
+    from jarvis import answers
+    import jarvis.server as server
+    monkeypatch.setattr(server, "store", eng.store)
+    monkeypatch.setattr(server, "bus", eng.bus)
+    for yes in ("yes", "Yeah do it", "sure, thanks", "go ahead jarvis", "OK."):
+        assert answers.parse(yes) == ("yes", None), yes
+    for no in ("nah", "No thanks", "leave it", "not now"):
+        assert answers.parse(no) == ("no", None), no
+    assert answers.parse("send the second one") == ("option", 1)
+    assert answers.parse("B") == ("option", 1)
+    for order in ("yes and also add a task for tomorrow", "no idea what to cook tonight", "book a table"):
+        assert answers.parse(order) is None, order
+
+    assert server.answer_naturally("yes") is None   # nothing on file: the agent's own conversation handles it
+    # latest open item is an e-mail with reply options: "yes" asks which one, "send B" sends it
+    picked = []
+    monkeypatch.setattr(server, "pick_reply", lambda sid, opt, custom="": picked.append((sid, opt)) or "sent")
+    sid = eng.store.add_suggestion(sender="a@b.c", gist="Tolu asks if you're coming", agent="HERALD",
+                                   options=[{"label": "Yes", "body": "Coming!"}, {"label": "No", "body": "Can't, sorry"}])
+    assert "Which one" in server.answer_naturally("yeah")
+    assert server.answer_naturally("send the second one") == "sent" and picked == [(sid, 1)]
+    # a newer proposal becomes the thing "yes" answers
+    decided = []
+    monkeypatch.setattr(server, "answer_proposal", lambda pid, yes: decided.append((pid, yes)) or "ok")
+    import time
+    time.sleep(1.1)  # created timestamps have 1-second resolution
+    pid = eng.store.add_proposal("STEVE", "Book gym slot", "Add gym 6pm")
+    server.answer_naturally("yes please")
+    assert decided == [(pid, True)]

@@ -146,6 +146,16 @@ CREATE TABLE IF NOT EXISTS reply_suggestions (
     agent TEXT NOT NULL,
     created TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS proposals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent TEXT NOT NULL,
+    title TEXT NOT NULL,                         -- what the agent wants to do, in one line
+    why TEXT DEFAULT '',
+    plan TEXT NOT NULL,                          -- exactly what it will do if the owner says yes
+    status TEXT NOT NULL DEFAULT 'open',         -- open | approved | done | declined | failed
+    result TEXT DEFAULT '',
+    created TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS routines (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -307,6 +317,21 @@ class Store:
     def set_suggestion(self, sid: int, status: str, chosen: str = "") -> bool:
         return self.execute("UPDATE reply_suggestions SET status = ?, chosen = ? WHERE id = ?",
                             (status, chosen, sid)) > 0
+
+    # ---------- proposals (the owner answers yes / no) ----------
+    def add_proposal(self, agent: str, title: str, plan: str, why: str = "") -> int:
+        return self.execute("INSERT INTO proposals (agent, title, why, plan, created) VALUES (?,?,?,?,?)",
+                            (agent.upper(), title, why, plan, now_iso()))
+
+    def get_proposal(self, pid: int) -> dict | None:
+        rows = self.query("SELECT * FROM proposals WHERE id = ?", (pid,))
+        return rows[0] if rows else None
+
+    def list_proposals(self, status: str = "open", limit: int = 20) -> list[dict]:
+        return self.query("SELECT * FROM proposals WHERE status = ? ORDER BY id DESC LIMIT ?", (status, limit))
+
+    def set_proposal(self, pid: int, status: str, result: str = "") -> bool:
+        return self.execute("UPDATE proposals SET status = ?, result = ? WHERE id = ?", (status, result, pid)) > 0
 
     # ---------- goals ----------
     def add_goal(self, title: str, area: str = "personal", target_date: str | None = None, notes: str = "") -> int:
