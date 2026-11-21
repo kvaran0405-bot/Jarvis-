@@ -32,6 +32,8 @@ def test_pause_resume_saver_phrases(eng, monkeypatch):
     for not_control in ("pause my spotify playlist", "what's my status on the essay", "remind me to resume work"):
         assert brain.handle_control(s, not_control) is None
     assert brain.handle_control(s, "/pause 30m") and brain.get_mode(s)["until"]
+    assert "Paused until" in brain.handle_control(s, "/pause 3")          # bare number = hours
+    assert "Paused until" in brain.handle_control(s, "pause for 2")
 
 
 def test_pause_expires(eng):

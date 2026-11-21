@@ -111,7 +111,7 @@ def describe(store) -> dict:
 
 
 # ---------------------------------------------------------------- spoken / typed control phrases
-_HOURS = r"(?:\s+(?:for\s+)?(\d+(?:\.\d+)?)\s*(h|hr|hrs|hours?|m|min|mins|minutes?))?"
+_HOURS = r"(?:\s+(?:for\s+)?(\d+(?:\.\d+)?)\s*(h|hr|hrs|hours?|m|min|mins|minutes?)?)?"  # bare number = hours
 PAUSE_RE = re.compile(r"^\s*/?(?:(?:hey|ok)\s+)?(?:jarvis[,\s]+)?(?:pause|sleep|stand\s*down|go to sleep)"
                       r"(?:\s+jarvis)?" + _HOURS + r"\s*[.!]?\s*$", re.I)
 SAVER_RE = re.compile(r"^\s*/?(?:jarvis[,\s]+)?(?:saver|saver mode|save my claude|use gemini|gemini mode)"
@@ -125,7 +125,7 @@ def _hours(m: re.Match) -> float | None:
     if not m.group(1):
         return None
     n = float(m.group(1))
-    return n / 60 if m.group(2).lower().startswith("m") else n
+    return n / 60 if (m.group(2) or "h").lower().startswith("m") else n
 
 
 def _until_text(state: dict) -> str:
