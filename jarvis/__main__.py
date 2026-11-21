@@ -31,8 +31,20 @@ def main(argv: list[str] | None = None) -> int:
         from .config import settings
         url = f"http://{settings.host}:{settings.port}/command-centre.html?autostart=true"
         print(f"JARVIS OS online -> {url}")
-        if getattr(args, "open", False):
-            webbrowser.open(url)
+        if getattr(args, "open", False):  # open the browser once the server is actually up
+            import threading
+            import time
+            import urllib.request
+
+            def open_when_ready():
+                for _ in range(60):
+                    try:
+                        urllib.request.urlopen(f"http://{settings.host}:{settings.port}/api/agents", timeout=1)
+                        webbrowser.open(url)
+                        return
+                    except Exception:  # noqa: BLE001 - not up yet
+                        time.sleep(0.5)
+            threading.Thread(target=open_when_ready, daemon=True).start()
         uvicorn.run("jarvis.server:app", host=settings.host, port=settings.port, log_level="warning")
         return 0
 
