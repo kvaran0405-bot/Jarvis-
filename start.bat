@@ -15,4 +15,12 @@ findstr /i /c:"JARVIS_WHATSAPP=on" .env >nul && (
     start "JARVIS WhatsApp" cmd /k node bridge\whatsapp-bridge.js
   ) || echo WhatsApp is on but Node.js is missing - install it from https://nodejs.org
 )
+findstr /i /c:"JARVIS_BRAIN=pro" .env >nul && (
+  where claude >nul 2>nul || (
+    echo.
+    echo  Claude Code is not installed yet. Open PowerShell and run:  irm https://claude.ai/install.ps1 ^| iex
+    echo  then run  claude  once and log in with your Claude account.
+    echo.
+  )
+)
 python -m jarvis serve --open

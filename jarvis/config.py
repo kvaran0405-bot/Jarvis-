@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -69,8 +70,19 @@ class Settings:
     # WhatsApp (personal number, via the bridge in bridge/)
     whatsapp_enabled: bool = field(default_factory=lambda: _env("JARVIS_WHATSAPP", "off").lower() == "on")
     whatsapp_bridge_url: str = field(default_factory=lambda: _env("JARVIS_WHATSAPP_BRIDGE", "http://127.0.0.1:7335"))
-    bridge_token: str = field(default_factory=lambda: _env("JARVIS_BRIDGE_TOKEN"))
+    # Secret that protects JARVIS's local endpoints (WhatsApp bridge, Claude Code tools). Random if not set.
+    bridge_token: str = field(default_factory=lambda: _env("JARVIS_BRIDGE_TOKEN") or secrets.token_hex(16))
     owner_whatsapp: str = field(default_factory=lambda: _env("JARVIS_OWNER_WHATSAPP"))  # your own number
+
+    # Brain: pro (your Claude plan via Claude Code) | api (Anthropic API key) | gemini (free) | auto
+    brain: str = field(default_factory=lambda: _env("JARVIS_BRAIN", "auto").lower())
+    # Brain for scheduled jobs (briefs, sweeps, night shift). auto = Gemini if set up, to save your Claude plan
+    automation_brain: str = field(default_factory=lambda: _env("JARVIS_AUTOMATION_BRAIN", "auto").lower())
+    # Claude model when thinking through your plan: sonnet (balanced) | haiku (fastest, lightest on limits) | opus
+    pro_model: str = field(default_factory=lambda: _env("JARVIS_PRO_MODEL", "sonnet"))
+    # Google Gemini (free tier) - key from https://aistudio.google.com/apikey
+    gemini_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
+    gemini_model: str = field(default_factory=lambda: _env("JARVIS_GEMINI_MODEL", "gemini-flash-latest"))
 
     # Fast mode: Claude Opus 5.5 writes ~2.5x faster at double the price (on/off)
     fast_mode: bool = field(default_factory=lambda: _env("JARVIS_FAST_MODE", "off").lower() == "on")
@@ -95,8 +107,9 @@ class Settings:
 
     @property
     def has_llm(self) -> bool:
-        return bool(_env("ANTHROPIC_API_KEY") or _env("ANTHROPIC_AUTH_TOKEN") or _env("ANTHROPIC_PROFILE")
-                    or (Path.home() / ".config" / "anthropic").exists())
+        """True if any brain (Claude plan, Claude API or Gemini) is set up."""
+        from . import brain
+        return any(brain.ready(b) for b in ("pro", "api", "gemini"))
 
     def profile(self) -> str:
         if self.profile_path.exists():

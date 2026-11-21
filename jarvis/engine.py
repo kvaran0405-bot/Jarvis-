@@ -1,4 +1,4 @@
-"""The agent engine: runs an agent's tool-use loop on Claude."""
+"""The agent engine: runs an agent's tool-use loop on the chosen brain (Claude plan, Claude API or Gemini)."""
 from __future__ import annotations
 
 import json
@@ -6,6 +6,7 @@ import threading
 from datetime import datetime
 from typing import Callable
 
+from . import brain, brains
 from .agents import AGENTS, Agent, roster
 from .bus import Bus
 from .config import Settings
@@ -66,28 +67,33 @@ class Engine:
                 f"Known facts about the owner:\n{mem}\n[/Context]\n\n")
 
     def tools_for(self, agent: Agent) -> list[dict]:
-        from . import channels
-        hidden = set() if channels.whatsapp_ready() else {"send_whatsapp", "check_whatsapp", "read_whatsapp"}
-        tools = [REGISTRY[name].schema() for name in agent.tools if name in REGISTRY and name not in hidden]
+        tools = [REGISTRY[name].schema() for name in self.tool_names_for(agent)]
         if agent.web:
             tools.append({"type": "web_search_20260209", "name": "web_search", "max_uses": 5})
             tools.append({"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 5})
         return tools
 
     # ------------------------------------------------------------ main loop
+    def tool_names_for(self, agent: Agent) -> list[str]:
+        from . import channels
+        hidden = set() if channels.whatsapp_ready() else {"send_whatsapp", "check_whatsapp", "read_whatsapp"}
+        return [n for n in agent.tools if n in REGISTRY and n not in hidden]
+
     def run(self, agent_name: str, prompt: str, *, chat: bool = False, depth: int = 0,
-            on_text: Callable[[str], None] | None = None, voice: bool = False) -> str:
+            on_text: Callable[[str], None] | None = None, voice: bool = False, background: bool = False) -> str:
         """Run `prompt` through an agent.
 
         chat=True keeps a running conversation (dashboard / phone chat).
         on_text receives the reply as it is written (streaming), so speech can start before the reply is finished.
         voice=True is the fast path for spoken commands: low effort and a short, speakable answer.
+        background=True marks scheduled work, which may use a different (cheaper) brain.
         """
         agent = AGENTS.get(agent_name.upper())
         if agent is None:
             return f"No agent named {agent_name}. Available: {', '.join(AGENTS)}."
-        if not self.settings.has_llm:
-            reply = self._offline_reply(agent, prompt)
+        chosen = brain.pick(self.store, background)
+        if chosen is None:
+            reply = self._unavailable_reply(agent)
             if on_text:
                 on_text(reply)
             return reply
@@ -95,25 +101,55 @@ class Engine:
         if voice:
             prompt += ("\n\n(Spoken command. Answer in one to three short spoken sentences: no Markdown, no lists, "
                        "no links. Act first with your tools, then say what you did. Speak your first sentence early.)")
+        effort = "low" if voice else agent.effort
         lock = self._locks[agent.name] if chat else threading.Lock()
         with lock:
-            if chat:
-                messages = self._chats.setdefault(agent.name, [])
-                if len(messages) > CHAT_MAX_MESSAGES:
-                    messages.clear()
-            else:
-                messages = []
-            messages.append({"role": "user", "content": self._context_block() + prompt})
             self.bus.status(agent.name, "working")
             try:
-                return self._loop(agent, messages, depth, on_text, "low" if voice else agent.effort)
+                try:
+                    return self._think(chosen, agent, prompt, chat, depth, on_text, effort)
+                except brains.LimitReached as exc:
+                    if chosen == "pro":
+                        brain.mark_pro_limited(self.store, hours=1)
+                    fallback = brain.pick(self.store, background)
+                    if fallback is None or fallback == chosen:
+                        raise
+                    self.bus.log(agent.name, f"{chosen} limit reached - switching to {fallback} ({exc})", "system")
+                    return self._think(fallback, agent, prompt, chat, depth, on_text, effort)
             except Exception as exc:  # noqa: BLE001
                 self.bus.log(agent.name, f"Error: {exc}", "error")
-                if chat:
-                    messages.clear()  # a broken conversation can't be resumed safely
+                self.reset_chat(agent.name)  # a broken conversation can't be resumed safely
+                if isinstance(exc, brains.LimitReached):
+                    return (f"Your AI limit is reached for now, {self.settings.owner_name}. I'll be back when it "
+                            "resets - or add a free Gemini key as backup.")
                 return f"{agent.name} hit an error: {exc}"
             finally:
                 self.bus.status(agent.name, "online")
+
+    def _think(self, which: str, agent: Agent, prompt: str, chat: bool, depth: int, on_text, effort: str) -> str:
+        full_prompt = self._context_block() + prompt
+        log = lambda m: self.bus.log(agent.name, m, "tool")  # noqa: E731
+        key = (which, agent.name)
+        if which == "api":
+            messages = self._chats.setdefault(key, []) if chat else []
+            if len(messages) > CHAT_MAX_MESSAGES:
+                messages.clear()
+            messages.append({"role": "user", "content": full_prompt})
+            return self._loop(agent, messages, depth, on_text, effort)
+        if which == "pro":
+            session = self._chats.get(key) if chat else None
+            reply, session = brains.run_pro(agent, full_prompt, self.system_prompt(agent), self.tool_names_for(agent),
+                                            depth=depth, effort=effort, session_id=session, on_text=on_text, log=log)
+            if chat:
+                self._chats[key] = session
+            return reply
+        contents = self._chats.setdefault(key, []) if chat else []
+        if len(contents) > CHAT_MAX_MESSAGES:
+            contents.clear()
+        contents.append({"role": "user", "parts": [{"text": full_prompt}]})
+        ctx = ToolContext(self.store, self.bus, self.settings, self, agent.name, depth)
+        return brains.run_gemini(agent, contents, self.system_prompt(agent), self.tool_names_for(agent), ctx,
+                                 on_text=on_text, log=log)
 
     def _call(self, params: dict, on_text: Callable[[str], None] | None):
         if on_text is None:
@@ -167,16 +203,22 @@ class Engine:
 
     def reset_chat(self, agent_name: str | None = None) -> None:
         if agent_name:
-            self._chats.pop(agent_name.upper(), None)
+            for key in [k for k in self._chats if k[1] == agent_name.upper()]:
+                self._chats.pop(key, None)
         else:
             self._chats.clear()
 
-    # ------------------------------------------------------------ offline mode
-    def _offline_reply(self, agent: Agent, prompt: str) -> str:
+    # ------------------------------------------------------------ paused / no brain
+    def _unavailable_reply(self, agent: Agent) -> str:
+        state = brain.get_mode(self.store)
+        if state["mode"] == "paused":
+            until = f" until {state['until'][11:16]}" if state.get("until") else ""
+            return f"I'm paused{until}, {self.settings.owner_name}. Say 'resume' when you need me."
+        if state["mode"] == "saver":
+            return "Saver mode is on but no Gemini key is set up, so I'm resting. Say 'resume' to use Claude."
         open_tasks = self.store.list_tasks("open", limit=500)
-        return (f"{agent.name} standing by, {self.settings.owner_name}. My reasoning core is offline - set "
-                f"ANTHROPIC_API_KEY in .env and restart to bring the agents fully online. "
-                f"Local systems are fine: {len(open_tasks)} open tasks tracked.")
+        return (f"{agent.name} standing by, {self.settings.owner_name}. My reasoning core is offline - set up a "
+                f"brain (see README) and restart. Local systems are fine: {len(open_tasks)} open tasks tracked.")
 
 
 def _describe_call(name: str, args: dict) -> str:

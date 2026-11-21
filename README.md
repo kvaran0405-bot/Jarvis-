@@ -42,6 +42,30 @@ To queue work for the night, just say it, e.g. *"Oracle, research the best lapto
 or *"Athena, make me a 2-week revision plan for my calculus exam on Dec 3"*. JARVIS creates the task, assigns it
 to the right agent, and the result is in your morning brief.
 
+## Brains, and the pause switch
+
+JARVIS can think with three different brains:
+
+| Brain | Cost | Notes |
+|---|---|---|
+| `pro`: your Claude Pro/Max plan, via Claude Code | no extra cost | Shares your plan's usage limits with your own Claude chats |
+| `gemini`: Google Gemini free tier | free | Backup and saver mode. On the free tier Google may use what you send to improve its products |
+| `api`: Anthropic API key | pay as you go | No plan limits |
+
+To use your plan, install Claude Code once. In PowerShell: `irm https://claude.ai/install.ps1 | iex`. Then run
+`claude` once and log in with your Claude account. Set `JARVIS_BRAIN=pro` in `.env`.
+
+If you add a free `GEMINI_API_KEY`, routines run on Gemini, and JARVIS switches to Gemini automatically when your
+Claude plan hits its limit.
+
+**Pause any time so JARVIS doesn't use up your Claude plan.** Use any of these:
+- the **⏸ Pause** button in the dashboard (1 h / 3 h / 8 h / until you resume)
+- Telegram: `/pause`, `pause for 3 hours`, `/resume`, `/status`, `/saver`
+- voice: *"Jarvis, pause"* … *"Jarvis, resume"*
+
+While paused, JARVIS makes **no AI calls at all**. Routines wait, and messages you already approved still go out.
+**Saver mode** (`/saver` or 🔋) keeps JARVIS working on free Gemini only and never touches your Claude plan.
+
 ## Quick start
 
 1. Get an API key at <https://console.anthropic.com>.
@@ -159,6 +183,8 @@ jarvis/
   store.py      SQLite storage
   notify.py     report delivery (Telegram, e-mail)
   telegram.py   Telegram bot: remote control, approvals with buttons
+  brain.py      brain choice (Claude plan / API / Gemini) and the pause switch
+  brains.py     Claude Code and Gemini brains
   voice.py      per-agent ElevenLabs voices
   stt.py        speech-to-text for voice notes (faster-whisper, runs locally)
 bridge/                   optional WhatsApp bridge (off by default)

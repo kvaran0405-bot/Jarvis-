@@ -22,6 +22,10 @@ header .sp{flex:1}
 header .pill{font-size:10px;color:var(--muted);border:1px solid var(--line);padding:4px 8px;border-radius:3px;cursor:default;background:none;font-family:inherit}
 header button.pill{cursor:pointer}
 header .ok{color:#3dff8b}
+header .pill.hot{color:#000;background:var(--c);border-color:var(--c)}
+body.paused .orb .glow{filter:grayscale(1) brightness(.5);animation:none}
+body.paused .orb .ring{animation-play-state:paused;opacity:.3}
+body.paused #who::after{content:" · PAUSED";color:var(--muted);text-shadow:none}
 main{display:grid;grid-template-columns:1fr 380px;height:calc(100% - 50px)}
 #stage{display:flex;flex-direction:column;min-width:0;padding:18px 22px 12px}
 #grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
@@ -85,6 +89,7 @@ aside{border-left:1px solid var(--line);display:flex;flex-direction:column;min-h
 .item .acts{display:flex;gap:6px;margin-top:7px}
 .btn.no{color:var(--muted)}
 input[type=range]{accent-color:var(--c)}
+.badge[hidden]{display:none}
 .badge{display:inline-block;min-width:16px;padding:0 5px;border-radius:8px;background:#ff3b3b;color:#fff;font-size:9px;margin-left:4px;font-family:'JetBrains Mono',monospace}
 .conn{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--line)}
 .conn b{font-weight:400} .conn .y{color:#3dff8b} .conn .n{color:var(--dim)}
@@ -115,7 +120,9 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
 <header>
   <div class="brand hud"><b>JARVIS OS</b> · Agents Protocol</div>
   <div class="sp"></div>
-  <span class="pill hud hide-sm" id="model">—</span>
+  <span class="pill hud hide-sm" id="model" title="Which AI JARVIS is thinking with">—</span>
+  <button class="pill hud" id="saverBtn" title="Leave your Claude plan alone: run on free Gemini" hidden>🔋 Saver</button>
+  <button class="pill hud" id="pauseBtn" title="Stop all AI use until you resume">⏸ Pause</button>
   <button class="pill hud" id="voiceBtn">🔊 Voice</button>
   <button class="pill hud" id="voiceCfg" title="Choose each agent's voice">🎚 Voices</button>
   <span class="pill hud hide-sm" id="clock">--:--</span>
@@ -445,7 +452,8 @@ if(SR){
     if(!res.isFinal) return;
     $("#cmd").placeholder = "Give an order… or say “Jarvis, …”";
     const w = parseWake(text);
-    if(w && w.command.split(" ").length >= 2) return sendCommand(w.command, w.agent, true);
+    const CONTROL = /^(pause|sleep|resume|unpause|wake up|status|saver|saver mode|save my claude)\b/;
+    if(w && (w.command.split(" ").length >= 2 || CONTROL.test(w.command))) return sendCommand(w.command, w.agent, true);
     if(w){ awaitingUntil = Date.now() + 8000; $("#target").value = w.agent; queueSpeech(w.agent, "Yes, Sir?"); return; }
     if(Date.now() < awaitingUntil){ awaitingUntil = 0; sendCommand(text, $("#target").value, true); }
   };
@@ -469,6 +477,38 @@ $("#voiceBtn").onclick = () => { voiceOn = !voiceOn; try{localStorage.setItem("j
 $("#voiceCfg").onclick = openVoiceSettings;
 if("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
 
+// ---------------------------------------------------------------- brain & pause switch
+const BRAIN_LABEL = {pro: "CLAUDE PLAN", api: "CLAUDE API", gemini: "GEMINI FREE"};
+let brainState = null;
+function showBrain(b){
+  brainState = b;
+  const paused = b.mode === "paused", saver = b.mode === "saver";
+  document.body.classList.toggle("paused", paused);
+  const until = b.until ? ` → ${b.until.slice(11,16)}` : "";
+  $("#model").textContent = paused ? `PAUSED${until}` : (b.now ? BRAIN_LABEL[b.now] : "NO BRAIN") + (saver ? until : "") + (b.pro_limited && !saver ? " · LIMIT" : "");
+  $("#model").style.color = paused || !b.now ? "#ffb020" : "";
+  $("#pauseBtn").textContent = paused ? "▶ Resume" : "⏸ Pause";
+  $("#pauseBtn").classList.toggle("hot", paused);
+  $("#saverBtn").hidden = !b.ready?.gemini || paused;
+  $("#saverBtn").textContent = saver ? "🔋 Saver on" : "🔋 Saver";
+  $("#saverBtn").classList.toggle("hot", saver);
+}
+async function setBrain(mode, hours){
+  const r = await fetch("/api/brain", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({mode, hours})});
+  showBrain(await r.json());
+}
+$("#pauseBtn").onclick = () => brainState?.mode === "paused" ? setBrain("on") : openPauseMenu();
+$("#saverBtn").onclick = () => setBrain(brainState?.mode === "saver" ? "on" : "saver");
+function openPauseMenu(){
+  $("#modalBody").innerHTML = `<h2>Pause JARVIS</h2>
+    <p style="color:var(--muted);font-size:12px">While paused, JARVIS uses no AI at all, so your Claude plan is all yours. Routines wait; messages you already approved still go out. You can also say or text “pause” / “resume”.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+      ${[[1,"1 hour"],[3,"3 hours"],[8,"8 hours"],[null,"Until I resume"]].map(([h,l]) => `<button class="btn" data-ph="${h ?? ""}">${l}</button>`).join("")}
+    </div>`;
+  $("#modal").style.display = "flex";
+  document.querySelectorAll("[data-ph]").forEach(b => b.onclick = () => { setBrain("paused", b.dataset.ph ? +b.dataset.ph : null); $("#modal").style.display = "none"; });
+}
+
 // ---------------------------------------------------------------- live stream
 function connect(){
   const es = new EventSource("/api/stream");
@@ -480,6 +520,7 @@ function connect(){
     } else if(ev.type === "delta"){ if(streams[ev.rid]) feedStream(ev.rid, ev.agent, ev.text, false); }
     else if(ev.type === "delta_end"){ if(streams[ev.rid]) feedStream(ev.rid, ev.agent, "", true); }
     else if(ev.type === "status"){ setCard(ev.agent, ev.state); if(ev.state==="working") focus(ev.agent); }
+    else if(ev.type === "brain"){ showBrain(ev); }
     else if(ev.type === "report"){ logLine(ev.agent, `📄 Report filed: ${ev.title}`, "job"); refresh(); }
     else if(ev.type === "data"){ clearTimeout(window._rt); window._rt = setTimeout(refresh, 400); }
   };
@@ -491,7 +532,7 @@ setInterval(() => $("#clock").textContent = new Date().toLocaleTimeString([], {h
   const info = await (await fetch("/api/agents")).json();
   info.agents.forEach(a => AGENTS[a.name] = a); ORDER = info.agents.map(a => a.name);
   try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; } catch {}
-  $("#model").textContent = info.llm ? info.model : "LOCAL MODE"; $("#model").style.color = info.llm ? "" : "#ffb020";
+  try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
   $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";
   buildGrid(); focus("JARVIS"); await refresh(); connect();
   state.activity.slice(-25).forEach(a => logLine(a.agent, a.message, a.kind));

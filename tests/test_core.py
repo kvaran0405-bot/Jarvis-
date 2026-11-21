@@ -66,17 +66,20 @@ def test_schedule_timing():
     assert every_hours(3)(at, (at - timedelta(hours=4)).isoformat())
 
 
-def test_night_shift_offline_keeps_tasks_open(monkeypatch):
+def test_night_shift_skips_when_no_brain(monkeypatch):
     store, bus, settings, engine = make()
-    monkeypatch.setattr(type(settings), "has_llm", property(lambda self: False))
+    from jarvis import brain
+    monkeypatch.setattr(brain, "ready", lambda b: False)
     store.add_task("Research topic", assignee="ORACLE")
     result = Scheduler(engine).night_shift()
-    assert "FAILED" in result
+    assert "resting" in result
     assert store.list_tasks("open")[0]["status"] == "todo"
 
 
-def test_night_shift_with_fake_engine():
+def test_night_shift_with_fake_engine(monkeypatch):
     store, bus, settings, engine = make()
+    from jarvis import brain
+    monkeypatch.setattr(brain, "pick", lambda store, background=False: "api")
     engine.run = lambda agent, prompt, **kw: f"{agent} finished it"
     store.add_task("Draft cover letter", area="career", assignee="ZEUS")
     Scheduler(engine).night_shift()

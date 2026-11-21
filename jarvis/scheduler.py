@@ -117,7 +117,8 @@ class Scheduler:
         try:
             self.store.set(f"job:{name}:last", datetime.now(self.settings.tz).isoformat())
             self.bus.log(job.agent, f"{job.label} started", "job")
-            result = self.night_shift() if job.prompt is None else self.engine.run(job.agent, job.prompt)
+            result = self.night_shift() if job.prompt is None else self.engine.run(job.agent, job.prompt,
+                                                                                    background=True)
             self.bus.log(job.agent, f"{job.label} complete: {result[:200]}", "job")
             return result
         finally:
@@ -129,7 +130,10 @@ class Scheduler:
 
     def night_shift(self) -> str:
         """Work through every open task that has an agent assignee, then hand off to the morning brief."""
+        from . import brain
         queue = [t for t in self.store.list_tasks("open", limit=200) if t["assignee"]]
+        if queue and brain.pick(self.store, background=True) is None:
+            return f"No brain available (paused or not set up) - {len(queue)} task(s) left for later, resting."
         done = []
         for task in queue:
             agent = task["assignee"]
@@ -139,8 +143,9 @@ class Scheduler:
                       "Do the work fully now. Save the deliverable with `save_note` (title it after the task). "
                       "If the task needs the owner to act, create a clear follow-up task for them. "
                       "Reply with a 2-3 sentence summary of the result.")
-            result = self.engine.run(agent, prompt)
-            failed = "hit an error" in result or "reasoning core is offline" in result
+            result = self.engine.run(agent, prompt, background=True)
+            failed = any(x in result for x in ("hit an error", "reasoning core is offline", "I'm paused",
+                                                "AI limit is reached", "I'm resting"))
             self.store.update_task(task["id"], status="todo" if failed else "done", result=result[:4000])
             done.append(f"#{task['id']} {task['title']} ({agent}): {'FAILED' if failed else 'done'}")
         self.bus.publish({"type": "data", "what": "tasks"})
@@ -158,7 +163,8 @@ class Scheduler:
         try:
             self.store.update_routine(routine["id"], last_run=datetime.now(self.settings.tz).isoformat())
             self.bus.log(routine["agent"], f"Routine '{routine['name']}' started", "job")
-            result = self.engine.run(routine["agent"], f"Scheduled routine '{routine['name']}':\n{routine['prompt']}")
+            result = self.engine.run(routine["agent"], f"Scheduled routine '{routine['name']}':\n{routine['prompt']}",
+                                     background=True)
             self.bus.log(routine["agent"], f"Routine '{routine['name']}' done: {result[:200]}", "job")
             return result
         finally:
@@ -175,8 +181,11 @@ class Scheduler:
 
     # ------------------------------------------------------------ loop
     def tick(self) -> None:
+        from . import brain
         now = datetime.now(self.settings.tz)
-        self.dispatch_outbox()
+        self.dispatch_outbox()  # approved messages still go out - sending them needs no AI
+        if brain.pick(self.store, background=True) is None:
+            return  # paused (or no brain): no automatic thinking at all
         for job in self.jobs:
             if job.name not in self._running and job.due(now, self.store.get(f"job:{job.name}:last")):
                 self.run_job_async(job.name)

@@ -181,7 +181,9 @@ class Bot:
         if text.startswith("/start") or text == "/help":
             send("Text me orders like:\n• What's on my plate today?\n• Remind me at 5pm to call the bank\n"
                  "• Send me a screenshot of my laptop\n• ZEUS, find 5 internships tonight\n"
-                 "• pending - see what's waiting for your OK")
+                 "• pending - see what's waiting for your OK\n\n"
+                 "Save your Claude plan:\n• /pause  or  pause for 3 hours - I use no AI at all\n"
+                 "• /saver - run on free Gemini only\n• /resume - back to normal\n• /status - which brain I'm using")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
         send(self.on_text(text, voice=False))

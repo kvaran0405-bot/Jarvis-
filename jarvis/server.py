@@ -9,8 +9,8 @@ import threading
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
+from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -18,6 +18,7 @@ from .agents import AGENTS, roster
 from .bus import Bus
 from .config import ROOT, settings
 from .engine import Engine
+from . import brain
 from . import channels as ch
 from . import devices
 from . import telegram as tg
@@ -25,6 +26,7 @@ from . import voice
 from .notify import channels
 from .scheduler import Scheduler
 from .store import Store
+from .tools import ToolContext, execute
 
 store = Store(settings.db_path)
 bus = Bus(store)
@@ -88,6 +90,11 @@ class Incoming(BaseModel):
     text: str
 
 
+class BrainMode(BaseModel):
+    mode: str
+    hours: float | None = None
+
+
 class Speech(BaseModel):
     agent: str
     text: str
@@ -102,6 +109,84 @@ def index():
 def agents():
     return {"agents": roster(), "llm": settings.has_llm, "model": settings.model,
             "owner": settings.owner_name, "channels": channels(), "autonomy": settings.autonomy}
+
+
+# ---------------------------------------------------------------- brain & pause switch
+def control(text: str) -> str | None:
+    """Pause / saver / resume / status commands - handled instantly, without any AI."""
+    reply = brain.handle_control(store, text)
+    if reply:
+        bus.publish({"type": "brain", **brain.describe(store)})
+    return reply
+
+
+@app.get("/api/brain")
+def get_brain():
+    return brain.describe(store)
+
+
+@app.post("/api/brain")
+def set_brain(b: BrainMode):
+    try:
+        brain.set_mode(store, b.mode, b.hours)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    state = brain.describe(store)
+    bus.publish({"type": "brain", **state})
+    bus.log("JARVIS", {"on": "▶ Back online.", "saver": "🔋 Saver mode: leaving your Claude plan alone.",
+                       "paused": "⏸ Paused. No AI use until you resume."}[b.mode], "system")
+    return state
+
+
+# ---------------------------------------------------------------- MCP endpoint (tools for the Claude Code brain)
+@app.get("/mcp/{agent_name}")
+def mcp_get(agent_name: str):
+    return Response(status_code=405)  # no server-initiated stream needed
+
+
+@app.post("/mcp/{agent_name}")
+async def mcp(agent_name: str, request: Request, depth: int = 0, x_jarvis_token: str = Header(default="")):
+    if not settings.bridge_token or x_jarvis_token != settings.bridge_token:
+        raise HTTPException(403, "bad token")
+    agent = AGENTS.get(agent_name.upper())
+    if agent is None:
+        raise HTTPException(404, "unknown agent")
+    payload = await request.json()
+    batch = payload if isinstance(payload, list) else [payload]
+    answers = [a for a in [await _mcp_handle(agent, depth, m) for m in batch] if a is not None]
+    if not answers:
+        return Response(status_code=202)
+    return JSONResponse(answers if isinstance(payload, list) else answers[0])
+
+
+async def _mcp_handle(agent, depth: int, msg: dict) -> dict | None:
+    method, msg_id, params = msg.get("method"), msg.get("id"), msg.get("params") or {}
+    if msg_id is None:
+        return None  # notification (e.g. notifications/initialized)
+    if method == "initialize":
+        result = {"protocolVersion": params.get("protocolVersion", "2025-06-18"),
+                  "capabilities": {"tools": {"listChanged": False}},
+                  "serverInfo": {"name": "jarvis", "version": "1.0"}}
+    elif method == "ping":
+        result = {}
+    elif method == "tools/list":
+        from .tools import REGISTRY
+        result = {"tools": [{"name": n, "description": REGISTRY[n].description,
+                             "inputSchema": REGISTRY[n].schema()["input_schema"]}
+                            for n in engine.tool_names_for(agent)]}
+    elif method == "tools/call":
+        name, args = params.get("name", ""), params.get("arguments") or {}
+        if name not in engine.tool_names_for(agent):
+            output, is_error = f"Tool {name} is not available to {agent.name}", True
+        else:
+            from .engine import _describe_call
+            bus.log(agent.name, _describe_call(name, args), "tool")
+            ctx = ToolContext(store, bus, settings, engine, agent.name, depth)
+            output, is_error = await asyncio.to_thread(execute, name, ctx, args)
+        result = {"content": [{"type": "text", "text": output[:20000]}], "isError": is_error}
+    else:
+        return {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": f"Unknown method {method}"}}
+    return {"jsonrpc": "2.0", "id": msg_id, "result": result}
 
 
 @app.get("/api/voices")
@@ -205,6 +290,11 @@ async def command(cmd: Command):
     if agent not in AGENTS:
         raise HTTPException(404, f"Unknown agent {agent}")
     bus.log("YOU", ("🎙 " if cmd.voice else "") + cmd.text, "command")
+    if (reply := control(cmd.text)) is not None:
+        bus.publish({"type": "delta", "rid": cmd.rid, "agent": "JARVIS", "text": reply})
+        bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": "JARVIS"})
+        bus.log("JARVIS", reply, "reply")
+        return {"agent": "JARVIS", "reply": reply}
 
     def stream_out(text: str) -> None:
         bus.publish({"type": "delta", "rid": cmd.rid, "agent": agent, "text": text})
@@ -286,6 +376,9 @@ APPROVAL_RE = re.compile(r"^\s*(yes|y|approve|ok|send|no|n|reject|cancel)\s+#?(\
 
 def handle_owner_message(text: str, via: str = "WhatsApp", voice: bool = False) -> str:
     """An order the owner sent from their phone (Telegram bot chat or WhatsApp 'Message yourself' chat)."""
+    if (reply := control(text)) is not None:
+        bus.log("YOU", f"({via}) {text}", "command")
+        return reply
     m = APPROVAL_RE.match(text)
     if m:
         yes = m.group(1).lower() in ("yes", "y", "approve", "ok", "send")
