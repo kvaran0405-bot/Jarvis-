@@ -224,36 +224,18 @@ def test_bank_alerts_for_veronica(env, monkeypatch):
     assert "slides" not in out
 
 
-def test_call_owner_policy(env, monkeypatch):
-    from datetime import datetime
-    from jarvis import phonecall
+def test_urgent_alert(env, monkeypatch):
+    from jarvis import speech
     from jarvis import telegram as tg
     store, ctx, _ = env
-    alerts, calls = [], []
+    alerts, spoken = [], []
     monkeypatch.setattr(tg, "ready", lambda: True)
     monkeypatch.setattr(tg, "send", lambda text, buttons=None, to=None: alerts.append(text))
-    for k, v in {"twilio_sid": "AC1", "twilio_token": "t", "twilio_from": "+15550001", "owner_phone": "+6591234567",
-                 "quiet_hours": "23:00-07:00", "call_gap_minutes": 20, "app_url": "https://laptop.ts.net"}.items():
-        monkeypatch.setattr(settings, k, v)
-    monkeypatch.setattr(phonecall, "place_call", lambda msg: calls.append(msg) or "CA123456789")
-    noon = datetime(2026, 11, 23, 12, 0, tzinfo=settings.tz)
-    monkeypatch.setattr(phonecall, "datetime", type("D", (), {"now": staticmethod(lambda tz=None: noon),
-                                                               "fromisoformat": staticmethod(datetime.fromisoformat)}))
-    monkeypatch.setattr(ctx, "now", lambda: noon)
-    out, _ = execute("call_owner", ctx, {"message": "Your MA1521 exam starts in 1 hour.", "level": "urgent"})
-    assert "ringing" in out and calls == ["Your MA1521 exam starts in 1 hour."]
+    monkeypatch.setattr(settings, "app_url", "https://laptop.ts.net")
+    monkeypatch.setattr(speech, "announce", lambda bus, agent, text, **k: spoken.append((text, k)) or True)
+    out, _ = execute("urgent_alert", ctx, {"message": "Your MA1521 exam starts in 1 hour.", "level": "critical"})
     assert alerts[0].startswith("🚨 URGENT") and "laptop.ts.net/call.html" in alerts[0]
-    out, _ = execute("call_owner", ctx, {"message": "again", "level": "critical"})
-    assert "already called" in out and len(calls) == 1          # no spam: 20-minute gap
-    store.set("call:last", None)
-    night = datetime(2026, 11, 23, 2, 0, tzinfo=settings.tz)
-    monkeypatch.setattr(phonecall, "datetime", type("D", (), {"now": staticmethod(lambda tz=None: night),
-                                                               "fromisoformat": staticmethod(datetime.fromisoformat)}))
-    out, _ = execute("call_owner", ctx, {"message": "gym reminder", "level": "urgent"})
-    assert "quiet hours" in out and len(calls) == 1             # urgent waits at night
-    out, _ = execute("call_owner", ctx, {"message": "Mum says it's an emergency", "level": "critical"})
-    assert "ringing" in out and len(calls) == 2                 # critical still rings
-    assert "Polly.Brian" in phonecall.twiml("x") and "&lt;b&gt;" in phonecall.twiml("<b>")
+    assert spoken[0][0].startswith("Urgent, ") and spoken[0][1]["critical"] is True
 
 
 def test_agents_speak_up(env, monkeypatch):

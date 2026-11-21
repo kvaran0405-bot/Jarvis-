@@ -206,16 +206,14 @@ between your own devices, so nobody else can see it.
 
 On Telegram, `/app` sends you the link and `/call` opens a voice call.
 
-## Calls: JARVIS rings you, you ring JARVIS
+## Call JARVIS
 
-- **You → JARVIS:** open the app and tap **📞 Call**. Talk normally; JARVIS answers out loud and listens again.
-  Tap the orb to interrupt, say "bye" to hang up. You can switch which agent you're talking to.
-- **JARVIS → you:** when something is truly urgent (an exam in an hour you haven't prepared for, an urgent family
-  message), JARVIS sends a 🚨 Telegram alert **and rings your phone** in a British voice. That needs Twilio
-  (paid, about US$1–2 a month plus a few cents a call): sign up at <https://www.twilio.com>, buy a number, allow
-  calls to Singapore under *Voice → Settings → Geo permissions*, then fill in the `TWILIO_*` lines and
-  `JARVIS_OWNER_PHONE` in `.env`. At night (`JARVIS_QUIET_HOURS`) only critical things ring, and it calls at most
-  once every 20 minutes.
+Open the app and tap **📞 Call**. Talk normally; JARVIS answers out loud and listens again, like a phone call. Tap
+the orb to interrupt and say "bye" to hang up. You can switch which agent you're talking to.
+
+When something is truly urgent (an exam in an hour you haven't prepared for, an urgent family message), JARVIS
+sends a 🚨 Telegram alert with a voice note and says it out loud on the laptop. At night (`JARVIS_QUIET_HOURS`)
+it stays silent unless the alert is critical.
 
 ## Bank notifications (read-only)
 
@@ -271,11 +269,10 @@ jarvis/
   store.py      SQLite storage
   notify.py     report delivery (Telegram, e-mail)
   telegram.py   Telegram bot: remote control, approvals with buttons
-  phonecall.py  urgent phone calls (Twilio)
   guard.py      banking block, OTP filter, number masking
   brain.py      brain choice (Claude plan / API / Gemini) and the pause switch
   brains.py     Claude Code and Gemini brains
-  voice.py      per-agent ElevenLabs voices
+  voice.py      agent voices: free natural voices (edge-tts) or ElevenLabs
   stt.py        speech-to-text for voice notes (faster-whisper, runs locally)
 bridge/                   optional WhatsApp bridge (off by default)
 web/command-centre.html   the HUD dashboard (voice in/out, live activity, Outbox approvals)

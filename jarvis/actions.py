@@ -503,35 +503,22 @@ def bank_alerts(ctx: ToolContext, days: int = 7) -> dict:
             "hidden_security_emails": hidden}
 
 
-# ------------------------------------------------------------------ urgent: ring the owner's phone
-@tool("call_owner", "Get the owner's attention NOW for something truly urgent: rings their phone (if calls are set "
-      "up) and speaks 'message', plus an urgent Telegram alert. Use only when waiting would cause real harm: a "
-      "deadline or exam within hours, something important that went wrong, an urgent message from family. "
-      "level 'critical' may ring during quiet hours (night); 'urgent' waits for the morning and alerts by "
-      "Telegram instead. Never for routine updates.",
-      {"message": {"type": "string", "description": "What to say on the call: 1-3 short spoken sentences"},
+# ------------------------------------------------------------------ urgent alerts
+@tool("urgent_alert", "Get the owner's attention NOW for something truly urgent: a 🚨 Telegram message plus a spoken "
+      "voice note, and JARVIS says it out loud on the laptop. Use only when waiting would cause real harm: a deadline "
+      "or exam within hours, something important that went wrong, an urgent message from family. level 'critical' "
+      "also speaks during quiet hours (night). Never for routine updates.",
+      {"message": {"type": "string", "description": "What to say: 1-3 short spoken sentences"},
        "level": {"type": "string", "enum": ["urgent", "critical"]}},
       ["message", "level"])
-def call_owner(ctx: ToolContext, message: str, level: str = "urgent") -> dict:
-    from . import phonecall
-    result = {"telegram": "not linked", "call": "calls not set up"}
+def urgent_alert(ctx: ToolContext, message: str, level: str = "urgent") -> dict:
+    from .speech import announce
     app = f"\n\n📞 Talk to JARVIS: {ctx.settings.app_url}/call.html" if ctx.settings.app_url else ""
+    sent = False
     if tg.ready():
         tg.send(f"🚨 URGENT ({ctx.agent}): {message}{app}")
-        result["telegram"] = "sent"
-    if phonecall.ready():
-        allowed, why = phonecall.decide(ctx.store, level)
-        if allowed:
-            try:
-                sid = phonecall.place_call(message)
-                ctx.store.set("call:last", ctx.now().isoformat())
-                result["call"] = f"ringing your phone (call {sid[-6:]})"
-            except Exception as exc:  # noqa: BLE001
-                result["call"] = f"failed: {exc}"
-        else:
-            result["call"] = f"not placed: {why}"
-    ctx.bus.log(ctx.agent, f"🚨 {message} - call: {result['call']}", "job")
-    from .speech import announce
-    announce(ctx.bus, ctx.agent, f"Urgent, {ctx.settings.owner_name}. {message}", kind="ask",
-             critical=(level == "critical"), phone=not phonecall.ready())   # a real call already rings the phone
-    return result
+        sent = True
+    spoken = announce(ctx.bus, ctx.agent, f"Urgent, {ctx.settings.owner_name}. {message}", kind="ask",
+                      critical=(level == "critical"))
+    ctx.bus.log(ctx.agent, f"🚨 {message}", "job")
+    return {"telegram": "sent" if sent else "not linked", "spoken": spoken}

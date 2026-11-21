@@ -29,21 +29,27 @@ DEFAULT_VOICES = {
 }
 
 
-# Free natural voices (Microsoft Edge's online neural voices, via the edge-tts package). Override any agent with
-# JARVIS_EDGE_VOICE_<AGENT>=<voice name>, e.g. JARVIS_EDGE_VOICE_JARVIS=en-GB-ThomasNeural
+# Free natural voices (Microsoft Edge's online neural voices, via the edge-tts package), cast to feel like the films.
+# (voice, speed, pitch). Override any agent with JARVIS_EDGE_VOICE_<AGENT>=<voice name>, e.g. en-GB-ThomasNeural
 EDGE_VOICES = {
-    "JARVIS": "en-GB-RyanNeural",        # composed British butler
-    "FRIDAY": "en-IE-EmilyNeural",       # brisk, Irish
-    "ORACLE": "en-US-GuyNeural",
-    "ATHENA": "en-GB-SoniaNeural",
-    "ZEUS": "en-US-ChristopherNeural",
-    "HERALD": "en-GB-ThomasNeural",
-    "STEVE": "en-US-EricNeural",
-    "VERONICA": "en-US-AriaNeural",
-    "BANNER": "en-IE-ConnorNeural",
-    "EDITH": "en-US-MichelleNeural",
-    "SENTINEL": "en-US-RogerNeural",
+    "JARVIS": ("en-GB-RyanNeural", "-6%", "-2Hz"),            # smooth, unhurried British butler-AI
+    "FRIDAY": ("en-IE-EmilyNeural", "+4%", "+0Hz"),           # brisk Irish
+    "EDITH": ("en-US-MichelleNeural", "-2%", "-1Hz"),         # calm American
+    "VERONICA": ("en-US-AriaNeural", "+2%", "+0Hz"),          # confident, sharp
+    "ATHENA": ("en-GB-SoniaNeural", "-3%", "+0Hz"),           # wise British teacher
+    "SENTINEL": ("en-US-ChristopherNeural", "-12%", "-14Hz"),  # low, cold, measured
+    "ZEUS": ("en-US-GuyNeural", "-2%", "-6Hz"),               # commanding
+    "STEVE": ("en-US-AndrewNeural", "+0%", "+0Hz"),           # warm, earnest captain
+    "BANNER": ("en-US-BrianNeural", "-8%", "-3Hz"),           # soft-spoken scientist
+    "HERALD": ("en-GB-ThomasNeural", "+0%", "+0Hz"),          # smooth British diplomat
+    "ORACLE": ("en-US-SteffanNeural", "-4%", "-2Hz"),         # calm analyst
 }
+
+
+def _edge_voice(agent: str) -> tuple[str, str, str]:
+    name, rate, pitch = EDGE_VOICES.get(agent.upper(), EDGE_VOICES["JARVIS"])
+    custom = os.environ.get(f"JARVIS_EDGE_VOICE_{agent.upper()}", "").strip()
+    return (custom, "+0%", "+0Hz") if custom else (name, rate, pitch)
 
 
 def provider() -> str:
@@ -67,8 +73,7 @@ def enabled() -> bool:
 def voice_for(agent: str) -> str:
     agent = agent.upper()
     if provider() == "edge":
-        return (os.environ.get(f"JARVIS_EDGE_VOICE_{agent}", "").strip()
-                or EDGE_VOICES.get(agent, EDGE_VOICES["JARVIS"]))
+        return _edge_voice(agent)[0]
     return os.environ.get(f"JARVIS_VOICE_{agent}", "").strip() or DEFAULT_VOICES.get(agent, DEFAULT_VOICES["JARVIS"])
 
 
@@ -76,20 +81,28 @@ def voices() -> dict[str, str]:
     return {name: voice_for(name) for name in DEFAULT_VOICES}
 
 
-def _edge(text: str, voice: str, path: Path) -> None:
+def _edge(text: str, agent: str, path: Path) -> None:
     import asyncio
+    import ssl
 
     import edge_tts
+    import edge_tts.communicate
 
-    async def go(v: str):
-        await edge_tts.Communicate(text, v).save(str(path))
+    cafile = os.environ.get("SSL_CERT_FILE") or os.environ.get("REQUESTS_CA_BUNDLE")
+    if cafile and os.path.exists(cafile):   # networks with their own HTTPS proxy certificate
+        edge_tts.communicate._SSL_CTX = ssl.create_default_context(cafile=cafile)
+    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or None
+    name, rate, pitch = _edge_voice(agent)
+
+    async def go(v: str, r: str, p: str):
+        await edge_tts.Communicate(text, v, rate=r, pitch=p, proxy=proxy).save(str(path))
 
     try:
-        asyncio.run(go(voice))
-    except Exception:  # noqa: BLE001 - unknown voice name? fall back to JARVIS's voice once
-        if voice == EDGE_VOICES["JARVIS"]:
+        asyncio.run(go(name, rate, pitch))
+    except Exception:  # noqa: BLE001 - unknown custom voice name? fall back to JARVIS's voice once
+        if name == EDGE_VOICES["JARVIS"][0]:
             raise
-        asyncio.run(go(EDGE_VOICES["JARVIS"]))
+        asyncio.run(go(*EDGE_VOICES["JARVIS"]))
     if not path.exists() or path.stat().st_size < 200:
         path.unlink(missing_ok=True)
         raise RuntimeError("voice service returned no audio")
@@ -100,14 +113,15 @@ def synthesize(agent: str, text: str) -> Path:
     prov = provider()
     voice_id = voice_for(agent)
     text = text.strip()[:2500]
-    key = hashlib.sha256(f"{prov}|{voice_id}|{settings.elevenlabs_model}|{text}".encode()).hexdigest()[:32]
+    tune = _edge_voice(agent) if prov == "edge" else voice_id
+    key = hashlib.sha256(f"{prov}|{tune}|{settings.elevenlabs_model}|{text}".encode()).hexdigest()[:32]
     path = CACHE / f"{key}.mp3"
     if path.exists():
         return path
     CACHE.mkdir(parents=True, exist_ok=True)
     if prov == "edge":
         try:
-            _edge(text, voice_id, path)
+            _edge(text, agent, path)
         except Exception:
             path.unlink(missing_ok=True)
             raise

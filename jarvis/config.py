@@ -97,14 +97,8 @@ class Settings:
     # Speech-to-text for Telegram voice notes (runs on your laptop, free): tiny | base | small | medium
     whisper_model: str = field(default_factory=lambda: _env("JARVIS_WHISPER_MODEL", "base"))
 
-    # Phone calls for urgent alerts (optional, Twilio). Your number in international format, e.g. +6591234567
-    owner_phone: str = field(default_factory=lambda: _env("JARVIS_OWNER_PHONE"))
-    twilio_sid: str = field(default_factory=lambda: _env("TWILIO_ACCOUNT_SID"))
-    twilio_token: str = field(default_factory=lambda: _env("TWILIO_AUTH_TOKEN"))
-    twilio_from: str = field(default_factory=lambda: _env("TWILIO_FROM_NUMBER"))
-    call_voice: str = field(default_factory=lambda: _env("JARVIS_CALL_VOICE", "Polly.Brian"))
+    # Quiet hours: agents don't speak up at night unless it's critical
     quiet_hours: str = field(default_factory=lambda: _env("JARVIS_QUIET_HOURS", "23:00-07:00"))
-    call_gap_minutes: int = field(default_factory=lambda: int(_env("JARVIS_CALL_GAP_MINUTES", "20")))
     # Link to the phone app (e.g. https://your-laptop.tailnet-name.ts.net), used in Telegram alerts
     app_url: str = field(default_factory=lambda: _env("JARVIS_APP_URL"))
     # PIN that protects the dashboard when opened from your phone (not needed on the laptop itself)
