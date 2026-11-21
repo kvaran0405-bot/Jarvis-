@@ -19,7 +19,7 @@ def main(argv: list[str] | None = None) -> int:
 
     j = sub.add_parser("job", help="run a scheduled job now")
     j.add_argument("name", choices=["morning_brief", "evening_report", "weekly_review", "deadline_watch",
-                                    "night_shift"])
+                                    "night_shift", "inbox_sweep"])
 
     sub.add_parser("agents", help="list the agents")
 

@@ -98,7 +98,47 @@ CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    phone TEXT DEFAULT '',                       -- international format, digits only, e.g. 2348012345678
+    email TEXT DEFAULT '',
+    relationship TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    trusted INTEGER NOT NULL DEFAULT 0           -- 1 = agents may message without asking (in 'trusted' mode)
+);
+CREATE TABLE IF NOT EXISTS outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel TEXT NOT NULL,                       -- email | whatsapp
+    recipient TEXT NOT NULL,                     -- email address or phone number
+    recipient_name TEXT DEFAULT '',
+    subject TEXT DEFAULT '',
+    body TEXT NOT NULL,
+    reply_to TEXT DEFAULT '',                    -- email Message-ID being answered
+    agent TEXT NOT NULL,
+    reason TEXT DEFAULT '',                      -- why the agent wants to send it
+    status TEXT NOT NULL DEFAULT 'pending',      -- pending | approved | sent | rejected | failed
+    send_at TEXT,                                -- ISO datetime; NULL = as soon as allowed
+    error TEXT DEFAULT '',
+    result TEXT DEFAULT '',                      -- output of a computer action
+    created TEXT NOT NULL,
+    sent_at TEXT
+);
+CREATE TABLE IF NOT EXISTS routines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    schedule TEXT NOT NULL,                      -- 'daily 08:00' | 'weekly mon 08:00' | 'every 2h'
+    agent TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_run TEXT
+);
 """
+
+
+def normalize_phone(phone: str) -> str:
+    """Digits only, international format (no +). '+234 801-234 5678' -> '2348012345678'."""
+    return "".join(ch for ch in str(phone or "") if ch.isdigit())
 
 
 def now_iso() -> str:
@@ -284,6 +324,77 @@ class Store:
 
     def recent_activity(self, limit: int = 50) -> list[dict]:
         return list(reversed(self.query("SELECT * FROM activity ORDER BY id DESC LIMIT ?", (limit,))))
+
+    # ---------- contacts ----------
+    def add_contact(self, name: str, phone: str = "", email: str = "", relationship: str = "", notes: str = "",
+                    trusted: bool = False) -> int:
+        return self.execute("INSERT INTO contacts (name, phone, email, relationship, notes, trusted) "
+                            "VALUES (?,?,?,?,?,?)",
+                            (name, normalize_phone(phone), email.strip().lower(), relationship, notes, int(trusted)))
+
+    def update_contact(self, contact_id: int, **fields: Any) -> bool:
+        if "phone" in fields and fields["phone"] is not None:
+            fields["phone"] = normalize_phone(fields["phone"])
+        if "trusted" in fields and fields["trusted"] is not None:
+            fields["trusted"] = int(bool(fields["trusted"]))
+        return self._update("contacts", contact_id, fields,
+                            {"name", "phone", "email", "relationship", "notes", "trusted"})
+
+    def find_contacts(self, query: str = "") -> list[dict]:
+        like = f"%{query.strip()}%"
+        return self.query("SELECT * FROM contacts WHERE name LIKE ? OR phone LIKE ? OR email LIKE ? "
+                          "OR relationship LIKE ? ORDER BY name LIMIT 50", (like, like, like, like))
+
+    def contact_for(self, channel: str, recipient: str) -> dict | None:
+        if channel == "email":
+            rows = self.query("SELECT * FROM contacts WHERE email = ?", (recipient.strip().lower(),))
+        else:
+            rows = self.query("SELECT * FROM contacts WHERE phone = ?", (normalize_phone(recipient),))
+        return rows[0] if rows else None
+
+    # ---------- outbox ----------
+    def queue_message(self, channel: str, recipient: str, body: str, agent: str, *, subject: str = "",
+                      recipient_name: str = "", reply_to: str = "", reason: str = "", status: str = "pending",
+                      send_at: str | None = None) -> int:
+        if channel == "whatsapp":
+            recipient = normalize_phone(recipient)
+        return self.execute(
+            "INSERT INTO outbox (channel, recipient, recipient_name, subject, body, reply_to, agent, reason, status, "
+            "send_at, created) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (channel, recipient, recipient_name, subject, body, reply_to, agent, reason, status, send_at, now_iso()))
+
+    def get_message(self, msg_id: int) -> dict | None:
+        rows = self.query("SELECT * FROM outbox WHERE id = ?", (msg_id,))
+        return rows[0] if rows else None
+
+    def list_outbox(self, status: str | None = None, limit: int = 50) -> list[dict]:
+        if status:
+            return self.query("SELECT * FROM outbox WHERE status = ? ORDER BY id DESC LIMIT ?", (status, limit))
+        return self.query("SELECT * FROM outbox ORDER BY id DESC LIMIT ?", (limit,))
+
+    def set_message(self, msg_id: int, **fields: Any) -> bool:
+        return self._update("outbox", msg_id, fields,
+                            {"status", "body", "subject", "error", "result", "sent_at", "send_at", "recipient"})
+
+    def due_messages(self, now: str) -> list[dict]:
+        return self.query("SELECT * FROM outbox WHERE status = 'approved' AND (send_at IS NULL OR send_at <= ?) "
+                          "ORDER BY id", (now,))
+
+    # ---------- routines ----------
+    def add_routine(self, name: str, schedule: str, agent: str, prompt: str) -> int:
+        return self.execute("INSERT INTO routines (name, schedule, agent, prompt) VALUES (?,?,?,?)",
+                            (name, schedule.strip().lower(), agent.upper(), prompt))
+
+    def list_routines(self, enabled_only: bool = False) -> list[dict]:
+        sql = "SELECT * FROM routines" + (" WHERE enabled = 1" if enabled_only else "") + " ORDER BY id"
+        return self.query(sql)
+
+    def update_routine(self, routine_id: int, **fields: Any) -> bool:
+        return self._update("routines", routine_id, fields, {"name", "schedule", "agent", "prompt", "enabled",
+                                                             "last_run"})
+
+    def delete_routine(self, routine_id: int) -> bool:
+        return self.execute("DELETE FROM routines WHERE id = ?", (routine_id,)) > 0
 
     # ---------- kv ----------
     def get(self, key: str, default: Any = None) -> Any:

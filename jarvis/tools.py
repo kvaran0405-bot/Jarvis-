@@ -272,3 +272,7 @@ def execute(name: str, ctx: ToolContext, args: dict) -> tuple[str, bool]:
         return f"Bad arguments for {name}: {exc}", True
     except Exception as exc:  # noqa: BLE001 - surface to the model so it can recover
         return f"{name} failed: {exc}", True
+
+
+# Real-world tools (messaging, inboxes, routines, laptop and phone) register themselves on import.
+from . import actions as _actions  # noqa: E402,F401

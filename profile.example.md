@@ -20,6 +20,13 @@
 - Habits I want to keep (e.g. gym, reading, prayer, journaling):
 - Budget / savings goals:
 
+## People who matter
+<!-- JARVIS saves these as contacts. Number with country code, digits only. -->
+- Mum – 234... – call her on Sundays
+- Best friend:
+- Lecturers / supervisor (name + email):
+
 ## How I like to work
 - Report style (short bullets vs detail):
+- How I write messages (formal / casual, emojis or not, how I sign off):
 - Things agents must never do without asking:

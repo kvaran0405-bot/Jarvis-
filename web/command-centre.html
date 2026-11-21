@@ -24,7 +24,7 @@ header button.pill{cursor:pointer}
 header .ok{color:#3dff8b}
 main{display:grid;grid-template-columns:1fr 380px;height:calc(100% - 50px)}
 #stage{display:flex;flex-direction:column;min-width:0;padding:18px 22px 12px}
-#grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+#grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
 .card{border:1px solid var(--line);border-bottom:2px solid var(--ac);padding:10px 8px;text-align:center;background:color-mix(in srgb,var(--panel) 80%,transparent);
   opacity:.45;transition:all .4s;cursor:pointer;border-radius:2px}
 .card.on{opacity:1}
@@ -81,6 +81,13 @@ aside{border-left:1px solid var(--line);display:flex;flex-direction:column;min-h
 .h:first-child{margin-top:0}
 .btn{background:none;border:1px solid var(--line);color:var(--c);padding:5px 9px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:2px}
 .empty{color:var(--dim);font-size:12px}
+.item textarea{width:100%;min-height:84px;margin-top:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);font-family:inherit;font-size:12px;padding:7px;border-radius:2px;resize:vertical}
+.item .acts{display:flex;gap:6px;margin-top:7px}
+.btn.no{color:var(--muted)}
+input[type=range]{accent-color:var(--c)}
+.badge{display:inline-block;min-width:16px;padding:0 5px;border-radius:8px;background:#ff3b3b;color:#fff;font-size:9px;margin-left:4px;font-family:'JetBrains Mono',monospace}
+.conn{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--line)}
+.conn b{font-weight:400} .conn .y{color:#3dff8b} .conn .n{color:var(--dim)}
 #overlay[hidden]{display:none}
 #overlay{position:fixed;inset:0;background:rgba(3,5,8,.92);display:flex;align-items:center;justify-content:center;z-index:10}
 #overlay button{font-family:Orbitron;letter-spacing:.3em;background:none;color:var(--c);border:1px solid var(--c);padding:18px 34px;font-size:14px;cursor:pointer;box-shadow:0 0 30px color-mix(in srgb,var(--c) 30%,transparent)}
@@ -91,7 +98,7 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
 @media (max-width:900px){
   main{grid-template-columns:1fr;height:auto}
   #stage{padding:12px 16px}
-  #grid{grid-template-columns:repeat(3,1fr)}
+  #grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
   aside{border-left:0;border-top:1px solid var(--line);min-height:60vh}
   footer{display:none}
   header .hide-sm{display:none}
@@ -107,6 +114,7 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
   <div class="sp"></div>
   <span class="pill hud hide-sm" id="model">—</span>
   <button class="pill hud" id="voiceBtn">🔊 Voice</button>
+  <button class="pill hud" id="voiceCfg" title="Choose each agent's voice">🎚 Voices</button>
   <span class="pill hud hide-sm" id="clock">--:--</span>
   <span class="pill hud ok" id="online">0/0 ONLINE</span>
 </header>
@@ -134,11 +142,13 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
       <button data-p="tasks" class="on">Tasks</button>
       <button data-p="agenda">Agenda</button>
       <button data-p="reports">Reports</button>
+      <button data-p="outbox">Outbox<span class="badge" id="obadge" hidden>0</span></button>
       <button data-p="auto">Autopilot</button>
     </div>
     <div class="pane on" id="p-tasks"></div>
     <div class="pane" id="p-agenda"></div>
     <div class="pane" id="p-reports"></div>
+    <div class="pane" id="p-outbox"></div>
     <div class="pane" id="p-auto"></div>
   </aside>
 </main>
@@ -153,7 +163,7 @@ try { voiceOn = localStorage.getItem("jarvis-voice") !== "off"; } catch {}
 const VOICE = { // per-agent voice character
   JARVIS:{pitch:.85,rate:1.02}, FRIDAY:{pitch:1.25,rate:1.05}, ORACLE:{pitch:.95,rate:.98}, ATHENA:{pitch:1.2,rate:1},
   ZEUS:{pitch:.6,rate:.95}, HERALD:{pitch:1.05,rate:1.08}, STEVE:{pitch:.8,rate:1.05}, VERONICA:{pitch:1.3,rate:1.05},
-  BANNER:{pitch:.75,rate:.95}, SENTINEL:{pitch:.5,rate:.92}
+  BANNER:{pitch:.75,rate:.95}, SENTINEL:{pitch:.5,rate:.92}, EDITH:{pitch:1.1,rate:1}
 };
 
 // ---------------------------------------------------------------- agents & focus
@@ -193,18 +203,69 @@ function logLine(agent, msg, kind="log", type=false){
 }
 const scroll = () => { const l = $("#log"); l.scrollTop = l.scrollHeight; };
 function plain(md){ return md.replace(/```[\s\S]*?```/g,"").replace(/[#*_`>|]/g,"").replace(/\[(.*?)\]\(.*?\)/g,"$1").slice(0,600); }
+// Voices: premium (ElevenLabs via /api/tts) when configured, else the computer's voices, customisable per agent.
+let VOICE_PROVIDER = "browser", currentAudio = null;
+function loadCustomVoices(){ try { return JSON.parse(localStorage.getItem("jarvis-voices") || "{}"); } catch { return {}; } }
+function saveCustomVoices(v){ try { localStorage.setItem("jarvis-voices", JSON.stringify(v)); } catch {} }
+let CUSTOM = loadCustomVoices();
+function voiceSettings(agent){
+  const base = VOICE[agent] || {pitch:1, rate:1};
+  return {pitch: base.pitch, rate: base.rate, name: "", ...(CUSTOM[agent] || {})};
+}
+function browserVoices(){ return "speechSynthesis" in window ? speechSynthesis.getVoices() : []; }
+function speakBrowser(agent, text, done){
+  const u = new SpeechSynthesisUtterance(plain(text));
+  const v = voiceSettings(agent); u.pitch = v.pitch; u.rate = v.rate;
+  const all = browserVoices(), en = all.filter(x => x.lang.startsWith("en"));
+  const chosen = v.name && all.find(x => x.name === v.name);
+  if(chosen) u.voice = chosen;
+  else if(en.length){ const pref = en.find(x => /Daniel|UK English Male|Google UK/i.test(x.name)); u.voice = agent==="JARVIS" && pref ? pref : en[(ORDER.indexOf(agent)+en.length) % en.length]; }
+  u.onend = u.onerror = done;
+  speechSynthesis.speak(u);
+  setTimeout(done, 4000 + text.length*90); // safety
+}
 function speak(agent, text){
   return new Promise(res => {
-    if(!voiceOn || !("speechSynthesis" in window)){ setTimeout(res, 600 + text.length*12); return; }
-    const u = new SpeechSynthesisUtterance(plain(text));
-    const v = VOICE[agent] || {}; u.pitch = v.pitch ?? 1; u.rate = v.rate ?? 1;
-    const en = speechSynthesis.getVoices().filter(x => x.lang.startsWith("en"));
-    if(en.length){ const pref = en.find(x => /Daniel|UK English Male|Google UK/i.test(x.name)); u.voice = agent==="JARVIS" && pref ? pref : en[(ORDER.indexOf(agent)+en.length) % en.length]; }
+    let finished = false;
+    const done = () => { if(finished) return; finished = true; $("#orb").classList.remove("speak"); res(); };
+    if(!voiceOn){ setTimeout(done, 600 + text.length*12); return; }
     $("#orb").classList.add("speak");
-    u.onend = u.onerror = () => { $("#orb").classList.remove("speak"); res(); };
-    speechSynthesis.speak(u);
-    setTimeout(() => { $("#orb").classList.remove("speak"); res(); }, 4000 + text.length*90); // safety
+    if(VOICE_PROVIDER === "elevenlabs"){
+      fetch("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({agent, text: plain(text)})})
+        .then(r => { if(!r.ok) throw new Error(r.status); return r.blob(); })
+        .then(b => { const a = new Audio(URL.createObjectURL(b)); currentAudio = a; a.onended = a.onerror = done; return a.play(); })
+        .catch(() => "speechSynthesis" in window ? speakBrowser(agent, text, done) : done());
+      setTimeout(done, 8000 + text.length*120); // safety
+    } else if("speechSynthesis" in window) speakBrowser(agent, text, done);
+    else setTimeout(done, 600 + text.length*12);
   });
+}
+function stopSpeaking(){ try { speechSynthesis.cancel(); } catch {} if(currentAudio){ currentAudio.pause(); currentAudio = null; } }
+function openVoiceSettings(){
+  const opts = browserVoices();
+  const premium = VOICE_PROVIDER === "elevenlabs";
+  $("#modalBody").innerHTML = `<h2>Agent voices</h2>
+    <p style="color:var(--muted);font-size:12px">${premium
+      ? "Premium ElevenLabs voices are on. Each agent's voice is set in .env (JARVIS_VOICE_&lt;AGENT&gt;). The settings below are used only if the voice service is unreachable."
+      : "Using your computer's built-in voices. Pick a voice, pitch and speed for each agent. For realistic AI voices, add an ELEVENLABS_API_KEY to .env."}</p>
+    <div style="display:grid;gap:10px">${ORDER.map(n => { const v = voiceSettings(n); return `<div class="item" style="display:grid;grid-template-columns:90px minmax(0,1fr);gap:8px;align-items:center">
+      <b class="hud" style="color:${AGENTS[n].color};font-size:11px">${n}</b>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0">
+        <select data-vn="${n}" aria-label="${n} voice" style="flex:1 1 180px;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--line);padding:5px;font-family:inherit;font-size:11px">
+          <option value="">Automatic</option>${opts.map(o => `<option ${o.name===v.name?"selected":""}>${esc(o.name)}</option>`).join("")}</select>
+        <label style="font-size:10px;color:var(--muted)">pitch <input type="range" min="0.1" max="2" step="0.05" value="${v.pitch}" data-vp="${n}"></label>
+        <label style="font-size:10px;color:var(--muted)">speed <input type="range" min="0.6" max="1.6" step="0.05" value="${v.rate}" data-vr="${n}"></label>
+        <button class="btn" data-vt="${n}">Test</button></div></div>`; }).join("")}</div>
+    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" id="vReset">Reset all</button><button class="btn" id="vClose">Done</button></div>`;
+  $("#modal").style.display = "flex";
+  const upd = (n, k, val) => { CUSTOM[n] = {...(CUSTOM[n] || {}), [k]: val}; saveCustomVoices(CUSTOM); };
+  document.querySelectorAll("[data-vn]").forEach(e => e.onchange = () => upd(e.dataset.vn, "name", e.value));
+  document.querySelectorAll("[data-vp]").forEach(e => e.oninput = () => upd(e.dataset.vp, "pitch", +e.value));
+  document.querySelectorAll("[data-vr]").forEach(e => e.oninput = () => upd(e.dataset.vr, "rate", +e.value));
+  document.querySelectorAll("[data-vt]").forEach(e => e.onclick = () => { stopSpeaking(); const n = e.dataset.vt; focus(n);
+    const was = voiceOn; voiceOn = true; speak(n, `${n} here. This is my voice, Sir.`).then(() => voiceOn = was); });
+  $("#vReset").onclick = () => { CUSTOM = {}; saveCustomVoices(CUSTOM); openVoiceSettings(); };
+  $("#vClose").onclick = () => $("#modal").style.display = "none";
 }
 async function say(agent, text){ focus(agent); setCard(agent, "reporting"); await Promise.all([logLine(agent, text, "reply", true), speak(agent, text)]); setCard(agent, "online"); }
 
@@ -236,8 +297,33 @@ async function refresh(){
   $("#p-reports").innerHTML = state.reports.length ? state.reports.map(r => `<div class="item" style="cursor:pointer" data-r="${r.id}"><div class="t">${esc(r.title)}</div><div class="s"><span class="tag" style="color:${AGENTS[r.agent]?.color}">${r.agent}</span>${r.kind} · ${fmt(r.created)}</div></div>`).join("") : `<div class="empty">No reports yet. FRIDAY files the first brief at the next scheduled time — or run one from Autopilot.</div>`;
   document.querySelectorAll("[data-r]").forEach(el => el.onclick = () => openReport(el.dataset.r));
 
-  $("#p-auto").innerHTML = `<div class="h">Scheduled routines</div>` + state.jobs.map(j => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${j.label}</div><div class="s"><span class="tag" style="color:${AGENTS[j.agent]?.color}">${j.agent}</span>${j.running?"running…":j.last_run?"last "+fmt(j.last_run):"never run"}</div></div><button class="btn" data-job="${j.name}">Run now</button></div></div>`).join("") +
+  const pend = state.outbox_pending;
+  $("#obadge").hidden = !pend.length; $("#obadge").textContent = pend.length;
+  const who = m => m.channel === "computer" ? "⌘ Run on laptop" : `${m.channel === "email" ? "✉ Email" : "💬 WhatsApp"} → ${esc(m.recipient_name || m.recipient)}`;
+  if(!$("#p-outbox").contains(document.activeElement)) $("#p-outbox").innerHTML = `<div class="h">Waiting for your OK</div>` + (pend.length ? pend.map(m => `<div class="item"><div class="t">${who(m)}</div>
+      <div class="s"><span class="tag" style="color:${AGENTS[m.agent]?.color}">${m.agent}</span>#${m.id}${m.send_at ? " · scheduled "+fmt(m.send_at) : ""}</div>
+      ${m.subject ? `<div class="s">Subject: ${esc(m.subject)}</div>` : ""}
+      <textarea id="ob-${m.id}" aria-label="Message text">${esc(m.body)}</textarea>
+      ${m.reason ? `<div class="s">Why: ${esc(m.reason)}</div>` : ""}
+      <div class="acts"><button class="btn" data-ok="${m.id}">${m.channel === "computer" ? "Run" : "Send"}</button><button class="btn no" data-no="${m.id}">Cancel</button></div></div>`).join("")
+      : `<div class="empty">Nothing waiting. Messages and commands that need your approval appear here and on your WhatsApp.</div>`) +
+    `<div class="h">Recent</div>` + (state.outbox_recent.length ? state.outbox_recent.map(m => `<div class="item"><div class="t">${who(m)}</div><div class="s"><span class="tag">${m.status}</span>${esc((m.result || m.error || m.body).slice(0,140))}</div></div>`).join("") : `<div class="empty">Nothing sent yet.</div>`);
+  document.querySelectorAll("[data-ok]").forEach(b => b.onclick = async () => {
+    b.textContent = "…"; const id = b.dataset.ok;
+    const r = await (await fetch(`/api/outbox/${id}/approve`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({body: $("#ob-"+id).value})})).json();
+    logLine("JARVIS", r.result, "job"); refresh(); });
+  document.querySelectorAll("[data-no]").forEach(b => b.onclick = async () => { await fetch(`/api/outbox/${b.dataset.no}/reject`, {method:"POST"}); refresh(); });
+
+  const cx = await (await fetch("/api/connections")).json();
+  const row = (label, on, hint) => `<div class="conn"><b>${label}</b><span class="${on?"y":"n"}">${on ? "connected" : esc(hint)}</span></div>`;
+  $("#p-auto").innerHTML = `<div class="h">Connections · autonomy: ${esc(cx.autonomy)}</div>` +
+    row("WhatsApp", cx.whatsapp.ready, /off/.test(cx.whatsapp.reason || "") ? "off" : "bridge not running") + row("Email (send)", cx.email_send, "not set up") +
+    row("Email (read)", cx.email_read, "not set up") + row("Android phone", cx.phone, "not set up") +
+    `<div class="h">Your routines</div>` + (state.routines.length ? state.routines.map(r => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${esc(r.name)}</div><div class="s"><span class="tag" style="color:${AGENTS[r.agent]?.color}">${r.agent}</span>${esc(r.schedule)}${r.enabled ? "" : " · paused"}</div></div><button class="btn" data-rt="${r.id}">${r.enabled ? "Pause" : "Resume"}</button></div></div>`).join("")
+      : `<div class="empty">None yet. Ask JARVIS, e.g. “every weekday at 6am send me a motivational quote and my schedule on WhatsApp”.</div>`) +
+    `<div class="h">Built-in routines</div>` + state.jobs.map(j => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${j.label}</div><div class="s"><span class="tag" style="color:${AGENTS[j.agent]?.color}">${j.agent}</span>${j.running?"running…":j.last_run?"last "+fmt(j.last_run):"never run"}</div></div><button class="btn" data-job="${j.name}">Run now</button></div></div>`).join("") +
     `<div class="h">How the night shift works</div><div class="empty" style="line-height:1.6">Any task with an agent assignee (e.g. “ORACLE, research laptops under $1000 tonight”) is worked on autonomously overnight. Results land in Notes and in the morning brief.</div>`;
+  document.querySelectorAll("[data-rt]").forEach(b => b.onclick = async () => { await fetch(`/api/routines/${b.dataset.rt}/toggle`, {method:"POST"}); refresh(); });
   document.querySelectorAll("[data-job]").forEach(b => b.onclick = async () => { b.textContent = "Started"; await fetch(`/api/jobs/${b.dataset.job}/run`, {method:"POST"}); setTimeout(refresh, 800); });
 }
 function md(src){
@@ -276,9 +362,11 @@ if(SR){
   const rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; let on = false;
   rec.onresult = e => { $("#cmd").value = [...e.results].map(r => r[0].transcript).join(""); if(e.results[e.results.length-1].isFinal){ rec.stop(); $("#bar").requestSubmit(); } };
   rec.onend = () => { on = false; $("#mic").classList.remove("rec"); };
-  $("#mic").onclick = () => { if(on){ rec.stop(); return; } speechSynthesis.cancel(); rec.start(); on = true; $("#mic").classList.add("rec"); };
+  $("#mic").onclick = () => { if(on){ rec.stop(); return; } stopSpeaking(); rec.start(); on = true; $("#mic").classList.add("rec"); };
 } else $("#mic").hidden = true;
-$("#voiceBtn").onclick = () => { voiceOn = !voiceOn; try{localStorage.setItem("jarvis-voice", voiceOn?"on":"off");}catch{}; $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted"; if(!voiceOn) speechSynthesis.cancel(); };
+$("#voiceBtn").onclick = () => { voiceOn = !voiceOn; try{localStorage.setItem("jarvis-voice", voiceOn?"on":"off");}catch{}; $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted"; if(!voiceOn) stopSpeaking(); };
+$("#voiceCfg").onclick = openVoiceSettings;
+if("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
 
 // ---------------------------------------------------------------- live stream
 function connect(){
@@ -299,6 +387,7 @@ setInterval(() => $("#clock").textContent = new Date().toLocaleTimeString([], {h
 (async () => {
   const info = await (await fetch("/api/agents")).json();
   info.agents.forEach(a => AGENTS[a.name] = a); ORDER = info.agents.map(a => a.name);
+  try { VOICE_PROVIDER = (await (await fetch("/api/voices")).json()).provider; } catch {}
   $("#model").textContent = info.llm ? info.model : "LOCAL MODE"; $("#model").style.color = info.llm ? "" : "#ffb020";
   $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";
   buildGrid(); focus("JARVIS"); await refresh(); connect();

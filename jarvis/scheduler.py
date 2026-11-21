@@ -32,10 +32,34 @@ def daily_at(hhmm: str, weekday: int | None = None):
     return due
 
 
-def every_hours(hours: int):
+def every_hours(hours: float):
     def due(now: datetime, last: str | None) -> bool:
         return last is None or now - datetime.fromisoformat(last) >= timedelta(hours=hours)
     return due
+
+
+DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def parse_schedule(text: str):
+    """'daily 08:00' | 'weekly mon 08:00' | 'every 2h' | 'every 30m' -> due(now, last) function."""
+    parts = text.strip().lower().split()
+    try:
+        if parts[0] == "daily" and len(parts) == 2:
+            datetime.strptime(parts[1], "%H:%M")
+            return daily_at(parts[1])
+        if parts[0] == "weekly" and len(parts) == 3 and parts[1][:3] in DAYS:
+            datetime.strptime(parts[2], "%H:%M")
+            return daily_at(parts[2], weekday=DAYS.index(parts[1][:3]))
+        if parts[0] == "every" and len(parts) == 2 and parts[1][-1] in "hm":
+            n = float(parts[1][:-1])
+            hours = n if parts[1].endswith("h") else n / 60
+            if hours < 0.25:
+                raise ValueError("minimum interval is 15 minutes")
+            return every_hours(hours)
+    except (ValueError, IndexError) as exc:
+        raise ValueError(f"Bad schedule '{text}': {exc}") from None
+    raise ValueError(f"Bad schedule '{text}'. Use 'daily 08:00', 'weekly mon 08:00', 'every 2h' or 'every 30m'.")
 
 
 MORNING = ("Compile today's morning brief for the owner: schedule, top 3 priorities, deadlines in the next "
@@ -46,6 +70,11 @@ EVENING = ("Write the evening report: what got done today, what slipped (and res
 WEEKLY = ("Run the weekly review across personal life, career and academics: wins, misses, goal progress "
           "(update goal progress where the data supports it), next week's deadlines and a focused plan. "
           "Delegate to ATHENA and ZEUS for their sections if useful. Publish as 'weekly_review'.")
+INBOX = ("Inbox sweep. Call check_email(new_only=true) and check_whatsapp(new_only=true). For each new item that "
+         "matters: create tasks or events for requests and deadlines; draft a reply with send_email/send_whatsapp when "
+         "a reply is clearly expected (the system holds it for approval when needed); ignore newsletters, promos "
+         "and group chatter. If something is urgent, publish an 'alert' report. Finish with a 2-line summary. "
+         "If nothing new, just reply 'Inbox clear.'")
 WATCH = ("Deadline sweep: check overdue and next-48h tasks and events, clashes, stalled goals, applications "
          "without a next step. Fix what you can. Only publish an 'alert' if the owner must act soon; "
          "otherwise reply with a one-line all-clear.")
@@ -63,6 +92,9 @@ class Scheduler:
             Job("deadline_watch", "SENTINEL", "Deadline watch", every_hours(s.watch_every_hours), WATCH),
             Job("night_shift", "JARVIS", "Night shift", daily_at(s.night_shift_at), None),
         ]
+        from . import channels as ch
+        if s.inbox_sweep_minutes > 0 and (ch.email_read_ready() or ch.whatsapp_ready()):
+            self.jobs.append(Job("inbox_sweep", "HERALD", "Inbox sweep", every_hours(s.inbox_sweep_minutes / 60), INBOX))
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._running: set[str] = set()
@@ -116,19 +148,52 @@ class Scheduler:
             return "No assigned tasks in the queue tonight."
         return f"Night shift processed {len(queue)} task(s): " + "; ".join(done)
 
+    # ------------------------------------------------------------ routines & outbox
+    def run_routine(self, routine: dict) -> str:
+        key = f"routine:{routine['id']}"
+        with self._lock:
+            if key in self._running:
+                return "already running"
+            self._running.add(key)
+        try:
+            self.store.update_routine(routine["id"], last_run=datetime.now(self.settings.tz).isoformat())
+            self.bus.log(routine["agent"], f"Routine '{routine['name']}' started", "job")
+            result = self.engine.run(routine["agent"], f"Scheduled routine '{routine['name']}':\n{routine['prompt']}")
+            self.bus.log(routine["agent"], f"Routine '{routine['name']}' done: {result[:200]}", "job")
+            return result
+        finally:
+            with self._lock:
+                self._running.discard(key)
+
+    def dispatch_outbox(self) -> int:
+        from .channels import deliver
+        now = datetime.now(self.settings.tz).isoformat(timespec="seconds")
+        sent = 0
+        for msg in self.store.due_messages(now):
+            sent += deliver(self.store, self.bus, msg)
+        return sent
+
     # ------------------------------------------------------------ loop
     def tick(self) -> None:
         now = datetime.now(self.settings.tz)
+        self.dispatch_outbox()
         for job in self.jobs:
             if job.name not in self._running and job.due(now, self.store.get(f"job:{job.name}:last")):
                 self.run_job_async(job.name)
+        for routine in self.store.list_routines(enabled_only=True):
+            try:
+                due = parse_schedule(routine["schedule"])(now, routine["last_run"])
+            except ValueError:
+                continue
+            if due and f"routine:{routine['id']}" not in self._running:
+                threading.Thread(target=self.run_routine, args=(routine,), daemon=True).start()
 
     def start(self) -> None:
         if self._thread:
             return
 
         def loop():
-            while not self._stop.wait(30):
+            while not self._stop.wait(20):
                 try:
                     self.tick()
                 except Exception as exc:  # noqa: BLE001

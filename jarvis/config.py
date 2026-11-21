@@ -56,6 +56,29 @@ class Settings:
     telegram_token: str = field(default_factory=lambda: _env("JARVIS_TELEGRAM_BOT_TOKEN"))
     telegram_chat_id: str = field(default_factory=lambda: _env("JARVIS_TELEGRAM_CHAT_ID"))
 
+    # How much agents may do on their own when messaging OTHER people:
+    #   approve - every message to someone else waits for your OK (default, safest)
+    #   trusted - messages to contacts marked trusted go out automatically, the rest wait
+    #   full    - everything goes out automatically
+    autonomy: str = field(default_factory=lambda: _env("JARVIS_AUTONOMY", "approve").lower())
+
+    # E-mail account the agents read and send from (Gmail: use an App Password)
+    imap_host: str = field(default_factory=lambda: _env("JARVIS_IMAP_HOST"))
+    email_signature: str = field(default_factory=lambda: _env("JARVIS_EMAIL_SIGNATURE"))
+
+    # WhatsApp (personal number, via the bridge in bridge/)
+    whatsapp_enabled: bool = field(default_factory=lambda: _env("JARVIS_WHATSAPP", "off").lower() == "on")
+    whatsapp_bridge_url: str = field(default_factory=lambda: _env("JARVIS_WHATSAPP_BRIDGE", "http://127.0.0.1:7335"))
+    bridge_token: str = field(default_factory=lambda: _env("JARVIS_BRIDGE_TOKEN"))
+    owner_whatsapp: str = field(default_factory=lambda: _env("JARVIS_OWNER_WHATSAPP"))  # your own number
+
+    # Premium voices (ElevenLabs). Without a key the dashboard uses your computer's built-in voices.
+    elevenlabs_key: str = field(default_factory=lambda: _env("ELEVENLABS_API_KEY"))
+    elevenlabs_model: str = field(default_factory=lambda: _env("JARVIS_ELEVENLABS_MODEL", "eleven_multilingual_v2"))
+
+    # How often the inbox sweep runs (minutes); 0 = off
+    inbox_sweep_minutes: int = field(default_factory=lambda: int(_env("JARVIS_INBOX_SWEEP_MINUTES", "60")))
+
     @property
     def tz(self) -> ZoneInfo:
         try:

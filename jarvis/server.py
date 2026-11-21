@@ -4,10 +4,13 @@ from __future__ import annotations
 import asyncio
 import json
 import queue
+import re
+import threading
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -15,6 +18,9 @@ from .agents import AGENTS, roster
 from .bus import Bus
 from .config import ROOT, settings
 from .engine import Engine
+from . import channels as ch
+from . import devices
+from . import voice
 from .notify import channels
 from .scheduler import Scheduler
 from .store import Store
@@ -24,17 +30,20 @@ bus = Bus(store)
 engine = Engine(store, bus, settings)
 scheduler = Scheduler(engine)
 
-app = FastAPI(title="JARVIS OS")
-
-
-@app.on_event("startup")
-def _startup() -> None:
-    # Don't fire the interval watch the moment the server boots.
-    if store.get("job:deadline_watch:last") is None:
-        store.set("job:deadline_watch:last", datetime.now(settings.tz).isoformat())
+@asynccontextmanager
+async def lifespan(_app):
+    # Don't fire the interval jobs the moment the server boots.
+    for job in ("deadline_watch", "inbox_sweep"):
+        if store.get(f"job:{job}:last") is None:
+            store.set(f"job:{job}:last", datetime.now(settings.tz).isoformat())
     if settings.schedule_enabled:
         scheduler.start()
     bus.log("JARVIS", "JARVIS OS online.", "system")
+    yield
+    scheduler.stop()
+
+
+app = FastAPI(title="JARVIS OS", lifespan=lifespan)
 
 
 class Command(BaseModel):
@@ -59,6 +68,20 @@ class TaskPatch(BaseModel):
     assignee: str | None = None
 
 
+class Approval(BaseModel):
+    body: str | None = None
+    subject: str | None = None
+
+
+class Incoming(BaseModel):
+    text: str
+
+
+class Speech(BaseModel):
+    agent: str
+    text: str
+
+
 @app.get("/")
 def index():
     return RedirectResponse("/command-centre.html?autostart=true")
@@ -67,7 +90,29 @@ def index():
 @app.get("/api/agents")
 def agents():
     return {"agents": roster(), "llm": settings.has_llm, "model": settings.model,
-            "owner": settings.owner_name, "channels": channels()}
+            "owner": settings.owner_name, "channels": channels(), "autonomy": settings.autonomy}
+
+
+@app.get("/api/voices")
+def voices():
+    return {"provider": "elevenlabs" if voice.enabled() else "browser", "voices": voice.voices()}
+
+
+@app.post("/api/tts")
+async def tts(sp: Speech):
+    if not voice.enabled():
+        raise HTTPException(404, "No ElevenLabs key - the browser voice is used instead")
+    try:
+        path = await asyncio.to_thread(voice.synthesize, sp.agent, sp.text)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Voice service error: {exc}") from exc
+    return FileResponse(path, media_type="audio/mpeg")
+
+
+@app.get("/api/connections")
+def connections():
+    return {"whatsapp": ch.whatsapp_status(), "email_send": ch.email_ready(), "email_read": ch.email_read_ready(),
+            "phone": devices.phone_ready(), "autonomy": settings.autonomy}
 
 
 @app.get("/api/state")
@@ -85,6 +130,9 @@ def state():
         "reports": store.list_reports(15),
         "activity": store.recent_activity(60),
         "jobs": scheduler.job_table(),
+        "outbox_pending": store.list_outbox("pending", 50),
+        "outbox_recent": [m for m in store.list_outbox(None, 30) if m["status"] != "pending"][:15],
+        "routines": store.list_routines(),
     }
 
 
@@ -126,9 +174,14 @@ def boot():
         ("STEVE", f"STEVE here. {plural(len(habits), 'habit')} tracked this week. Ready to ship on your command."),
         ("VERONICA", f"VERONICA online. Net this month: {money['net']:+.2f}."),
         ("BANNER", "BANNER standing by. Wellbeing diagnostics monitored."),
+        ("EDITH", "EDITH online. Laptop" + (" and phone" if devices.phone_ready() else "")
+                  + f" linked. {plural(len(store.list_routines(True)), 'custom routine')} running."),
         ("SENTINEL", f"SENTINEL active. {plural(len(overdue), 'overdue item')}, {len(due_today)} due today. "
                      f"{plural(len(queue_), 'task')} queued for the night shift. You are protected, {owner}."),
     ]
+    pending = store.list_outbox("pending", 100)
+    if pending:
+        lines.insert(-1, ("HERALD", f"{plural(len(pending), 'message')} waiting for your approval in the outbox."))
     return {"lines": [{"agent": a, "text": t} for a, t in lines]}
 
 
@@ -155,6 +208,106 @@ def run_job(name: str):
         raise HTTPException(404, "Unknown job")
     scheduler.run_job_async(name)
     return {"started": name}
+
+
+# ---------------------------------------------------------------- outbox (approvals)
+def approve_message(msg_id: int, body: str | None = None, subject: str | None = None) -> str:
+    msg = store.get_message(msg_id)
+    if not msg or msg["status"] not in ("pending", "failed"):
+        return f"#{msg_id} is not waiting for approval"
+    store.set_message(msg_id, status="approved", body=body, subject=subject, error="")
+    msg = store.get_message(msg_id)
+    if msg["send_at"] and msg["send_at"] > datetime.now(settings.tz).isoformat(timespec="seconds"):
+        bus.publish({"type": "data", "what": "outbox"})
+        return f"#{msg_id} approved, will send at {msg['send_at'][11:16]}"
+    ok = ch.deliver(store, bus, msg)
+    msg = store.get_message(msg_id)
+    if msg["channel"] == "computer":
+        return f"#{msg_id} ran:\n{msg['result'][:1500]}" if ok else f"#{msg_id} failed: {msg['error']}"
+    return f"#{msg_id} sent to {msg['recipient_name'] or msg['recipient']}" if ok else f"#{msg_id} failed: {msg['error']}"
+
+
+def reject_message(msg_id: int) -> str:
+    msg = store.get_message(msg_id)
+    if not msg or msg["status"] != "pending":
+        return f"#{msg_id} is not waiting for approval"
+    store.set_message(msg_id, status="rejected")
+    bus.log(msg["agent"], f"✉ #{msg_id} cancelled by you", "job")
+    bus.publish({"type": "data", "what": "outbox"})
+    return f"#{msg_id} cancelled"
+
+
+@app.post("/api/outbox/{msg_id}/approve")
+def approve(msg_id: int, a: Approval | None = None):
+    return {"result": approve_message(msg_id, a.body if a else None, a.subject if a else None)}
+
+
+@app.post("/api/outbox/{msg_id}/reject")
+def reject(msg_id: int):
+    return {"result": reject_message(msg_id)}
+
+
+@app.post("/api/routines/{routine_id}/toggle")
+def toggle_routine(routine_id: int):
+    r = next((x for x in store.list_routines() if x["id"] == routine_id), None)
+    if not r:
+        raise HTTPException(404)
+    store.update_routine(routine_id, enabled=0 if r["enabled"] else 1)
+    return {"enabled": not r["enabled"]}
+
+
+@app.delete("/api/routines/{routine_id}")
+def remove_routine(routine_id: int):
+    return {"deleted": store.delete_routine(routine_id)}
+
+
+# ---------------------------------------------------------------- WhatsApp remote control
+APPROVAL_RE = re.compile(r"^\s*(yes|y|approve|ok|send|no|n|reject|cancel)\s+#?(\d+|all)\s*$", re.I)
+
+
+def handle_owner_whatsapp(text: str) -> str:
+    """A message the owner sent to their own 'Message yourself' chat."""
+    m = APPROVAL_RE.match(text)
+    if m:
+        yes = m.group(1).lower() in ("yes", "y", "approve", "ok", "send")
+        ids = [x["id"] for x in store.list_outbox("pending", 100)] if m.group(2).lower() == "all" else [int(m.group(2))]
+        if not ids:
+            return "Nothing is waiting for approval."
+        return "\n".join(approve_message(i) if yes else reject_message(i) for i in ids)
+    if text.strip().lower() in ("pending", "outbox"):
+        items = store.list_outbox("pending", 20)
+        return "\n\n".join(f"#{x['id']} {x['channel']} → {x['recipient_name'] or x['recipient']}: {x['body'][:200]}"
+                             for x in items) or "Nothing is waiting for approval."
+    target = "JARVIS"
+    first = text.strip().split(maxsplit=1)
+    if first and first[0].strip(",:").upper() in AGENTS and len(first) > 1:
+        target, text = first[0].strip(",:").upper(), first[1]
+    bus.log("YOU", f"(WhatsApp) {text}", "command")
+    reply = engine.run(target, text + "\n\n(Sent from the owner's phone via WhatsApp - keep the reply short.)",
+                       chat=True)
+    bus.log(target, reply, "reply")
+    return f"{target}: {reply}" if target != "JARVIS" else reply
+
+
+@app.post("/api/whatsapp/incoming")
+def whatsapp_incoming(msg: Incoming, x_jarvis_token: str = Header(default="")):
+    if not settings.bridge_token or x_jarvis_token != settings.bridge_token:
+        raise HTTPException(403, "bad token")
+
+    def work():
+        if not ch.whatsapp_ready():
+            return
+        try:
+            answer = handle_owner_whatsapp(msg.text)
+        except Exception as exc:  # noqa: BLE001
+            answer = f"Error: {exc}"
+        try:
+            ch.send_whatsapp(settings.owner_whatsapp, f"🤖 {answer}"[:60000])
+        except Exception as exc:  # noqa: BLE001
+            bus.log("JARVIS", f"Could not reply on WhatsApp: {exc}", "error")
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"ok": True}
 
 
 @app.get("/api/reports/{report_id}")

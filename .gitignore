@@ -4,3 +4,6 @@ profile.md
 __pycache__/
 *.pyc
 .venv/
+bridge/node_modules/
+bridge/.session/
+bridge/.wwebjs_cache/

@@ -1,3 +1,6 @@
 anthropic>=2.10,<3
 fastapi>=0.115
 uvicorn>=0.30
+psutil>=5.9        # laptop battery / CPU / memory
+pillow>=10         # laptop screenshots on Windows / Linux
+pypdf>=4           # reading PDF files (lecture notes, documents)
