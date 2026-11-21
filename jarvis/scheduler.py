@@ -70,11 +70,11 @@ EVENING = ("Write the evening report: what got done today, what slipped (and res
 WEEKLY = ("Run the weekly review across personal life, career and academics: wins, misses, goal progress "
           "(update goal progress where the data supports it), next week's deadlines and a focused plan. "
           "Delegate to ATHENA and ZEUS for their sections if useful. Publish as 'weekly_review'.")
-INBOX = ("Inbox sweep. Call check_email(new_only=true) and check_whatsapp(new_only=true). For each new item that "
-         "matters: create tasks or events for requests and deadlines; draft a reply with send_email/send_whatsapp when "
-         "a reply is clearly expected (the system holds it for approval when needed); ignore newsletters, promos "
-         "and group chatter. If something is urgent, publish an 'alert' report. Finish with a 2-line summary. "
-         "If nothing new, just reply 'Inbox clear.'")
+INBOX = ("Inbox sweep. Call check_email(new_only=true). For each new e-mail that matters: read it in full, then "
+         "call suggest_replies with a one-line gist in your own voice (who, what they want, by when), an English "
+         "translation if it isn't in English, and 2-3 ready replies the owner can tap to send. Create tasks or "
+         "events for requests and deadlines. Ignore newsletters, promotions and automated mail. If something is "
+         "urgent, publish an 'alert' report. Finish with a 2-line summary, or just 'Inbox clear.'")
 WATCH = ("Deadline sweep: check overdue and next-48h tasks and events, clashes, stalled goals, applications "
          "without a next step. Fix what you can. Only publish an 'alert' if the owner must act soon; "
          "otherwise reply with a one-line all-clear.")

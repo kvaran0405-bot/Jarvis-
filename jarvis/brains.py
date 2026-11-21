@@ -34,8 +34,8 @@ LIMIT_RE = re.compile(r"(usage|rate|session|weekly)\s*limit|limit reached|hit yo
 
 
 def run_pro(agent, prompt: str, system_text: str, tool_names: list[str], *, depth: int, effort: str,
-            session_id: str | None, on_text: Callable[[str], None] | None, log: Callable[[str], None]
-            ) -> tuple[str, str | None]:
+            session_id: str | None, on_text: Callable[[str], None] | None, log: Callable[[str], None],
+            model: str | None = None) -> tuple[str, str | None]:
     """Run one turn through `claude -p`. Returns (reply, session_id for the next turn)."""
     cli = brain.claude_cli()
     if not cli:
@@ -57,7 +57,7 @@ def run_pro(agent, prompt: str, system_text: str, tool_names: list[str], *, dept
            "--tools", "WebSearch,WebFetch",                      # no file/terminal tools: only JARVIS's own
            "--allowedTools", "mcp__jarvis,WebSearch,WebFetch",
            "--permission-mode", "dontAsk",
-           "--model", settings.pro_model,
+           "--model", model if model and not model.startswith("gemini") else settings.pro_model,
            "--effort", effort]
     if session_id:
         cmd += ["--resume", session_id]
@@ -137,8 +137,8 @@ def gemini_tools(tool_names: list[str]) -> list[dict]:
     return [{"functionDeclarations": decls}] if decls else []
 
 
-def _gemini_call(body: dict) -> dict:
-    req = urllib.request.Request(GEMINI_URL.format(model=settings.gemini_model), data=json.dumps(body).encode(),
+def _gemini_call(body: dict, model: str | None = None) -> dict:
+    req = urllib.request.Request(GEMINI_URL.format(model=model or settings.gemini_model), data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json", "x-goog-api-key": settings.gemini_key})
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
@@ -160,7 +160,7 @@ def run_gemini(agent, contents: list, system_text: str, tool_names: list[str], c
         body = {"systemInstruction": {"parts": [{"text": system_text}]}, "contents": contents}
         if tools:
             body["tools"] = tools
-        data = _gemini_call(body)
+        data = _gemini_call(body, agent.model if agent.model.startswith("gemini") else None)
         cands = data.get("candidates") or []
         if not cands:
             reason = (data.get("promptFeedback") or {}).get("blockReason", "no answer")

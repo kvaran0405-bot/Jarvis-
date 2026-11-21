@@ -82,8 +82,9 @@ def pro_limited(store) -> bool:
     return bool(until) and datetime.fromisoformat(until) > datetime.now(settings.tz)
 
 
-def pick(store, background: bool = False) -> str | None:
-    """The brain to use right now, or None if JARVIS must not think (paused / nothing available)."""
+def pick(store, background: bool = False, preferred: str = "") -> str | None:
+    """The brain to use right now, or None if JARVIS must not think (paused / nothing available).
+    `preferred` is an agent's own brain (JARVIS_BRAIN_<AGENT>), tried first."""
     mode = get_mode(store)["mode"]
     if mode == "paused":
         return None
@@ -93,6 +94,8 @@ def pick(store, background: bool = False) -> str | None:
         order = [automation_brain(), primary(), "gemini"]
     else:
         order = [primary(), "gemini"]
+    if preferred in ("pro", "api", "gemini") and mode != "saver":
+        order = [preferred] + order
     for b in order:
         if not ready(b) or (b == "pro" and pro_limited(store)):
             continue

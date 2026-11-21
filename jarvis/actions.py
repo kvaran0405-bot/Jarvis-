@@ -302,3 +302,99 @@ def phone_apps(ctx: ToolContext, query: str = "") -> list:
 def phone_screenshot(ctx: ToolContext) -> dict:
     return {"saved": devices.phone_screenshot()}
 
+
+
+# ------------------------------------------------------------------ each agent's own notebook
+@tool("learn", "Write in YOUR OWN private notebook something you learned about how the owner likes things done "
+      "in your area (e.g. 'Sir prefers short, warm replies to lecturers'). Only you read it; it shapes your future work.",
+      {"note": S}, ["note"])
+def learn(ctx: ToolContext, note: str) -> dict:
+    return {"saved_to_notebook_of": ctx.agent, "id": ctx.store.add_agent_note(ctx.agent, note)}
+
+
+@tool("my_notebook", "Read your own private notebook.")
+def my_notebook(ctx: ToolContext) -> list:
+    return ctx.store.agent_notes(ctx.agent)
+
+
+# ------------------------------------------------------------------ email intelligence: explain + suggest replies
+def _re(subject: str) -> str:
+    return subject if subject.lower().startswith("re:") else f"Re: {subject}".strip()
+
+
+def suggestion_card(s: dict) -> str:
+    """The briefing the owner sees on Telegram / dashboard."""
+    who = s["sender_name"] or s["sender"]
+    lines = [f"📨 {who}" + (f" — {s['subject']}" if s["subject"] else "")]
+    if s["language"] and s["language"].lower() not in ("english", "en"):
+        lines.append(f"🌐 Translated from {s['language']}")
+    lines += ["", s["gist"]]
+    if s["translation"]:
+        lines += ["", f"Translation: {s['translation'][:1200]}"]
+    lines.append("")
+    for i, opt in enumerate(s["options"]):
+        lines.append(f"{'ABCD'[i]}) {opt['label']}: {opt['body'][:400]}")
+    lines += ["", f"Tap a reply to send it, or text:  reply {s['id']}: your own words"]
+    return "\n".join(lines)
+
+
+@tool("suggest_replies", "Brief the owner on an e-mail and offer ready-to-send replies. Use this instead of replying "
+      "yourself whenever an e-mail needs an answer. 'gist' = one or two lines in plain words: who, what they want, any "
+      "deadline, in your own voice. If the e-mail is not in English give 'language' and a faithful English "
+      "'translation'. Give 2-3 'options', each a short 'label' (e.g. 'Accept', 'Ask for more time', 'Decline politely') "
+      "and the full reply 'body' written as the owner, in the sender's language.",
+      {"sender": {"type": "string", "description": "E-mail address to reply to"}, "sender_name": S, "subject": S,
+       "message_id": {"type": "string", "description": "The e-mail's message_id, for threading"},
+       "language": S, "translation": S, "gist": S,
+       "options": {"type": "array", "items": {"type": "object", "properties": {"label": S, "body": S},
+                                              "required": ["label", "body"]}}},
+      ["sender", "gist", "options"])
+def suggest_replies(ctx: ToolContext, sender: str, gist: str, options: list, sender_name: str = "", subject: str = "",
+                    message_id: str = "", language: str = "", translation: str = "") -> dict:
+    options = [o for o in options if isinstance(o, dict) and o.get("body")][:4]
+    if not options:
+        return {"error": "Give at least one reply option with a body"}
+    sid = ctx.store.add_suggestion(sender=sender, gist=gist, options=options, agent=ctx.agent, sender_name=sender_name,
+                                   subject=subject, message_id=message_id, language=language, translation=translation)
+    s = ctx.store.get_suggestion(sid)
+    ctx.bus.publish({"type": "data", "what": "suggestions"})
+    if tg.ready():
+        buttons = [[(f"{'ABCD'[i]}) {o['label'][:28]}", f"rp:{sid}:{i}")] for i, o in enumerate(options)]
+        buttons.append([("🙈 Ignore", f"ri:{sid}")])
+        tg.send(suggestion_card(s), buttons)
+    return {"suggestion_id": sid, "status": "shown to the owner with tap-to-send replies"}
+
+
+@tool("send_suggested_reply", "Send one of the suggested replies (option A=0, B=1, C=2) or the owner's own words, "
+      "when the owner tells you which one to send.",
+      {"suggestion_id": I, "option": I, "custom_body": S}, ["suggestion_id"])
+def send_suggested_reply(ctx: ToolContext, suggestion_id: int, option: int | None = None, custom_body: str = "") -> dict:
+    return choose_reply(ctx.store, ctx.bus, suggestion_id, option, custom_body)
+
+
+def choose_reply(store, bus, sid: int, option: int | None = None, custom_body: str = "") -> dict:
+    """The owner picked a reply: send it now (their choice is the approval)."""
+    s = store.get_suggestion(sid)
+    if not s or s["status"] != "open":
+        return {"error": f"Suggestion #{sid} is not open"}
+    if custom_body:
+        body = custom_body
+    elif option is not None and 0 <= option < len(s["options"]):
+        body = s["options"][option]["body"]
+    else:
+        return {"error": "Pick an option or give your own words"}
+    msg_id = store.queue_message("email", s["sender"], body, s["agent"], subject=_re(s["subject"]),
+                                 recipient_name=s["sender_name"], reply_to=s["message_id"],
+                                 reason=f"you chose this reply (suggestion #{sid})", status="approved")
+    ok = ch.deliver(store, bus, store.get_message(msg_id))
+    if ok:
+        store.set_suggestion(sid, "sent", body)
+    bus.publish({"type": "data", "what": "suggestions"})
+    who = s["sender_name"] or s["sender"]
+    return {"sent": ok, "to": who, "error": None if ok else store.get_message(msg_id)["error"]}
+
+
+def ignore_reply(store, bus, sid: int) -> str:
+    ok = store.set_suggestion(sid, "ignored")
+    bus.publish({"type": "data", "what": "suggestions"})
+    return "Ignored. I won't reply." if ok else f"No suggestion #{sid}"

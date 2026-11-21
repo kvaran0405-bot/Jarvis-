@@ -115,8 +115,9 @@ class Bot:
     """Receives your messages, voice notes and button taps.
     `on_text(text, voice) -> reply`, `on_decision(id, yes) -> reply`."""
 
-    def __init__(self, on_text: Callable[..., str], on_decision: Callable[[int, bool], str], log: Callable):
-        self.on_text, self.on_decision, self.log = on_text, on_decision, log
+    def __init__(self, on_text: Callable[..., str], on_decision: Callable[[int, bool], str], log: Callable,
+                 on_reply: Callable[[int, int | None], str] | None = None):
+        self.on_text, self.on_decision, self.log, self.on_reply = on_text, on_decision, log, on_reply
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -154,12 +155,16 @@ class Bot:
             cq = upd["callback_query"]
             if str(cq["message"]["chat"]["id"]) != chat_id():
                 return
-            action, _, msg_id = cq.get("data", "").partition(":")
+            action, _, rest = cq.get("data", "").partition(":")
             api("answerCallbackQuery", callback_query_id=cq["id"])
             api("editMessageReplyMarkup", chat_id=chat_id(), message_id=cq["message"]["message_id"],
                 reply_markup={"inline_keyboard": []})
-            if msg_id.isdigit() and action in ("ok", "no"):
-                send(self.on_decision(int(msg_id), action == "ok"))
+            if rest.isdigit() and action in ("ok", "no"):
+                send(self.on_decision(int(rest), action == "ok"))
+            elif action in ("rp", "ri") and self.on_reply:   # suggested reply chosen / ignored
+                sid, _, opt = rest.partition(":")
+                if sid.isdigit():
+                    send(self.on_reply(int(sid), int(opt) if action == "rp" and opt.isdigit() else None))
             return
 
         msg = upd.get("message") or {}

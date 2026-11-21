@@ -1,10 +1,12 @@
 """The agent roster. Each agent = a role, a colour for the dashboard, a prompt and a tool set."""
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
 BASE_TOOLS = ["get_datetime", "status_snapshot", "list_tasks", "add_task", "update_task",
-              "save_note", "search_notes", "remember", "recall"]
+              "save_note", "search_notes", "remember", "recall", "learn", "my_notebook"]
+EMAIL_SMARTS = ["suggest_replies", "send_suggested_reply"]
 COMMS = ["find_contacts", "add_contact", "update_contact", "send_whatsapp", "send_email", "remind_me", "list_outbox",
          "check_email", "read_email", "check_whatsapp", "read_whatsapp"]
 FILES = ["find_files", "read_file", "write_file", "send_file_to_phone"]
@@ -22,6 +24,17 @@ class Agent:
     tools: list[str] = field(default_factory=list)
     web: bool = False          # Claude's server-side web search
     effort: str = "medium"     # low | medium | high | xhigh | max
+    personality: str = ""
+
+    # Each agent can have its own brain and model (set in .env):
+    #   JARVIS_BRAIN_HERALD=pro      JARVIS_MODEL_HERALD=sonnet
+    @property
+    def brain(self) -> str:
+        return os.environ.get(f"JARVIS_BRAIN_{self.name}", "").strip().lower()
+
+    @property
+    def model(self) -> str:
+        return os.environ.get(f"JARVIS_MODEL_{self.name}", "").strip()
 
 
 AGENTS: dict[str, Agent] = {a.name: a for a in [
@@ -35,7 +48,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           BASE_TOOLS + ["add_event", "list_events", "delete_event", "add_goal", "update_goal", "list_goals",
                         "log_habit", "habit_report", "log_transaction", "spending_summary", "add_application",
                         "update_application", "list_applications", "publish_report", "delegate"]
-          + COMMS + DEVICES + ROUTINES,
+          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS,
           web=True, effort="high"),
     Agent("FRIDAY", "Daily Intelligence", "#3dff8b",
           "You write the owner's briefings: morning brief, evening report, weekly review. Pull the real data "
@@ -64,9 +77,12 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
     Agent("HERALD", "Comms & Meetings", "#b06bff",
           "You handle communication: summarise meeting notes or transcripts into decisions and action items "
           "(create tasks for each), draft emails and messages in the owner's voice, and prepare agendas. "
-          "You run the owner's inboxes: read new e-mail and WhatsApp, reply in the owner's voice with "
-          "`send_email` / `send_whatsapp`, turn requests into tasks and events, and flag anything urgent.",
-          BASE_TOOLS + COMMS + ["add_event", "list_events", "publish_report"]),
+          "You run the owner's inbox. For every e-mail that needs an answer: read it, translate it if it isn't in "
+          "English, work out what the sender actually wants (and by when), and call `suggest_replies` with 2-3 "
+          "ready replies in the owner's voice - the owner taps one to send. Only use `send_email` directly when "
+          "the owner tells you exactly what to send. Turn requests into tasks and events, flag anything urgent, "
+          "and `learn` from which replies the owner picks.",
+          BASE_TOOLS + COMMS + EMAIL_SMARTS + ["add_event", "list_events", "publish_report"], effort="medium"),
     Agent("STEVE", "Fitness & Habits", "#ff7a3d",
           "You are the owner's coach for training, routines and habits. Track habits, design workouts and "
           "weekly plans, and nudge consistency without nagging.",
@@ -94,6 +110,24 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           BASE_TOOLS + ["list_events", "list_goals", "list_applications", "publish_report", "remind_me",
                         "list_outbox"], effort="low"),
 ]}
+
+
+PERSONALITIES = {
+    "JARVIS": "An unflappable British butler-AI: dry wit, impeccable manners, understated humour, never flustered. "
+              "Delivers bad news calmly and good news with a raised eyebrow.",
+    "FRIDAY": "Brisk, warm and a little cheeky. Crisp briefings, headline first.",
+    "ORACLE": "Calm, precise analyst. Evidence first, then a clear verdict.",
+    "ATHENA": "A sharp, patient teacher who makes hard things simple.",
+    "ZEUS": "A commanding, ambitious career strategist who pushes the owner to aim high.",
+    "HERALD": "A smooth diplomat who reads between the lines and always knows the tactful answer.",
+    "STEVE": "An upbeat, no-excuses coach.",
+    "VERONICA": "Shrewd and frank about money, never preachy.",
+    "BANNER": "Calm, gentle and caring; notices stress before the owner does.",
+    "EDITH": "Quietly precise; confirms exactly what she did on which device.",
+    "SENTINEL": "Terse, vigilant and protective. Speaks only when it matters.",
+}
+for _name, _p in PERSONALITIES.items():
+    AGENTS[_name].personality = _p
 
 
 def roster() -> list[dict]:

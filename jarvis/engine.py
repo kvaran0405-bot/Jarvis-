@@ -18,7 +18,8 @@ CHAT_MAX_MESSAGES = 60  # start a fresh conversation after this many messages
 
 RULES = """\
 Operating rules:
-- You work for {owner}. Address them as "{owner}". Be concise, warm and decisive - a capable chief of staff, not a chatbot.
+- You work for {owner}. Address them as "{owner}". Talk to them the way J.A.R.V.I.S. talks to Tony Stark: composed,
+  quick, quietly witty, unfailingly competent - a brilliant aide, never a chatbot. Keep the wit light and the substance first.
 - Act, don't just advise: when something should be tracked, create or update it with your tools.
 - Never invent data. If a tool returns nothing, say so. Dates are in the owner's timezone ({tz}).
 - You can message people for the owner (WhatsApp, e-mail) and control their laptop and phone. Write as the owner,
@@ -54,17 +55,24 @@ class Engine:
         return (
             f"You are {agent.name}, the {agent.title} agent of JARVIS OS, a personal multi-agent system.\n\n"
             f"Mission: {agent.mission}\n\n"
+            f"Your personality: {agent.personality or 'Professional and friendly.'} Stay in character, but never let "
+            f"style get in the way of being clear.\n\n"
             f"{RULES.format(owner=self.settings.owner_name, tz=self.settings.timezone)}\n\n"
             f"The team:\n{team}\n\n"
             f"About the owner (profile.md):\n{profile}"
         )
 
-    def _context_block(self) -> str:
+    def _context_block(self, agent: Agent | None = None) -> str:
         now = datetime.now(self.settings.tz)
         facts = [m["fact"] for m in self.store.memories(40)]
         mem = "\n".join(f"- {f}" for f in facts) if facts else "- (none yet)"
+        own = ""
+        if agent:
+            notes = [n["note"] for n in self.store.agent_notes(agent.name, 30)]
+            own = ("Your private notebook (what you've learned about doing your job for the owner):\n"
+                   + ("\n".join(f"- {n}" for n in notes) if notes else "- (empty - use `learn` to add to it)") + "\n")
         return (f"[Context] Now: {now.strftime('%A %Y-%m-%d %H:%M')} ({self.settings.timezone}).\n"
-                f"Known facts about the owner:\n{mem}\n[/Context]\n\n")
+                f"Known facts about the owner:\n{mem}\n{own}[/Context]\n\n")
 
     def tools_for(self, agent: Agent) -> list[dict]:
         tools = [REGISTRY[name].schema() for name in self.tool_names_for(agent)]
@@ -91,7 +99,7 @@ class Engine:
         agent = AGENTS.get(agent_name.upper())
         if agent is None:
             return f"No agent named {agent_name}. Available: {', '.join(AGENTS)}."
-        chosen = brain.pick(self.store, background)
+        chosen = brain.pick(self.store, background, agent.brain)
         if chosen is None:
             reply = self._unavailable_reply(agent)
             if on_text:
@@ -111,7 +119,7 @@ class Engine:
                 except brains.LimitReached as exc:
                     if chosen == "pro":
                         brain.mark_pro_limited(self.store, hours=1)
-                    fallback = brain.pick(self.store, background)
+                    fallback = brain.pick(self.store, background, agent.brain)
                     if fallback is None or fallback == chosen:
                         raise
                     self.bus.log(agent.name, f"{chosen} limit reached - switching to {fallback} ({exc})", "system")
@@ -127,7 +135,7 @@ class Engine:
                 self.bus.status(agent.name, "online")
 
     def _think(self, which: str, agent: Agent, prompt: str, chat: bool, depth: int, on_text, effort: str) -> str:
-        full_prompt = self._context_block() + prompt
+        full_prompt = self._context_block(agent) + prompt
         log = lambda m: self.bus.log(agent.name, m, "tool")  # noqa: E731
         key = (which, agent.name)
         if which == "api":
@@ -139,7 +147,8 @@ class Engine:
         if which == "pro":
             session = self._chats.get(key) if chat else None
             reply, session = brains.run_pro(agent, full_prompt, self.system_prompt(agent), self.tool_names_for(agent),
-                                            depth=depth, effort=effort, session_id=session, on_text=on_text, log=log)
+                                            depth=depth, effort=effort, session_id=session, on_text=on_text, log=log,
+                                            model=agent.model or None)
             if chat:
                 self._chats[key] = session
             return reply
@@ -166,7 +175,7 @@ class Engine:
         tools = self.tools_for(agent)
         for _ in range(MAX_STEPS):
             params = dict(
-                model=self.settings.model,
+                model=agent.model if agent.model.startswith("claude-") else self.settings.model,
                 max_tokens=16000,
                 system=system,
                 tools=tools,

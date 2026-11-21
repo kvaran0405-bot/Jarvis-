@@ -44,7 +44,8 @@ async def lifespan(_app):
     tg.attach(store)
     from . import stt
     stt.warm_up()
-    bot = tg.Bot(on_text=lambda text, voice=False: handle_owner_message(text, "Telegram", voice),
+    bot = tg.Bot(on_reply=pick_reply,
+                 on_text=lambda text, voice=False: handle_owner_message(text, "Telegram", voice),
                  on_decision=lambda msg_id, yes: approve_message(msg_id) if yes else reject_message(msg_id),
                  log=lambda m: bus.log("JARVIS", m, "system"))
     bot.start()
@@ -109,6 +110,35 @@ def index():
 def agents():
     return {"agents": roster(), "llm": settings.has_llm, "model": settings.model,
             "owner": settings.owner_name, "channels": channels(), "autonomy": settings.autonomy}
+
+
+# ---------------------------------------------------------------- suggested replies
+def pick_reply(sid: int, option: int | None, custom: str = "") -> str:
+    from .actions import choose_reply, ignore_reply
+    if option is None and not custom:
+        return ignore_reply(store, bus, sid)
+    r = choose_reply(store, bus, sid, option, custom)
+    if r.get("error") and not r.get("to"):
+        return r["error"]
+    return f"✉ Sent to {r['to']}." if r["sent"] else f"Couldn't send: {r['error']}"
+
+
+REPLY_RE = re.compile(r"^\s*reply\s+#?(\d+)\s*(?:[:,-]\s*|\s+)(?:([abcd])\s*$|(.+))", re.I | re.S)
+
+
+class ReplyChoice(BaseModel):
+    option: int | None = None
+    body: str = ""
+
+
+@app.post("/api/suggestions/{sid}/choose")
+def choose(sid: int, c: ReplyChoice):
+    return {"result": pick_reply(sid, c.option, c.body)}
+
+
+@app.post("/api/suggestions/{sid}/ignore")
+def ignore(sid: int):
+    return {"result": pick_reply(sid, None)}
 
 
 # ---------------------------------------------------------------- brain & pause switch
@@ -232,6 +262,7 @@ def state():
         "outbox_pending": store.list_outbox("pending", 50),
         "outbox_recent": [m for m in store.list_outbox(None, 30) if m["status"] != "pending"][:15],
         "routines": store.list_routines(),
+        "suggestions": store.list_suggestions("open", 20),
     }
 
 
@@ -379,6 +410,9 @@ def handle_owner_message(text: str, via: str = "WhatsApp", voice: bool = False) 
     if (reply := control(text)) is not None:
         bus.log("YOU", f"({via}) {text}", "command")
         return reply
+    if m := REPLY_RE.match(text):  # "reply 3: my own words"  /  "reply 3 b"
+        letter, words = m.group(2), m.group(3)
+        return pick_reply(int(m.group(1)), "abcd".index(letter.lower()) if letter else None, (words or "").strip())
     m = APPROVAL_RE.match(text)
     if m:
         yes = m.group(1).lower() in ("yes", "y", "approve", "ok", "send")

@@ -85,6 +85,7 @@ aside{border-left:1px solid var(--line);display:flex;flex-direction:column;min-h
 .h:first-child{margin-top:0}
 .btn{background:none;border:1px solid var(--line);color:var(--c);padding:5px 9px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:2px}
 .empty{color:var(--dim);font-size:12px}
+.item details summary{cursor:pointer;color:var(--c)}
 .item textarea{width:100%;min-height:84px;margin-top:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);font-family:inherit;font-size:12px;padding:7px;border-radius:2px;resize:vertical}
 .item .acts{display:flex;gap:6px;margin-top:7px}
 .btn.no{color:var(--muted)}
@@ -345,20 +346,36 @@ async function refresh(){
   document.querySelectorAll("[data-r]").forEach(el => el.onclick = () => openReport(el.dataset.r));
 
   const pend = state.outbox_pending;
-  $("#obadge").hidden = !pend.length; $("#obadge").textContent = pend.length;
+  const sugg = state.suggestions || [];
+  $("#obadge").hidden = !(pend.length + sugg.length); $("#obadge").textContent = pend.length + sugg.length;
+  const suggHtml = sugg.length ? `<div class="h">📨 Emails waiting for your answer</div>` + sugg.map(g => `<div class="item">
+      <div class="t">${esc(g.sender_name || g.sender)}${g.subject ? " — " + esc(g.subject) : ""}</div>
+      <div class="s"><span class="tag" style="color:${AGENTS[g.agent]?.color}">${g.agent}</span>${g.language && !/^(en|english)$/i.test(g.language) ? "🌐 translated from " + esc(g.language) : ""}</div>
+      <div style="margin:6px 0">${esc(g.gist)}</div>
+      ${g.translation ? `<details class="s"><summary>Translation</summary>${esc(g.translation)}</details>` : ""}
+      ${g.options.map((o, i) => `<div class="s" style="margin-top:6px"><b style="color:var(--text)">${"ABCD"[i]}) ${esc(o.label)}</b><br>${esc(o.body)}</div>
+        <div class="acts"><button class="btn" data-sg="${g.id}" data-op="${i}">Send ${"ABCD"[i]}</button></div>`).join("")}
+      <textarea id="sg-${g.id}" placeholder="…or write your own reply" aria-label="Your own reply"></textarea>
+      <div class="acts"><button class="btn" data-sgown="${g.id}">Send mine</button><button class="btn no" data-sgno="${g.id}">Ignore</button></div></div>`).join("") : "";
   const who = m => m.channel === "computer" ? "⌘ Run on laptop" : `${m.channel === "email" ? "✉ Email" : "💬 WhatsApp"} → ${esc(m.recipient_name || m.recipient)}`;
-  if(!$("#p-outbox").contains(document.activeElement)) $("#p-outbox").innerHTML = `<div class="h">Waiting for your OK</div>` + (pend.length ? pend.map(m => `<div class="item"><div class="t">${who(m)}</div>
+  if(!$("#p-outbox").contains(document.activeElement)) $("#p-outbox").innerHTML = suggHtml + `<div class="h">Waiting for your OK</div>` + (pend.length ? pend.map(m => `<div class="item"><div class="t">${who(m)}</div>
       <div class="s"><span class="tag" style="color:${AGENTS[m.agent]?.color}">${m.agent}</span>#${m.id}${m.send_at ? " · scheduled "+fmt(m.send_at) : ""}</div>
       ${m.subject ? `<div class="s">Subject: ${esc(m.subject)}</div>` : ""}
       <textarea id="ob-${m.id}" aria-label="Message text">${esc(m.body)}</textarea>
       ${m.reason ? `<div class="s">Why: ${esc(m.reason)}</div>` : ""}
       <div class="acts"><button class="btn" data-ok="${m.id}">${m.channel === "computer" ? "Run" : "Send"}</button><button class="btn no" data-no="${m.id}">Cancel</button></div></div>`).join("")
-      : `<div class="empty">Nothing waiting. Messages and commands that need your approval appear here and on your WhatsApp.</div>`) +
+      : `<div class="empty">Nothing waiting. Messages and commands that need your approval appear here and on Telegram.</div>`) +
     `<div class="h">Recent</div>` + (state.outbox_recent.length ? state.outbox_recent.map(m => `<div class="item"><div class="t">${who(m)}</div><div class="s"><span class="tag">${m.status}</span>${esc((m.result || m.error || m.body).slice(0,140))}</div></div>`).join("") : `<div class="empty">Nothing sent yet.</div>`);
   document.querySelectorAll("[data-ok]").forEach(b => b.onclick = async () => {
     b.textContent = "…"; const id = b.dataset.ok;
     const r = await (await fetch(`/api/outbox/${id}/approve`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({body: $("#ob-"+id).value})})).json();
     logLine("JARVIS", r.result, "job"); refresh(); });
+  const pickSugg = async (id, payload) => {
+    const r = await (await fetch(`/api/suggestions/${id}/choose`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)})).json();
+    logLine("HERALD", r.result, "job"); refresh(); };
+  document.querySelectorAll("[data-sg]").forEach(b => b.onclick = () => { b.textContent = "…"; pickSugg(b.dataset.sg, {option: +b.dataset.op}); });
+  document.querySelectorAll("[data-sgown]").forEach(b => b.onclick = () => { const t = $("#sg-"+b.dataset.sgown).value.trim(); if(t) pickSugg(b.dataset.sgown, {body: t}); });
+  document.querySelectorAll("[data-sgno]").forEach(b => b.onclick = async () => { await fetch(`/api/suggestions/${b.dataset.sgno}/ignore`, {method:"POST"}); refresh(); });
   document.querySelectorAll("[data-no]").forEach(b => b.onclick = async () => { await fetch(`/api/outbox/${b.dataset.no}/reject`, {method:"POST"}); refresh(); });
 
   const cx = await (await fetch("/api/connections")).json();

@@ -124,6 +124,28 @@ CREATE TABLE IF NOT EXISTS outbox (
     created TEXT NOT NULL,
     sent_at TEXT
 );
+CREATE TABLE IF NOT EXISTS agent_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent TEXT NOT NULL,                         -- each agent's private notebook
+    note TEXT NOT NULL,
+    created TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reply_suggestions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel TEXT NOT NULL DEFAULT 'email',
+    sender TEXT NOT NULL,                        -- address to reply to
+    sender_name TEXT DEFAULT '',
+    subject TEXT DEFAULT '',
+    message_id TEXT DEFAULT '',                  -- original e-mail Message-ID (for threading)
+    language TEXT DEFAULT '',
+    translation TEXT DEFAULT '',
+    gist TEXT NOT NULL,                          -- what they want, in plain words
+    options TEXT NOT NULL,                       -- JSON list of {label, body}
+    status TEXT NOT NULL DEFAULT 'open',         -- open | sent | ignored
+    chosen TEXT DEFAULT '',
+    agent TEXT NOT NULL,
+    created TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS routines (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -246,6 +268,45 @@ class Store:
 
     def forget(self, memory_id: int) -> bool:
         return self.execute("DELETE FROM memory WHERE id = ?", (memory_id,)) > 0
+
+    # ---------- each agent's private notebook ----------
+    def add_agent_note(self, agent: str, note: str) -> int:
+        return self.execute("INSERT INTO agent_notes (agent, note, created) VALUES (?,?,?)",
+                            (agent.upper(), note, now_iso()))
+
+    def agent_notes(self, agent: str, limit: int = 30) -> list[dict]:
+        return self.query("SELECT * FROM agent_notes WHERE agent = ? ORDER BY id DESC LIMIT ?", (agent.upper(), limit))
+
+    def delete_agent_note(self, note_id: int) -> bool:
+        return self.execute("DELETE FROM agent_notes WHERE id = ?", (note_id,)) > 0
+
+    # ---------- suggested replies ----------
+    def add_suggestion(self, *, sender: str, gist: str, options: list[dict], agent: str, sender_name: str = "",
+                       subject: str = "", message_id: str = "", language: str = "", translation: str = "",
+                       channel: str = "email") -> int:
+        return self.execute(
+            "INSERT INTO reply_suggestions (channel, sender, sender_name, subject, message_id, language, translation, "
+            "gist, options, agent, created) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (channel, sender, sender_name, subject, message_id, language, translation, gist, json.dumps(options),
+             agent, now_iso()))
+
+    def get_suggestion(self, sid: int) -> dict | None:
+        rows = self.query("SELECT * FROM reply_suggestions WHERE id = ?", (sid,))
+        if not rows:
+            return None
+        row = rows[0]
+        row["options"] = json.loads(row["options"])
+        return row
+
+    def list_suggestions(self, status: str = "open", limit: int = 20) -> list[dict]:
+        rows = self.query("SELECT * FROM reply_suggestions WHERE status = ? ORDER BY id DESC LIMIT ?", (status, limit))
+        for r in rows:
+            r["options"] = json.loads(r["options"])
+        return rows
+
+    def set_suggestion(self, sid: int, status: str, chosen: str = "") -> bool:
+        return self.execute("UPDATE reply_suggestions SET status = ?, chosen = ? WHERE id = ?",
+                            (status, chosen, sid)) > 0
 
     # ---------- goals ----------
     def add_goal(self, title: str, area: str = "personal", target_date: str | None = None, notes: str = "") -> int:

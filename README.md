@@ -42,6 +42,25 @@ To queue work for the night, just say it, e.g. *"Oracle, research the best lapto
 or *"Athena, make me a 2-week revision plan for my calculus exam on Dec 3"*. JARVIS creates the task, assigns it
 to the right agent, and the result is in your morning brief.
 
+## Email briefings, Stark-style
+
+When a new e-mail arrives, HERALD briefs you on Telegram, in any language:
+
+> 📨 **Prof. Martin — Présentation du projet** · 🌐 Translated from French
+> Prof. Martin would like you to present the group project Monday at 10, Sir, and wants a yes by Friday.
+> **A) Accept** · **B) Ask for Wednesday** · **C) Decline politely**
+
+Tap a reply and it is sent in the sender's language, threaded under their e-mail. Or text `reply 7: your own
+words`. You can also ask any time: *"Herald, what does my latest email say?"*. HERALD writes down which replies
+you pick in its own notebook and learns your style.
+
+## Every agent has its own brain
+
+Each agent has its own **personality**, its own **conversation**, its own **private notebook** (what it has learned
+about how you like things done in its area), and optionally its own **AI model**. Set those in `.env`, for example
+`JARVIS_MODEL_HERALD=sonnet` for smarter e-mail replies, or `JARVIS_BRAIN_STEVE=gemini` to run the fitness coach
+for free.
+
 ## Brains, and the pause switch
 
 JARVIS can think with three different brains:
