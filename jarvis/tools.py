@@ -98,6 +98,8 @@ def status_snapshot(ctx: ToolContext) -> dict:
         "top_open_tasks": open_tasks[:15],
         "agent_queue": [t for t in open_tasks if t["assignee"]],
         "events_today_tomorrow": s.list_events(today, day_after),
+        "events_next_14_days": [{k: e[k] for k in ("id", "title", "start", "end", "area")}
+                                for e in s.list_events(today, (ctx.now().date() + timedelta(days=14)).isoformat())],
         "tomorrow": tomorrow,
         "goals": s.list_goals(),
         "habits_last_7_days": s.habit_status(_days_ago(ctx, 6)),
@@ -105,6 +107,12 @@ def status_snapshot(ctx: ToolContext) -> dict:
         "money_this_month": s.spending_summary(ctx.now().date().replace(day=1).isoformat()),
         "completed_last_24h": [t for t in s.list_tasks("done", limit=50) if t["updated"] >= _days_ago(ctx, 1)],
         "recent_reports": [{k: r[k] for k in ("id", "kind", "agent", "title", "created")} for r in s.list_reports(5)],
+        # already waiting for the owner - don't propose the same thing again
+        "open_proposals": [{k: p[k] for k in ("id", "agent", "title")} for p in s.list_proposals("open", 30)],
+        "emails_awaiting_reply": [{k: g[k] for k in ("id", "sender_name", "subject")}
+                                  for g in s.list_suggestions("open", 20)],
+        "messages_awaiting_approval": [{k: m[k] for k in ("id", "channel", "recipient_name", "subject")}
+                                       for m in s.list_outbox("pending", 20)],
     }
 
 

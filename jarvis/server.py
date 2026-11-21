@@ -172,7 +172,7 @@ def answer_proposal(pid: int, yes: bool) -> str:
                 bus.log("JARVIS", f"Telegram send failed: {exc}", "error")
 
     threading.Thread(target=work, daemon=True).start()
-    return f"👍 On it - {p['agent']} is doing it now."
+    return "👍 On it, Sir - doing it now."
 
 
 PROPOSAL_RE = re.compile(r"^\s*(yes|y|ok|do it|no|n|nope)\s+(?:to\s+)?(?:idea|proposal|p)\s*#?(\d+)\s*$", re.I)

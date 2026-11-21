@@ -408,7 +408,9 @@ def ignore_reply(store, bus, sid: int) -> str:
       "judgment: spot what would help (a deadline to get ahead of, a reply to send, a plan to make, a habit slipping, "
       "an opportunity) and turn it into one concrete proposal. Never ask open questions - make the decision ready to "
       "approve. 'plan' must say exactly what you will do if they say yes, including the full text of any message and "
-      "who it goes to; saying yes approves exactly that.",
+      "who it goes to; saying yes approves exactly that. Check status_snapshot's open_proposals first and never "
+      "propose something that is already waiting (from you or another agent). Check the calendar (events_next_14_days) "
+      "before claiming something is missing from it.",
       {"title": {"type": "string", "description": "One line, e.g. 'Ask Dr. Okafor for a deadline extension'"},
        "why": {"type": "string", "description": "One or two lines: why this is worth doing now"},
        "plan": {"type": "string", "description": "Exactly what you will do on 'yes'"}},
@@ -444,9 +446,11 @@ def decide_proposal(engine, pid: int, yes: bool) -> str:
         return "Understood, I'll leave it."
     engine.store.set_proposal(pid, "approved")
     engine.bus.publish({"type": "data", "what": "proposals"})
-    result = engine.run(p["agent"], f"The owner said YES to your proposal #{pid}: {p['title']}.\n"
-                                    f"Carry out exactly this plan now, nothing more:\n{p['plan']}\n\n"
-                                    "Then report in one or two sentences what you did.", approved=True)
+    # JARVIS carries out every approved plan: it has every tool, whichever agent had the idea.
+    result = engine.run("JARVIS", f"The owner said YES to {p['agent']}'s proposal #{pid}: {p['title']}.\n"
+                                  f"Carry out exactly this plan now, nothing more:\n{p['plan']}\n\n"
+                                  "Then report in one or two sentences what you did.", approved=True)
+    engine.store.add_agent_note(p["agent"], f"Owner said yes to: {p['title']}")
     failed = any(x in result for x in ("hit an error", "I'm paused", "AI limit is reached", "offline"))
     engine.store.set_proposal(pid, "failed" if failed else "done", result[:4000])
     engine.bus.publish({"type": "data", "what": "proposals"})

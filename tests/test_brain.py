@@ -141,8 +141,8 @@ def test_proposal_yes_runs_plan_with_messages_preapproved(eng, monkeypatch):
     out2, _ = execute("propose", ctx, {"title": "Ask Dr. Okafor for a 2-day extension", "plan": "same"})
     assert "Already proposed" in out2
 
-    def fake_run(agent, prompt, approved=False, **kw):   # the agent carries out its plan
-        assert approved and "Carry out exactly this plan" in prompt
+    def fake_run(agent, prompt, approved=False, **kw):   # JARVIS carries out the approved plan
+        assert agent == "JARVIS" and approved and "Carry out exactly this plan" in prompt
         c = ToolContext(eng.store, eng.bus, settings, eng, agent, 0, approved)
         r, _ = execute("send_email", c, {"to": "Dr. Okafor", "subject": "Assignment 3",
                                          "body": "Could I have until Friday for assignment 3?", "reason": "proposal 1"})
