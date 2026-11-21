@@ -281,3 +281,13 @@ def test_voice_provider_choice(monkeypatch):
     assert voice.provider() == "elevenlabs"
     monkeypatch.setattr(settings, "tts", "browser")
     assert voice.provider() == "browser" and not voice.enabled()
+
+
+def test_spoken_delivery():
+    from jarvis import voice
+    assert voice.speakable("Good morning, Sir. Your bill, Sir, is overdue.") == "Good morning Sir. Your bill, Sir, is overdue."
+    assert voice.speakable("**Done**, Sir.") == "Done Sir."
+    assert voice.segments("[dry] Ah. The bill. [excited] But you got the interview!") == [
+        ("dry", "Ah. The bill."), ("excited", "But you got the interview!")]
+    assert voice.strip_moods("[warm] Sleep well, Sir.") == "Sleep well, Sir."
+    assert voice._shift("-6%", 12, "%") == "+6%" and voice._shift("-2Hz", -5, "Hz") == "-7Hz"

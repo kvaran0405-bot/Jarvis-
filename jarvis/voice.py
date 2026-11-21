@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import urllib.request
 from pathlib import Path
 
@@ -34,16 +35,67 @@ DEFAULT_VOICES = {
 EDGE_VOICES = {
     "JARVIS": ("en-GB-RyanNeural", "-6%", "-2Hz"),            # smooth, unhurried British butler-AI
     "FRIDAY": ("en-IE-EmilyNeural", "+4%", "+0Hz"),           # brisk Irish
-    "EDITH": ("en-US-MichelleNeural", "-2%", "-1Hz"),         # calm American
-    "VERONICA": ("en-US-AriaNeural", "+2%", "+0Hz"),          # confident, sharp
+    "EDITH": ("en-US-EmmaMultilingualNeural", "-3%", "-1Hz"),  # calm, clear American (expressive voice)
+    "VERONICA": ("en-US-AvaMultilingualNeural", "+2%", "+0Hz"),  # confident, sharp (expressive voice)
     "ATHENA": ("en-GB-SoniaNeural", "-3%", "+0Hz"),           # wise British teacher
     "SENTINEL": ("en-US-ChristopherNeural", "-12%", "-14Hz"),  # low, cold, measured
     "ZEUS": ("en-US-GuyNeural", "-2%", "-6Hz"),               # commanding
-    "STEVE": ("en-US-AndrewNeural", "+0%", "+0Hz"),           # warm, earnest captain
-    "BANNER": ("en-US-BrianNeural", "-8%", "-3Hz"),           # soft-spoken scientist
+    "STEVE": ("en-US-AndrewMultilingualNeural", "+0%", "+0Hz"),  # warm, earnest captain (expressive voice)
+    "BANNER": ("en-US-BrianMultilingualNeural", "-8%", "-3Hz"),  # soft-spoken scientist (expressive voice)
     "HERALD": ("en-GB-ThomasNeural", "+0%", "+0Hz"),          # smooth British diplomat
     "ORACLE": ("en-US-SteffanNeural", "-4%", "-2Hz"),         # calm analyst
 }
+
+
+# Emotion: agents start a sentence with a mood tag, e.g. "[excited] You got the interview!". The free voices can't
+# act on their own, so each mood shifts speed and pitch the way an actor's delivery would.
+MOODS = {
+    "warm": (-4, -1), "gentle": (-10, -2), "calm": (-6, -2), "proud": (+2, +4), "cheerful": (+6, +4),
+    "excited": (+12, +6), "playful": (+6, +5), "amused": (+3, +3), "dry": (-6, -4), "sarcastic": (-5, +3),
+    "serious": (-8, -5), "stern": (-6, -7), "concerned": (-9, -3), "worried": (-7, -2), "urgent": (+12, +3),
+    "whisper": (-12, -4), "tired": (-12, -5), "triumphant": (+8, +7),
+}
+MOOD_RE = re.compile(r"\[(" + "|".join(MOODS) + r")\]\s*", re.I)
+
+
+def strip_moods(text: str) -> str:
+    """Text for reading: mood tags removed."""
+    return re.sub(r"\s{2,}", " ", MOOD_RE.sub("", text or "")).strip()
+
+
+# Greetings and short replies said in one breath with the owner's name: "Good morning Sir", "Yes Sir", "Done Sir"
+GREETINGS = (r"good\s+(?:morning|afternoon|evening|night)|morning|afternoon|evening|night|hello|hi|hey|"
+             r"welcome(?:\s+back|\s+home)?|yes|no|right|certainly|of\s+course|indeed|understood|done|okay|ok|"
+             r"thanks|thank\s+you|very\s+well|at\s+once|absolutely|sure|noted|on\s+it|right\s+away|"
+             r"goodbye|good\s+night|sleep\s+well|congratulations|well\s+done|apologies|sorry")
+
+
+def speakable(text: str) -> str:
+    """Text for speaking: no Markdown, and no pause between a greeting and the owner's name
+    ("Good morning, Sir" -> "Good morning Sir")."""
+    t = re.sub(r"```.*?```", " ", text or "", flags=re.S)
+    t = re.sub(r"\[([^\]]+)\]\((?:https?:)[^)]+\)", r"\1", t)          # links -> their label
+    t = re.sub(r"[*_`#>|]+", "", t)
+    name = re.escape(settings.owner_name.strip() or "Sir")
+    t = re.sub(rf"\b({GREETINGS}),\s*({name})\b", r"\1 \2", t, flags=re.I)   # "Good morning, Sir" -> "Good morning Sir"
+    return re.sub(r"[ \t]+", " ", t).strip()
+
+
+def segments(text: str) -> list[tuple[str, str]]:
+    """[(mood, text), ...] - consecutive pieces of speech, each with its mood ('' = neutral)."""
+    parts, mood, pos = [], "", 0
+    for m in MOOD_RE.finditer(text):
+        if text[pos:m.start()].strip():
+            parts.append((mood, text[pos:m.start()].strip()))
+        mood, pos = m.group(1).lower(), m.end()
+    if text[pos:].strip():
+        parts.append((mood, text[pos:].strip()))
+    return parts or [("", text)]
+
+
+def _shift(base: str, delta: int, unit: str) -> str:
+    n = int(re.sub(r"[^\d-]", "", base.replace("+", "")) or 0) + delta
+    return f"{'+' if n >= 0 else ''}{n}{unit}"
 
 
 def _edge_voice(agent: str) -> tuple[str, str, str]:
@@ -82,6 +134,7 @@ def voices() -> dict[str, str]:
 
 
 def _edge(text: str, agent: str, path: Path) -> None:
+    """Speak each mood segment with its own delivery and join them into one MP3."""
     import asyncio
     import ssl
 
@@ -94,25 +147,38 @@ def _edge(text: str, agent: str, path: Path) -> None:
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or None
     name, rate, pitch = _edge_voice(agent)
 
-    async def go(v: str, r: str, p: str):
-        await edge_tts.Communicate(text, v, rate=r, pitch=p, proxy=proxy).save(str(path))
+    async def say(v: str, words: str, r: str, p: str) -> bytes:
+        audio = bytearray()
+        async for chunk in edge_tts.Communicate(words, v, rate=r, pitch=p, proxy=proxy).stream():
+            if chunk["type"] == "audio":
+                audio += chunk["data"]
+        return bytes(audio)
+
+    async def go(v: str, base_rate: str, base_pitch: str) -> bytes:
+        out = bytearray()
+        for mood, words in segments(text):
+            dr, dp = MOODS.get(mood, (0, 0))
+            out += await say(v, words, _shift(base_rate, dr, "%"), _shift(base_pitch, dp, "Hz"))
+        return bytes(out)
 
     try:
-        asyncio.run(go(name, rate, pitch))
+        data = asyncio.run(go(name, rate, pitch))
     except Exception:  # noqa: BLE001 - unknown custom voice name? fall back to JARVIS's voice once
         if name == EDGE_VOICES["JARVIS"][0]:
             raise
-        asyncio.run(go(*EDGE_VOICES["JARVIS"]))
-    if not path.exists() or path.stat().st_size < 200:
-        path.unlink(missing_ok=True)
+        data = asyncio.run(go(*EDGE_VOICES["JARVIS"]))
+    if len(data) < 200:
         raise RuntimeError("voice service returned no audio")
+    path.write_bytes(data)
 
 
 def synthesize(agent: str, text: str) -> Path:
     """Return the path of an MP3 of `agent` saying `text` (cached)."""
     prov = provider()
     voice_id = voice_for(agent)
-    text = text.strip()[:2500]
+    text = speakable(text)[:2500]
+    if prov != "edge":
+        text = strip_moods(text)
     tune = _edge_voice(agent) if prov == "edge" else voice_id
     key = hashlib.sha256(f"{prov}|{tune}|{settings.elevenlabs_model}|{text}".encode()).hexdigest()[:32]
     path = CACHE / f"{key}.mp3"

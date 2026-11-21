@@ -75,6 +75,8 @@ def api_file(method: str, field: str, path: str, **params):
 
 
 def send(text: str, buttons: list[list[tuple[str, str]]] | None = None, to: str | None = None) -> None:
+    from .voice import strip_moods
+    text = strip_moods(text)   # mood tags are for the voice only
     target = to or chat_id()
     chunks = [text[i:i + 3900] for i in range(0, len(text), 3900)] or [""]
     for i, chunk in enumerate(chunks):

@@ -20,6 +20,8 @@ def channels() -> list[str]:
 def notify_owner(subject: str, body: str, *, short: bool = False, approve_id: int | None = None) -> list[str]:
     """Send to every configured channel. short=True: phone channels only (alerts, approvals).
     approve_id adds Send / Cancel buttons on Telegram."""
+    from .voice import strip_moods
+    subject, body = strip_moods(subject), strip_moods(body)
     results = []
     active = channels()
     if "telegram" in active:

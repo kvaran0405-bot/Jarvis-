@@ -199,6 +199,9 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
 </nav>
 
 <script>
+const MOODS = {warm:[-4,-1],gentle:[-10,-2],calm:[-6,-2],proud:[2,4],cheerful:[6,4],excited:[12,6],playful:[6,5],amused:[3,3],dry:[-6,-4],sarcastic:[-5,3],serious:[-8,-5],stern:[-6,-7],concerned:[-9,-3],worried:[-7,-2],urgent:[12,3],whisper:[-12,-4],tired:[-12,-5],triumphant:[8,7]};
+const MOOD_RE = new RegExp("\\[(" + Object.keys(MOODS).join("|") + ")\\]\\s*", "gi");
+const stripMoods = t => String(t ?? "").replace(MOOD_RE, "");
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let AGENTS = {}, ORDER = [], voiceOn = true, state = null;
@@ -232,7 +235,7 @@ function focus(n){
 
 // ---------------------------------------------------------------- log + voice
 function logLine(agent, msg, kind="log", type=false){
-  msg = String(msg ?? "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#{1,6}\s+/gm, "").replace(/`([^`]+)`/g, "$1");
+  msg = stripMoods(msg).replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#{1,6}\s+/gm, "").replace(/`([^`]+)`/g, "$1");
   const color = agent==="YOU" ? "#fff" : (AGENTS[agent]?.color || "#888");
   const el = document.createElement("div");
   el.className = `ln ${kind}`; el.style.setProperty("--ac", color);
@@ -247,7 +250,15 @@ function logLine(agent, msg, kind="log", type=false){
     step(); });
 }
 const scroll = () => { const l = $("#log"); l.scrollTop = l.scrollHeight; };
-function plain(md){ return md.replace(/```[\s\S]*?```/g,"").replace(/[#*_`>|]/g,"").replace(/\[(.*?)\]\(.*?\)/g,"$1").slice(0,600); }
+const GREET_RE = /\b(good\s+(?:morning|afternoon|evening|night)|morning|afternoon|evening|night|hello|hi|hey|welcome(?:\s+back|\s+home)?|yes|no|right|certainly|of\s+course|indeed|understood|done|okay|ok|thanks|thank\s+you|very\s+well|at\s+once|absolutely|sure|noted|on\s+it|right\s+away|goodbye|good\s+night|sleep\s+well|congratulations|well\s+done|apologies|sorry),\s*(sir|ma'am|boss)\b/gi;
+const oneBreath = t => String(t).replace(GREET_RE, "$1 $2");
+// a mood tag holds for the following sentences until another one appears
+function withMood(st, sentence){
+  const m = sentence.match(/^\s*\[(\w+)\]/);
+  if(m && MOODS[m[1].toLowerCase()]){ st.mood = m[1].toLowerCase(); return sentence; }
+  return st.mood ? `[${st.mood}] ${sentence}` : sentence;
+}
+function plain(md){ return oneBreath(md).replace(/```[\s\S]*?```/g,"").replace(/[#*_`>|]/g,"").replace(/\[(.*?)\]\(.*?\)/g,"$1").slice(0,600); }
 // Voices: premium (ElevenLabs via /api/tts) when configured, else the computer's voices, customisable per agent.
 let VOICE_PROVIDER = "browser", currentAudio = null;
 function loadCustomVoices(){ try { return JSON.parse(localStorage.getItem("jarvis-voices") || "{}"); } catch { return {}; } }
@@ -259,8 +270,10 @@ function voiceSettings(agent){
 }
 function browserVoices(){ return "speechSynthesis" in window ? speechSynthesis.getVoices() : []; }
 function speakBrowser(agent, text, done){
-  const u = new SpeechSynthesisUtterance(plain(text));
-  const v = voiceSettings(agent); u.pitch = v.pitch; u.rate = v.rate;
+  const mood = (String(text).match(/^\s*\[(\w+)\]/) || [])[1]?.toLowerCase();
+  const u = new SpeechSynthesisUtterance(plain(stripMoods(text)));
+  const v = voiceSettings(agent), [dr, dp] = MOODS[mood] || [0, 0];
+  u.pitch = Math.max(0.1, v.pitch + dp / 20); u.rate = Math.max(0.5, v.rate * (1 + dr / 100));
   const all = browserVoices(), en = all.filter(x => x.lang.startsWith("en"));
   const chosen = v.name && all.find(x => x.name === v.name);
   if(chosen) u.voice = chosen;
@@ -318,9 +331,9 @@ function feedStream(rid, agent, text, final){
   let m;
   while((m = st.buf.match(/^[\s\S]*?[.!?…](?=\s)|^[^\n]*\n/))){
     const sentence = m[0]; st.buf = st.buf.slice(sentence.length);
-    if(sentence.trim()){ st.any = true; queueSpeech(agent, sentence); }
+    if(sentence.trim()){ st.any = true; queueSpeech(agent, withMood(st, sentence)); }
   }
-  if(final && st.buf.trim()){ st.any = true; queueSpeech(agent, st.buf); st.buf = ""; }
+  if(final && st.buf.trim()){ st.any = true; queueSpeech(agent, withMood(st, st.buf)); st.buf = ""; }
 }
 function openVoiceSettings(){
   const opts = browserVoices();
@@ -436,6 +449,7 @@ async function refresh(){
   document.querySelectorAll("[data-job]").forEach(b => b.onclick = async () => { b.textContent = "Started"; await fetch(`/api/jobs/${b.dataset.job}/run`, {method:"POST"}); setTimeout(refresh, 800); });
 }
 function md(src){
+  src = stripMoods(src);
   const inline = t => t.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,!?)]|$)/g,"$1<i>$2</i>")
     .replace(/`([^`]+)`/g,"<code>$1</code>")
     .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" style="color:var(--c)">$1</a>');
