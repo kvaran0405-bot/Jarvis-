@@ -14,7 +14,7 @@ const envFile = path.join(__dirname, "..", ".env");
 if (fs.existsSync(envFile)) {
   for (const line of fs.readFileSync(envFile, "utf8").split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
-    if (m && !line.trim().startsWith("#") && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^['"]|['"]$/g, "");
+    if (m && !line.trim().startsWith("#") && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/\s+#.*$/, "").replace(/^['"]|['"]$/g, "");
   }
 }
 const TOKEN = process.env.JARVIS_BRIDGE_TOKEN || "";

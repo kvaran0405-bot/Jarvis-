@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,7 +20,11 @@ def _load_dotenv(path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        key, value = key.strip(), value.strip().strip('"').strip("'")
+        key, value = key.strip(), value.strip()
+        if value[:1] in ('"', "'") and value[1:].find(value[0]) != -1:
+            value = value[1:1 + value[1:].find(value[0])]       # quoted: take what's inside the quotes
+        else:
+            value = re.split(r"\s+#", value, maxsplit=1)[0].strip()  # drop a trailing "   # note"
         os.environ.setdefault(key, value)
 
 
