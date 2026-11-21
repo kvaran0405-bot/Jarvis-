@@ -203,3 +203,32 @@ def test_natural_answers(eng, monkeypatch):
     pid = eng.store.add_proposal("STEVE", "Book gym slot", "Add gym 6pm")
     server.answer_naturally("yes please")
     assert decided == [(pid, True)]
+
+
+def test_phone_access_needs_pin(monkeypatch):
+    """Laptop (127.0.0.1): no PIN. From the phone (via Tailscale): PIN once, then a cookie."""
+    import asyncio
+    import json as _json
+    import jarvis.server as server
+    from starlette.requests import Request
+    from starlette.responses import Response
+    monkeypatch.setattr(settings, "access_pin", "4321")
+
+    def req(host, path="/api/state", cookie="", headers=()):
+        hdrs = [(b"host", host.encode())] + [(k.encode(), v.encode()) for k, v in headers]
+        if cookie:
+            hdrs.append((b"cookie", f"jarvis_auth={cookie}".encode()))
+        return Request({"type": "http", "method": "GET", "path": path, "headers": hdrs, "query_string": b"",
+                        "client": ("127.0.0.1", 5000) if host.startswith("127") else ("100.64.0.2", 5000)})
+
+    async def ok(request):
+        return Response("ok")
+    run = lambda r: asyncio.run(server.pin_lock(r, ok))
+    assert run(req("127.0.0.1:7334")).body == b"ok"                                    # on the laptop
+    assert run(req("laptop.tail1234.ts.net")).status_code == 401                        # phone, no PIN
+    assert run(req("127.0.0.1:7334", headers=[("x-forwarded-for", "100.64.0.2")])).status_code == 401  # via proxy
+    assert run(req("laptop.tail1234.ts.net", "/command-centre.html")).status_code == 307  # → PIN screen
+    assert run(req("laptop.tail1234.ts.net", "/manifest.webmanifest")).body == b"ok"    # installable
+    assert run(req("laptop.tail1234.ts.net", cookie=server._auth_cookie())).body == b"ok"  # after PIN
+    monkeypatch.setattr(settings, "access_pin", "")
+    assert run(req("laptop.tail1234.ts.net")).status_code == 403                        # no PIN set: locked

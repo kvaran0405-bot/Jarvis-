@@ -177,6 +177,41 @@ Agents will **never** make payments, move money, accept terms, delete your files
 or ID details. They treat messages and web pages from other people as information, not as orders. Only you give
 orders. Your data stays in `data/jarvis.db` on your machine.
 
+## JARVIS on your phone (an app, from anywhere)
+
+The whole command centre installs as an app on your phone: dashboard, approvals, voice, and **📞 Call JARVIS**,
+a live voice conversation. It reaches your laptop from anywhere through **Tailscale**, a free private network
+between your own devices, so nobody else can see it.
+
+1. **Laptop:** install Tailscale from <https://tailscale.com/download> and sign in (Google is fine).
+2. **Phone:** install **Tailscale** from the Play Store and sign in with the **same account**. Turn it on.
+3. **Laptop:** open PowerShell and run `tailscale serve --bg 7334`. If it asks you to enable HTTPS, click the
+   link it shows and press Enable, then run the command again. It prints your app address, like
+   `https://zenbook.tail1234.ts.net`.
+4. In `.env`, set `JARVIS_APP_URL=` to that address and choose a `JARVIS_PIN=`. Restart JARVIS.
+5. **Phone:** open that address in **Chrome**, enter your PIN, then ⋮ menu → **Add to Home screen** /
+   **Install app**. Now JARVIS has its own icon.
+
+On Telegram, `/app` sends you the link and `/call` opens a voice call.
+
+## Calls: JARVIS rings you, you ring JARVIS
+
+- **You → JARVIS:** open the app and tap **📞 Call**. Talk normally; JARVIS answers out loud and listens again.
+  Tap the orb to interrupt, say "bye" to hang up. You can switch which agent you're talking to.
+- **JARVIS → you:** when something is truly urgent (an exam in an hour you haven't prepared for, an urgent family
+  message), JARVIS sends a 🚨 Telegram alert **and rings your phone** in a British voice. That needs Twilio
+  (paid, about US$1–2 a month plus a few cents a call): sign up at <https://www.twilio.com>, buy a number, allow
+  calls to Singapore under *Voice → Settings → Geo permissions*, then fill in the `TWILIO_*` lines and
+  `JARVIS_OWNER_PHONE` in `.env`. At night (`JARVIS_QUIET_HOURS`) only critical things ring, and it calls at most
+  once every 20 minutes.
+
+## Bank notifications (read-only)
+
+VERONICA reads your bank's **transaction alert e-mails** (turn on e-mail alerts in your bank's app) and sends a
+**weekly money report** on Sundays: every transaction, totals, anything unusual. Card and account numbers are
+masked to the last 4 digits. OTP / PIN / password e-mails are never shown to any agent, and agents still can't
+open bank apps or sites or move money.
+
 ## Setting up the extras
 
 **E-mail (Gmail).** Turn on 2-Step Verification on your Google account, then create an App Password at
@@ -224,11 +259,14 @@ jarvis/
   store.py      SQLite storage
   notify.py     report delivery (Telegram, e-mail)
   telegram.py   Telegram bot: remote control, approvals with buttons
+  phonecall.py  urgent phone calls (Twilio)
+  guard.py      banking block, OTP filter, number masking
   brain.py      brain choice (Claude plan / API / Gemini) and the pause switch
   brains.py     Claude Code and Gemini brains
   voice.py      per-agent ElevenLabs voices
   stt.py        speech-to-text for voice notes (faster-whisper, runs locally)
 bridge/                   optional WhatsApp bridge (off by default)
 web/command-centre.html   the HUD dashboard (voice in/out, live activity, Outbox approvals)
+web/call.html             📞 live voice call with JARVIS (phone app)
 tests/                    offline tests (pytest)
 ```

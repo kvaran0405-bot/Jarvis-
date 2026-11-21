@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS · Unlock</title>
+<meta name="theme-color" content="#07090d"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:#07090d;color:#d3dbe6;font-family:"JetBrains Mono",monospace}
+body{display:grid;place-items:center;padding:24px;background:radial-gradient(500px 400px at 50% 35%,rgba(255,210,63,.12),transparent 70%),#07090d}
+.card{width:100%;max-width:340px;text-align:center}
+.orb{width:110px;height:110px;margin:0 auto 18px;border-radius:50%;background:radial-gradient(circle,#fff 0%,#ffd23f 38%,rgba(255,210,63,.25) 62%,transparent 72%);filter:drop-shadow(0 0 26px #ffd23f);animation:p 2.4s ease-in-out infinite}
+@keyframes p{50%{transform:scale(1.06);opacity:.85}}
+h1{font-family:Orbitron,sans-serif;letter-spacing:.25em;color:#ffd23f;font-size:22px;margin:0 0 6px}
+p{color:#8a95a7;font-size:12px;margin:0 0 22px}
+input{width:100%;font:600 28px "JetBrains Mono",monospace;letter-spacing:.5em;text-align:center;padding:14px;background:#0c1016;color:#fff;border:1px solid #1b2330;border-radius:8px}
+input:focus{outline:none;border-color:#ffd23f}
+button{margin-top:14px;width:100%;padding:14px;font:600 14px Orbitron,sans-serif;letter-spacing:.2em;background:#ffd23f;color:#000;border:0;border-radius:8px;cursor:pointer}
+#err{color:#ff6b6b;font-size:12px;min-height:18px;margin-top:10px}
+</style></head><body>
+<form class="card" id="f">
+  <div class="orb"></div>
+  <h1>JARVIS</h1><p>Enter your PIN, Sir.</p>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" aria-label="PIN" autofocus>
+  <button type="submit">Unlock</button>
+  <div id="err" role="alert"></div>
+</form>
+<script>
+document.getElementById("f").onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch("/api/login", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin: document.getElementById("pin").value})});
+  if(r.ok){ location.href = new URLSearchParams(location.search).get("next") || "/command-centre.html"; }
+  else { document.getElementById("err").textContent = (await r.json()).detail || "Wrong PIN"; document.getElementById("pin").value = ""; }
+};
+if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+</script></body></html>

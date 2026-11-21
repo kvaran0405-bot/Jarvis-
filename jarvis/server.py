@@ -6,6 +6,7 @@ import json
 import queue
 import re
 import threading
+import urllib.parse
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
@@ -56,6 +57,64 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="JARVIS OS", lifespan=lifespan)
+
+
+# ---------------------------------------------------------------- phone access: PIN lock
+# On the laptop itself (127.0.0.1) no PIN is needed. Opened from anywhere else - your phone through Tailscale -
+# every page and API call needs the PIN once (then a 30-day cookie).
+OPEN_PATHS = {"/login.html", "/api/login", "/manifest.webmanifest", "/sw.js", "/icon-192.png", "/icon-512.png",
+              "/favicon.ico"}
+_failed: list[float] = []
+
+
+def _is_local(request: Request) -> bool:
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    proxied = any(request.headers.get(h) for h in ("x-forwarded-for", "x-forwarded-host", "forwarded",
+                                                    "tailscale-user-login"))
+    client = request.client.host if request.client else ""
+    return host in ("127.0.0.1", "localhost") and not proxied and client in ("127.0.0.1", "::1", "testclient")
+
+
+def _auth_cookie() -> str:
+    import hashlib
+    import hmac
+    return hmac.new(settings.bridge_token.encode(), f"pin:{settings.access_pin}".encode(), hashlib.sha256).hexdigest()
+
+
+@app.middleware("http")
+async def pin_lock(request: Request, call_next):
+    path = request.url.path
+    if (_is_local(request) or path in OPEN_PATHS or path.startswith("/mcp/")
+            or path == "/api/whatsapp/incoming"):   # these two check their own secret token
+        return await call_next(request)
+    if not settings.access_pin:
+        return JSONResponse({"detail": "Set JARVIS_PIN in .env to use JARVIS from your phone."}, status_code=403)
+    if request.cookies.get("jarvis_auth") == _auth_cookie():
+        return await call_next(request)
+    if path.startswith("/api/"):
+        return JSONResponse({"detail": "PIN required"}, status_code=401)
+    return RedirectResponse(f"/login.html?next={urllib.parse.quote(path)}")
+
+
+class Pin(BaseModel):
+    pin: str
+
+
+@app.post("/api/login")
+def login(p: Pin, request: Request):
+    import hmac
+    import time as _time
+    now = _time.time()
+    _failed[:] = [t for t in _failed if now - t < 600]
+    if len(_failed) >= 5:
+        raise HTTPException(429, "Too many wrong PINs. Wait 10 minutes.")
+    if not settings.access_pin or not hmac.compare_digest(p.pin.strip(), settings.access_pin):
+        _failed.append(now)
+        raise HTTPException(401, "Wrong PIN")
+    resp = JSONResponse({"ok": True})
+    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    resp.set_cookie("jarvis_auth", _auth_cookie(), max_age=30 * 86400, httponly=True, samesite="lax", secure=secure)
+    return resp
 
 
 class Command(BaseModel):

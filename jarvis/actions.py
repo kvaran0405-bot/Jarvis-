@@ -501,3 +501,35 @@ def bank_alerts(ctx: ToolContext, days: int = 7) -> dict:
                        "content": mask_numbers(m["body"][:1200])})
     return {"notice": UNTRUSTED, "days": days, "alerts": alerts,
             "hidden_security_emails": hidden}
+
+
+# ------------------------------------------------------------------ urgent: ring the owner's phone
+@tool("call_owner", "Get the owner's attention NOW for something truly urgent: rings their phone (if calls are set "
+      "up) and speaks 'message', plus an urgent Telegram alert. Use only when waiting would cause real harm: a "
+      "deadline or exam within hours, something important that went wrong, an urgent message from family. "
+      "level 'critical' may ring during quiet hours (night); 'urgent' waits for the morning and alerts by "
+      "Telegram instead. Never for routine updates.",
+      {"message": {"type": "string", "description": "What to say on the call: 1-3 short spoken sentences"},
+       "level": {"type": "string", "enum": ["urgent", "critical"]}},
+      ["message", "level"])
+def call_owner(ctx: ToolContext, message: str, level: str = "urgent") -> dict:
+    from . import phonecall
+    result = {"telegram": "not linked", "call": "calls not set up"}
+    app = f"\n\n📞 Talk to JARVIS: {ctx.settings.app_url}/call.html" if ctx.settings.app_url else ""
+    if tg.ready():
+        tg.send(f"🚨 URGENT ({ctx.agent}): {message}{app}")
+        result["telegram"] = "sent"
+    if phonecall.ready():
+        allowed, why = phonecall.decide(ctx.store, level)
+        if allowed:
+            try:
+                sid = phonecall.place_call(message)
+                ctx.store.set("call:last", ctx.now().isoformat())
+                result["call"] = f"ringing your phone (call {sid[-6:]})"
+            except Exception as exc:  # noqa: BLE001
+                result["call"] = f"failed: {exc}"
+        else:
+            result["call"] = f"not placed: {why}"
+    ctx.bus.log(ctx.agent, f"🚨 {message} - call: {result['call']}", "job")
+    ctx.bus.publish({"type": "ask", "agent": ctx.agent, "say": f"Urgent, {ctx.settings.owner_name}. {message}"})
+    return result

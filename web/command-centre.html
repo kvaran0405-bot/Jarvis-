@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JARVIS OS</title>
+<meta name="theme-color" content="#07090d">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -97,6 +102,11 @@ input[type=range]{accent-color:var(--c)}
 #overlay[hidden]{display:none}
 #overlay{position:fixed;inset:0;background:rgba(3,5,8,.92);display:flex;align-items:center;justify-content:center;z-index:10}
 #overlay button{font-family:Orbitron;letter-spacing:.3em;background:none;color:var(--c);border:1px solid var(--c);padding:18px 34px;font-size:14px;cursor:pointer;box-shadow:0 0 30px color-mix(in srgb,var(--c) 30%,transparent)}
+#mtabs{display:none;position:fixed;left:0;right:0;bottom:0;z-index:5;justify-content:space-around;background:rgba(7,9,13,.96);border-top:1px solid var(--line);padding:6px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
+#mtabs button,#mtabs a{background:none;border:0;color:var(--muted);font-size:18px;display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;padding:2px 8px}
+#mtabs span{font-family:Orbitron,sans-serif;font-size:8px;letter-spacing:.12em}
+#mtabs .callgo{color:#3dff8b}
+@media (max-width:900px){ body{padding-bottom:64px} }
 #modal{position:fixed;inset:0;background:rgba(3,5,8,.85);display:none;align-items:center;justify-content:center;z-index:9;padding:16px}
 #modal .box{background:var(--panel);border:1px solid var(--line);max-width:760px;width:100%;max-height:85vh;overflow:auto;padding:22px 26px;line-height:1.6}
 #modal p{margin:.5em 0}
@@ -113,7 +123,20 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
   #grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
   aside{border-left:0;border-top:1px solid var(--line);min-height:60vh}
   footer{display:none}
-  header .hide-sm{display:none}
+  header .hide-sm,.brand .hide-sm{display:none}
+  header{flex-wrap:wrap;gap:6px;padding:10px 12px}
+  header .sp{flex-basis:100%;height:0}
+  header .pill{font-size:8px;letter-spacing:.1em;padding:5px 7px}
+  #grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:6px}
+  .card{padding:7px 2px}
+  .card .nm{font-size:8.5px;letter-spacing:.04em}
+  .card .st{display:none}
+  .card .dot{margin-bottom:4px}
+  #core{min-height:0;padding:14px 0 6px}
+  .orb{width:96px;height:96px}
+  #who{font-size:15px}
+  #log{height:150px}
+  #mtabs{display:flex}
 }
 </style>
 </head>
@@ -122,9 +145,10 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
 <div id="modal"><div class="box" id="modalBody"></div></div>
 
 <header>
-  <div class="brand hud"><b>JARVIS OS</b> · Agents Protocol</div>
+  <div class="brand hud"><b>JARVIS OS</b><span class="hide-sm"> · Agents Protocol</span></div>
   <div class="sp"></div>
   <span class="pill hud hide-sm" id="model" title="Which AI JARVIS is thinking with">—</span>
+  <a class="pill hud" id="callLink" href="/call.html" title="Talk to JARVIS like a phone call" style="color:#3dff8b;border-color:rgba(61,255,139,.4);text-decoration:none">📞 Call</a>
   <button class="pill hud" id="saverBtn" title="Leave your Claude plan alone: run on free Gemini" hidden>🔋 Saver</button>
   <button class="pill hud" id="pauseBtn" title="Stop all AI use until you resume">⏸ Pause</button>
   <button class="pill hud" id="voiceBtn">🔊 Voice</button>
@@ -168,6 +192,11 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
   </aside>
 </main>
 <footer class="hud">JARVIS OS · Command Centre</footer>
+<nav id="mtabs" aria-label="Sections">
+  <button data-go="tasks">✅<span>Tasks</span></button><button data-go="agenda">📅<span>Agenda</span></button>
+  <a href="/call.html" class="callgo">📞<span>Call</span></a>
+  <button data-go="outbox">📥<span>Outbox</span></button><button data-go="reports">📄<span>Reports</span></button>
+</nav>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -575,8 +604,11 @@ function connect(){
 
 // ---------------------------------------------------------------- start
 setInterval(() => $("#clock").textContent = new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}), 1000);
+if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 (async () => {
-  const info = await (await fetch("/api/agents")).json();
+  const infoResp = await fetch("/api/agents");
+  if(infoResp.status === 401){ location.href = "/login.html?next=/command-centre.html"; return; }
+  const info = await infoResp.json();
   info.agents.forEach(a => AGENTS[a.name] = a); ORDER = info.agents.map(a => a.name);
   try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; } catch {}
   try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
@@ -588,6 +620,12 @@ setInterval(() => $("#clock").textContent = new Date().toLocaleTimeString([], {h
     $("#engage").onclick = () => { $("#overlay").hidden = true; boot(); };
   } else ORDER.forEach(n => setCard(n, "online"));
   try { if(rec && localStorage.getItem("jarvis-handsfree") === "on") setHandsFree(true); } catch {}
+  document.querySelectorAll("#mtabs [data-go]").forEach(b => b.onclick = () => {
+    document.querySelector(`.tabs button[data-p="${b.dataset.go}"]`).click();
+    document.querySelector("aside").scrollIntoView({behavior: "smooth"}); });
+  const tab = location.hash.slice(1);  // e.g. #outbox from the app shortcut or a Telegram link
+  if(tab && document.querySelector(`.tabs button[data-p="${tab}"]`)){ document.querySelector(`.tabs button[data-p="${tab}"]`).click();
+    if(innerWidth <= 900) setTimeout(() => document.querySelector("aside").scrollIntoView(), 300); }
 })();
 </script>
 </body>

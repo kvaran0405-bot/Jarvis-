@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Call JARVIS</title>
+<meta name="theme-color" content="#07090d"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+:root{--c:#ffd23f;--bg:#07090d;--line:#1b2330;--muted:#8a95a7;--text:#d3dbe6}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:"JetBrains Mono",monospace;overflow:hidden}
+body{display:flex;flex-direction:column;padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  background:radial-gradient(500px 420px at 50% 32%,color-mix(in srgb,var(--c) 14%,transparent),transparent 70%),var(--bg);transition:background .8s}
+header{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted)}
+header a{color:var(--muted);text-decoration:none;border:1px solid var(--line);padding:6px 10px;border-radius:16px}
+.center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:0}
+.orb{position:relative;width:200px;height:200px;max-width:55vw;max-height:55vw;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.orb .g{position:absolute;inset:22%;border-radius:50%;background:radial-gradient(circle,#fff 0%,var(--c) 38%,color-mix(in srgb,var(--c) 30%,transparent) 62%,transparent 72%);filter:drop-shadow(0 0 34px var(--c));animation:pulse 2.6s ease-in-out infinite}
+.orb .r{position:absolute;inset:4%;border-radius:50%;border:3px solid transparent;border-top-color:var(--c);border-right-color:var(--c);animation:spin 5s linear infinite}
+.orb .r.b{inset:0;border-color:transparent;border-bottom-color:var(--c);border-left-color:color-mix(in srgb,var(--c) 40%,transparent);animation-duration:8s;animation-direction:reverse;opacity:.6}
+body.listening .orb .g{animation:listen 1.1s ease-in-out infinite}
+body.speaking .orb .g{animation-duration:.6s}
+body.thinking .orb .r{animation-duration:1.2s}
+body.idle .orb .g{filter:grayscale(.6) drop-shadow(0 0 18px var(--c));opacity:.7}
+@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{50%{transform:scale(1.07);opacity:.85}}
+@keyframes listen{0%,100%{transform:scale(.92)}50%{transform:scale(1.12)}}
+#who{font-family:Orbitron,sans-serif;font-weight:700;font-size:24px;letter-spacing:.2em;color:var(--c);text-shadow:0 0 14px var(--c);margin-top:6px}
+#status{font-size:13px;color:var(--muted);min-height:18px;text-align:center}
+#timer{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#heard{font-size:14px;color:#fff;text-align:center;min-height:20px;max-width:520px;padding:0 8px}
+.log{max-height:24vh;overflow:auto;font-size:13px;line-height:1.5;display:flex;flex-direction:column;gap:6px;padding:4px 2px;margin-bottom:10px}
+.log div{white-space:pre-wrap;word-break:break-word}
+.log .you{color:#fff} .log .you::before{content:"You  ";color:var(--muted)}
+.log .ai b{color:var(--c);font-weight:600}
+.agents{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
+.agents button{flex:none;background:#0c1016;border:1px solid var(--line);color:var(--ac);font:600 10px Orbitron,sans-serif;letter-spacing:.12em;padding:8px 10px;border-radius:16px}
+.agents button.on{border-color:var(--ac);box-shadow:0 0 12px color-mix(in srgb,var(--ac) 40%,transparent)}
+.controls{display:flex;justify-content:center;align-items:center;gap:26px}
+.btn{width:64px;height:64px;border-radius:50%;border:0;font-size:26px;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.btn.small{width:52px;height:52px;font-size:20px;background:#1a212c;color:#fff}
+.btn.small.on{background:#fff;color:#000}
+#callBtn{width:78px;height:78px;background:#2ecc71;color:#fff;font-size:32px;box-shadow:0 0 24px rgba(46,204,113,.5)}
+body.in-call #callBtn{background:#ff3b3b;box-shadow:0 0 24px rgba(255,59,59,.5);transform:rotate(135deg)}
+.hint{text-align:center;font-size:11px;color:var(--muted);margin-top:12px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style></head>
+<body class="idle">
+<header><a href="/command-centre.html">← Dashboard</a><span id="timer">00:00</span><span id="brain">…</span></header>
+<div class="center">
+  <div class="orb" id="orb" title="Tap to interrupt"><div class="r"></div><div class="r b"></div><div class="g"></div></div>
+  <div id="who">JARVIS</div>
+  <div id="status">Tap the green button to call</div>
+  <div id="heard" aria-live="polite"></div>
+</div>
+<div class="log" id="log" aria-live="polite"></div>
+<div class="agents" id="agents"></div>
+<div class="controls">
+  <button class="btn small" id="muteBtn" title="Mute microphone" aria-label="Mute microphone">🎙</button>
+  <button class="btn" id="callBtn" aria-label="Call or hang up">📞</button>
+  <button class="btn small" id="spkBtn" title="Voice replies on/off" aria-label="Voice replies">🔊</button>
+</div>
+<div class="hint">Talk normally. Tap the orb to interrupt. Say “bye” to hang up.</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const plain = t => String(t).replace(/```[\s\S]*?```/g,"").replace(/[#*_`>|]/g,"").replace(/\[(.*?)\]\(.*?\)/g,"$1");
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let AGENTS = {}, agent = "JARVIS", provider = "browser", inCall = false, muted = false, speakOn = true;
+let rec = null, t0 = 0, timerId = null, gen = 0, chain = Promise.resolve(), speaking = 0, currentAudio = null;
+let pendingRid = null, streams = {};
+const BYE = /^(bye|goodbye|bye bye|hang up|end (the )?call|that'?s all|thanks,? bye|ok bye|talk later)[\s.!,]*(jarvis|sir)?[\s.!]*$/i;
+
+function setState(s, text){ document.body.className = (inCall ? "in-call " : "") + s; $("#status").textContent = text; }
+function focusAgent(n){ agent = n; const a = AGENTS[n]; if(!a) return;
+  document.documentElement.style.setProperty("--c", a.color); $("#who").textContent = n;
+  document.querySelectorAll(".agents button").forEach(b => b.classList.toggle("on", b.dataset.a === n)); }
+function addLog(who, text){
+  const d = document.createElement("div");
+  if(who === "you"){ d.className = "you"; d.textContent = text; }
+  else { d.className = "ai"; d.innerHTML = `<b>${esc(who)}</b>  ${esc(plain(text))}`; }
+  $("#log").appendChild(d); $("#log").scrollTop = $("#log").scrollHeight;
+}
+
+// ------------------------------------------------------------ speaking (sentence by sentence)
+let CUSTOM = {}; try { CUSTOM = JSON.parse(localStorage.getItem("jarvis-voices") || "{}"); } catch {}
+const BASE = {JARVIS:{pitch:.85,rate:1.02},FRIDAY:{pitch:1.25,rate:1.05},ZEUS:{pitch:.6,rate:.95},SENTINEL:{pitch:.5,rate:.92},VERONICA:{pitch:1.3,rate:1.05},ATHENA:{pitch:1.2,rate:1}};
+function speakBrowser(a, text, done){
+  const u = new SpeechSynthesisUtterance(text); const v = {pitch:1, rate:1, ...(BASE[a]||{}), ...(CUSTOM[a]||{})};
+  u.pitch = v.pitch; u.rate = v.rate;
+  const all = speechSynthesis.getVoices(), en = all.filter(x => x.lang.startsWith("en"));
+  const chosen = v.name && all.find(x => x.name === v.name);
+  if(chosen) u.voice = chosen; else if(a === "JARVIS"){ const uk = en.find(x => /UK English Male|Daniel|en-GB/i.test(x.name + x.lang)); if(uk) u.voice = uk; }
+  u.onend = u.onerror = done; speechSynthesis.speak(u); setTimeout(done, 4000 + text.length * 90);
+}
+function say(a, text){
+  text = plain(text).trim(); if(!text || !speakOn) return chain;
+  const g = gen, clip = {a, text};
+  if(provider === "elevenlabs") clip.audio = fetch("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({agent:a, text})}).then(r => { if(!r.ok) throw 0; return r.blob(); });
+  speaking++; stopListening();
+  chain = chain.then(() => new Promise(res => {
+    if(g !== gen) return res();
+    let fin = false; const done = () => { if(fin) return; fin = true; res(); };
+    setState("speaking", `${a} is speaking…`);
+    const browser = () => "speechSynthesis" in window ? speakBrowser(a, text, done) : done();
+    if(clip.audio) clip.audio.then(b => { const au = new Audio(URL.createObjectURL(b)); currentAudio = au; au.onended = au.onerror = done; return au.play(); }).catch(browser);
+    else browser();
+  })).finally(() => { if(--speaking === 0 && inCall && !pendingRid) listen(); });
+  return chain;
+}
+function interrupt(){ gen++; try { speechSynthesis.cancel(); } catch {} if(currentAudio){ currentAudio.pause(); currentAudio = null; } speaking = 0; chain = Promise.resolve(); if(inCall) listen(); }
+function feed(rid, a, text, final){
+  const st = streams[rid] || (streams[rid] = {buf:"", any:false, all:""});
+  st.buf += text || ""; st.all += text || "";
+  let m;
+  while((m = st.buf.match(/^[\s\S]*?[.!?…](?=\s)|^[^\n]*\n/))){ const s = m[0]; st.buf = st.buf.slice(s.length); if(s.trim()){ st.any = true; say(a, s); } }
+  if(final && st.buf.trim()){ st.any = true; say(a, st.buf); st.buf = ""; }
+}
+
+// ------------------------------------------------------------ listening
+function stopListening(){ if(rec){ try { rec.abort(); } catch {} } }
+function listen(){
+  if(!inCall || muted || speaking || pendingRid || !SR) { if(inCall && muted) setState("idle", "Microphone muted"); return; }
+  rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false;
+  let got = false;
+  rec.onresult = e => {
+    const r = e.results[e.results.length - 1], text = r[0].transcript.trim();
+    $("#heard").textContent = text;
+    if(r.isFinal && text){ got = true; rec.stop(); handle(text); }
+  };
+  rec.onerror = e => { if(e.error === "not-allowed"){ setState("idle", "Microphone blocked: allow it in the browser settings."); hangUp(true); } };
+  rec.onend = () => { if(!got && inCall && !speaking && !pendingRid && !muted) setTimeout(listen, 250); };
+  try { rec.start(); setState("listening", "Listening…"); } catch {}
+}
+
+async function handle(text){
+  addLog("you", text); $("#heard").textContent = "";
+  if(BYE.test(text)){ say(agent, `Goodbye, ${window.OWNER || "Sir"}.`).then(() => hangUp()); return; }
+  const rid = Math.random().toString(36).slice(2); pendingRid = rid; streams[rid] = {buf:"", any:false, all:""};
+  setState("thinking", `${agent} is thinking…`);
+  try {
+    const r = await fetch("/api/command", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, agent, voice:true, rid})});
+    if(r.status === 401){ location.href = "/login.html?next=/call.html"; return; }
+    const data = await r.json();
+    addLog(data.agent || agent, data.reply || "");
+    if(!streams[rid].any) say(data.agent || agent, data.reply || "Done.");
+  } catch(err){ addLog("JARVIS", "Lost connection to the laptop."); }
+  pendingRid = null; delete streams[rid];
+  if(!speaking && inCall) listen();
+}
+
+// ------------------------------------------------------------ call lifecycle
+function tick(){ const s = Math.floor((Date.now() - t0) / 1000); $("#timer").textContent = `${String(s/60|0).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`; }
+function startCall(){
+  if(!SR){ setState("idle", "Voice needs Chrome or Edge, opened over https (see README)."); return; }
+  inCall = true; t0 = Date.now(); timerId = setInterval(tick, 1000); tick();
+  try { navigator.wakeLock?.request("screen").catch(() => {}); } catch {}
+  say(agent, `Yes, ${window.OWNER || "Sir"}?`);
+}
+function hangUp(silent){
+  inCall = false; clearInterval(timerId); stopListening(); if(!silent) interrupt(); pendingRid = null;
+  setState("idle", "Call ended. Tap to call again.");
+}
+$("#callBtn").onclick = () => inCall ? hangUp() : startCall();
+$("#orb").onclick = () => { if(speaking) interrupt(); };
+$("#muteBtn").onclick = () => { muted = !muted; $("#muteBtn").classList.toggle("on", muted); $("#muteBtn").textContent = muted ? "🔇" : "🎙"; if(muted) stopListening(); else listen(); };
+$("#spkBtn").onclick = () => { speakOn = !speakOn; $("#spkBtn").classList.toggle("on", !speakOn); $("#spkBtn").textContent = speakOn ? "🔊" : "🔈"; if(!speakOn) interrupt(); };
+
+// live stream of the reply as it is written
+const es = new EventSource("/api/stream");
+es.onmessage = e => { const ev = JSON.parse(e.data);
+  if(ev.type === "delta" && streams[ev.rid]) feed(ev.rid, ev.agent, ev.text, false);
+  else if(ev.type === "delta_end" && streams[ev.rid]) feed(ev.rid, ev.agent, "", true);
+  else if(ev.type === "ask" && inCall){ addLog(ev.agent, ev.say); say(ev.agent, ev.say); } };
+
+(async () => {
+  try {
+    const r = await fetch("/api/agents"); if(r.status === 401){ location.href = "/login.html?next=/call.html"; return; }
+    const info = await r.json(); window.OWNER = info.owner;
+    info.agents.forEach(a => AGENTS[a.name] = a);
+    $("#agents").innerHTML = info.agents.map(a => `<button data-a="${a.name}" style="--ac:${a.color}">${a.name}</button>`).join("");
+    document.querySelectorAll(".agents button").forEach(b => b.onclick = () => focusAgent(b.dataset.a));
+    const q = new URLSearchParams(location.search).get("agent"); focusAgent(q && AGENTS[q.toUpperCase()] ? q.toUpperCase() : "JARVIS");
+    const v = await (await fetch("/api/voices")).json(); provider = v.provider;
+    const b = await (await fetch("/api/brain")).json();
+    $("#brain").textContent = b.mode === "paused" ? "⏸ PAUSED" : ({pro:"CLAUDE PLAN", api:"CLAUDE API", gemini:"GEMINI"}[b.now] || "");
+  } catch {}
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+})();
+</script>
+</body></html>

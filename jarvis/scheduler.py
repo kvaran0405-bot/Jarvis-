@@ -86,6 +86,8 @@ MONEY = ("Weekly money report. Call bank_alerts(days=7) and spending_summary(day
 WATCH = ("Deadline sweep: check overdue and next-48h tasks and events, clashes, stalled goals, applications "
          "without a next step. Fix what you can yourself. For anything that needs the owner's say-so (asking for an "
          "extension, dropping or moving something, a message to send) use `propose` with a ready-to-go plan. "
+         "If something needs the owner within the next few hours and they may not have seen it (e.g. an exam "
+         "or deadline today not started), use `call_owner`. "
          "Otherwise reply with a one-line all-clear.")
 
 

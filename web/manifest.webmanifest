@@ -1,0 +1,19 @@
+{
+  "name": "JARVIS OS",
+  "short_name": "JARVIS",
+  "description": "Your personal AI team",
+  "start_url": "/command-centre.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07090d",
+  "theme_color": "#07090d",
+  "icons": [
+    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ],
+  "shortcuts": [
+    {"name": "Call JARVIS", "url": "/call.html", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Outbox", "url": "/command-centre.html#outbox", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]}
+  ]
+}

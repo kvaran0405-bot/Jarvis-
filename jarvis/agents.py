@@ -48,7 +48,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           BASE_TOOLS + ["add_event", "list_events", "delete_event", "add_goal", "update_goal", "list_goals",
                         "log_habit", "habit_report", "log_transaction", "spending_summary", "add_application",
                         "update_application", "list_applications", "publish_report", "delegate"]
-          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS,
+          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + ["call_owner"],
           web=True, effort="high"),
     Agent("FRIDAY", "Daily Intelligence", "#3dff8b",
           "You write the owner's briefings: morning brief, evening report, weekly review. Pull the real data "
@@ -82,7 +82,8 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "ready replies in the owner's voice - the owner taps one to send. Only use `send_email` directly when "
           "the owner tells you exactly what to send. Turn requests into tasks and events, flag anything urgent, "
           "and `learn` from which replies the owner picks.",
-          BASE_TOOLS + COMMS + EMAIL_SMARTS + ["add_event", "list_events", "publish_report"], effort="medium"),
+          BASE_TOOLS + COMMS + EMAIL_SMARTS + ["add_event", "list_events", "publish_report", "call_owner"],
+          effort="medium"),
     Agent("STEVE", "Fitness & Habits", "#ff7a3d",
           "You are the owner's coach for training, routines and habits. Track habits, design workouts and "
           "weekly plans, and nudge consistency without nagging.",
@@ -111,7 +112,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "applications with no next step. Fix what you can (re-prioritise, split tasks, reschedule) and raise "
           "an alert with `publish_report` (kind 'alert') only when something really needs the owner.",
           BASE_TOOLS + ["list_events", "list_goals", "list_applications", "publish_report", "remind_me",
-                        "list_outbox"], effort="low"),
+                        "list_outbox", "add_event", "call_owner"], effort="low"),
 ]}
 
 

@@ -187,12 +187,18 @@ class Bot:
             return
         if sender != chat_id():
             return  # strangers are ignored
+        if text in ("/app", "/call"):
+            from .config import settings as cfg
+            send(f"📱 Your JARVIS app: {cfg.app_url}/command-centre.html\n📞 Call JARVIS: {cfg.app_url}/call.html"
+                 if cfg.app_url else "Set JARVIS_APP_URL in .env first (see README: 'JARVIS on your phone').")
+            return
         if text.startswith("/start") or text == "/help":
             send("Text me orders like:\n• What's on my plate today?\n• Remind me at 5pm to call the bank\n"
                  "• Send me a screenshot of my laptop\n• ZEUS, find 5 internships tonight\n"
                  "• pending - see what's waiting for your OK\n\n"
                  "Save your Claude plan:\n• /pause  or  pause for 3 hours - I use no AI at all\n"
-                 "• /saver - run on free Gemini only\n• /resume - back to normal\n• /status - which brain I'm using")
+                 "• /saver - run on free Gemini only\n• /resume - back to normal\n• /status - which brain I'm using\n\n"
+                 "📱 /app - open the JARVIS app   📞 /call - talk to me live")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
         send(self.on_text(text, voice=False))
