@@ -4,3 +4,4 @@ uvicorn>=0.30
 psutil>=5.9        # laptop battery / CPU / memory
 pillow>=10         # laptop screenshots on Windows / Linux
 pypdf>=4           # reading PDF files (lecture notes, documents)
+faster-whisper>=1.0   # understands your Telegram voice notes, offline on your laptop

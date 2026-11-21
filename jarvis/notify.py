@@ -1,10 +1,8 @@
 """Deliver reports and alerts to the owner: WhatsApp (to yourself), e-mail and/or Telegram. All optional."""
 from __future__ import annotations
 
-import json
-import urllib.request
-
 from . import channels as ch
+from . import telegram as tg
 from .config import settings
 
 
@@ -14,24 +12,23 @@ def channels() -> list[str]:
         out.append("whatsapp")
     if ch.email_ready() and settings.report_email_to:
         out.append("email")
-    if settings.telegram_token and settings.telegram_chat_id:
+    if tg.ready():
         out.append("telegram")
     return out
 
 
-def send_telegram(text: str) -> None:
-    url = f"https://api.telegram.org/bot{settings.telegram_token}/sendMessage"
-    for i in range(0, len(text), 3900):  # Telegram message limit is 4096 chars
-        data = json.dumps({"chat_id": settings.telegram_chat_id, "text": text[i:i + 3900]}).encode()
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=30).read()
-
-
-def notify_owner(subject: str, body: str, *, short: bool = False) -> list[str]:
-    """Send to every configured channel. short=True: WhatsApp/Telegram only (alerts, approvals)."""
+def notify_owner(subject: str, body: str, *, short: bool = False, approve_id: int | None = None) -> list[str]:
+    """Send to every configured channel. short=True: phone channels only (alerts, approvals).
+    approve_id adds Send / Cancel buttons on Telegram."""
     results = []
     active = channels()
-    if "whatsapp" in active:
+    if "telegram" in active:
+        try:
+            tg.send(f"🤖 {subject}\n\n{body}", tg.approval_buttons(approve_id) if approve_id else None)
+            results.append("telegram: sent")
+        except Exception as exc:  # noqa: BLE001
+            results.append(f"telegram: failed ({exc})")
+    if "whatsapp" in active and not ("telegram" in active and short):
         try:
             ch.send_whatsapp(settings.owner_whatsapp, f"🤖 *{subject}*\n\n{body}"[:60000])
             results.append("whatsapp: sent")
@@ -43,10 +40,4 @@ def notify_owner(subject: str, body: str, *, short: bool = False) -> list[str]:
             results.append("email: sent")
         except Exception as exc:  # noqa: BLE001
             results.append(f"email: failed ({exc})")
-    if "telegram" in active:
-        try:
-            send_telegram(f"{subject}\n\n{body}")
-            results.append("telegram: sent")
-        except Exception as exc:  # noqa: BLE001
-            results.append(f"telegram: failed ({exc})")
     return results or ["no channel configured - saved to dashboard only"]

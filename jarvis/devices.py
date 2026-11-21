@@ -135,8 +135,14 @@ def run_command(command: str, timeout: int = 120) -> str:
 
 
 # ---------------------------------------------------------------- Android phone (ADB over Wi-Fi)
+def adb_path() -> str | None:
+    """ADB from JARVIS_ADB (e.g. C:\\platform-tools\\adb.exe) or from PATH."""
+    custom = os.environ.get("JARVIS_ADB", "").strip()
+    return custom if custom and Path(custom).exists() else shutil.which("adb")
+
+
 def _adb(*args: str, timeout: int = 20, binary: bool = False):
-    adb = shutil.which("adb")
+    adb = adb_path()
     if not adb:
         raise RuntimeError("ADB is not installed - see README 'Phone control'")
     target = ["-s", settings_phone()] if settings_phone() else []
@@ -151,11 +157,11 @@ def settings_phone() -> str:
 
 
 def phone_ready() -> bool:
-    return bool(settings_phone()) and shutil.which("adb") is not None
+    return bool(settings_phone()) and adb_path() is not None
 
 
 def phone_connect() -> str:
-    adb = shutil.which("adb")
+    adb = adb_path()
     if not adb or not settings_phone():
         raise RuntimeError("Set JARVIS_PHONE_ADB=<phone-ip>:<port> and install ADB")
     return subprocess.run([adb, "connect", settings_phone()], capture_output=True, text=True, timeout=15).stdout

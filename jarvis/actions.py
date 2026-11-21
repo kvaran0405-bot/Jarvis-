@@ -9,6 +9,7 @@ from datetime import datetime
 
 from . import channels as ch
 from . import devices
+from . import telegram as tg
 from .notify import notify_owner
 from .tools import I, S, ToolContext, tool
 
@@ -47,6 +48,8 @@ def _queue(ctx: ToolContext, channel: str, to: str, body: str, *, subject: str =
            reply_to: str = "", send_at: str | None = None) -> dict:
     if channel == "computer":
         address, name = "this laptop", "this laptop"
+    elif channel == "telegram":
+        address, name = "owner", "you (Telegram)"
     else:
         address, name = _resolve(ctx, channel, to)
     when = _parse_when(ctx, send_at)
@@ -67,8 +70,8 @@ def _queue(ctx: ToolContext, channel: str, to: str, body: str, *, subject: str =
     what = "run on your laptop" if channel == "computer" else f"{channel} to {name or address}"
     preview = body if channel == "computer" else (f"Subject: {subject}\n" if subject else "") + body
     notify_owner(f"Approve #{msg_id}? ({what})",
-                 f"{preview[:1200]}\n\nWhy: {reason or '-'}\n\nReply *yes {msg_id}* to send, *no {msg_id}* to cancel.",
-                 short=True)
+                 f"{preview[:1200]}\n\nWhy: {reason or '-'}\n\nReply yes {msg_id} to send, no {msg_id} to cancel.",
+                 short=True, approve_id=msg_id)
     return {"id": msg_id, "status": "waiting for the owner's approval",
             "note": "Tell the owner it is waiting in the Outbox (dashboard) or on WhatsApp."}
 
@@ -101,6 +104,9 @@ def find_contacts(ctx: ToolContext, query: str = "") -> list:
       {"to": S, "message": S, "reason": {"type": "string", "description": "Why - shown to the owner"},
        "send_at": S}, ["to", "message", "reason"])
 def send_whatsapp(ctx: ToolContext, to: str, message: str, reason: str, send_at: str | None = None) -> dict:
+    if not ch.whatsapp_ready():
+        return {"error": "WhatsApp is switched off. Offer to send an e-mail instead, or remind the owner to "
+                         "message them (remind_me)."}
     return _queue(ctx, "whatsapp", to, message, reason=reason, send_at=send_at)
 
 
@@ -113,10 +119,12 @@ def send_email(ctx: ToolContext, to: str, subject: str, body: str, reason: str, 
     return _queue(ctx, "email", to, body, subject=subject, reason=reason, reply_to=reply_to, send_at=send_at)
 
 
-@tool("remind_me", "Send the owner a reminder at a given time (WhatsApp if connected, otherwise e-mail).",
+@tool("remind_me", "Send the owner a reminder at a given time (Telegram, WhatsApp or e-mail - whichever is set up).",
       {"text": S, "at": {"type": "string", "description": "ISO datetime"}}, ["text", "at"])
 def remind_me(ctx: ToolContext, text: str, at: str) -> dict:
     s = ctx.settings
+    if tg.ready():
+        return _queue(ctx, "telegram", "", f"⏰ Reminder: {text}", reason="reminder", send_at=at)
     if ch.whatsapp_ready() and s.owner_whatsapp:
         return _queue(ctx, "whatsapp", s.owner_whatsapp, f"⏰ Reminder: {text}", reason="reminder", send_at=at)
     if ch.email_ready() and s.report_email_to:
@@ -211,15 +219,23 @@ def open_on_laptop(ctx: ToolContext, url: str = "", app: str = "") -> str:
     return "Give a url or an app"
 
 
+def _to_phone(ctx: ToolContext, path: str, caption: str) -> str | None:
+    """Send a file to the owner's phone. Returns the channel used, or None."""
+    if tg.ready():
+        tg.send_file(path, caption)
+        return "telegram"
+    if ch.whatsapp_ready() and ctx.settings.owner_whatsapp:
+        ch.send_whatsapp_file(ctx.settings.owner_whatsapp, path, caption)
+        return "whatsapp"
+    return None
+
+
 @tool("laptop_screenshot", "Take a screenshot of the laptop screen. send_to_phone=true sends it to the owner's "
-      "WhatsApp.", {"send_to_phone": {"type": "boolean"}})
+      "phone (Telegram or WhatsApp).", {"send_to_phone": {"type": "boolean"}})
 def laptop_screenshot(ctx: ToolContext, send_to_phone: bool = True) -> dict:
     path = devices.screenshot()
-    sent = False
-    if send_to_phone and ch.whatsapp_ready() and ctx.settings.owner_whatsapp:
-        ch.send_whatsapp_file(ctx.settings.owner_whatsapp, path, "🖥 Laptop screen")
-        sent = True
-    return {"saved": path, "sent_to_whatsapp": sent}
+    via = _to_phone(ctx, path, "🖥 Laptop screen") if send_to_phone else None
+    return {"saved": path, "sent_to_phone_via": via}
 
 
 @tool("lock_laptop", "Lock the laptop screen.")
@@ -244,16 +260,14 @@ def write_file(ctx: ToolContext, name: str, content: str) -> dict:
     return {"saved": devices.write_file(name, content)}
 
 
-@tool("send_file_to_phone", "Send a file from the laptop to the owner's WhatsApp.", {"path": S, "caption": S},
-      ["path"])
+@tool("send_file_to_phone", "Send a file from the laptop to the owner's phone (Telegram or WhatsApp).",
+      {"path": S, "caption": S}, ["path"])
 def send_file_to_phone(ctx: ToolContext, path: str, caption: str = "") -> dict:
-    if not (ch.whatsapp_ready() and ctx.settings.owner_whatsapp):
-        return {"error": "WhatsApp is not connected"}
     full = devices.Path(path).expanduser()
     if not devices.inside_home(full):
         return {"error": "Only files inside the home folder can be sent"}
-    ch.send_whatsapp_file(ctx.settings.owner_whatsapp, str(full), caption)
-    return {"sent": path}
+    via = _to_phone(ctx, str(full), caption)
+    return {"sent_via": via} if via else {"error": "No phone channel connected (Telegram or WhatsApp)"}
 
 
 @tool("run_on_laptop", "Run a terminal command on the owner's laptop. ALWAYS waits for the owner's approval first; "

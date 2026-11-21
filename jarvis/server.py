@@ -20,6 +20,7 @@ from .config import ROOT, settings
 from .engine import Engine
 from . import channels as ch
 from . import devices
+from . import telegram as tg
 from . import voice
 from .notify import channels
 from .scheduler import Scheduler
@@ -38,8 +39,16 @@ async def lifespan(_app):
             store.set(f"job:{job}:last", datetime.now(settings.tz).isoformat())
     if settings.schedule_enabled:
         scheduler.start()
+    tg.attach(store)
+    from . import stt
+    stt.warm_up()
+    bot = tg.Bot(on_text=lambda text, voice=False: handle_owner_message(text, "Telegram", voice),
+                 on_decision=lambda msg_id, yes: approve_message(msg_id) if yes else reject_message(msg_id),
+                 log=lambda m: bus.log("JARVIS", m, "system"))
+    bot.start()
     bus.log("JARVIS", "JARVIS OS online.", "system")
     yield
+    bot.stop()
     scheduler.stop()
 
 
@@ -49,6 +58,8 @@ app = FastAPI(title="JARVIS OS", lifespan=lifespan)
 class Command(BaseModel):
     text: str
     agent: str = "JARVIS"
+    voice: bool = False   # spoken command: fast path, short spoken answer
+    rid: str = ""         # request id, so the dashboard can match streamed text to its request
 
 
 class TaskIn(BaseModel):
@@ -95,7 +106,8 @@ def agents():
 
 @app.get("/api/voices")
 def voices():
-    return {"provider": "elevenlabs" if voice.enabled() else "browser", "voices": voice.voices()}
+    return {"provider": "elevenlabs" if voice.enabled() else "browser", "voices": voice.voices(),
+            "wake_words": [w.strip().lower() for w in settings.wake_words.split(",") if w.strip()]}
 
 
 @app.post("/api/tts")
@@ -111,7 +123,9 @@ async def tts(sp: Speech):
 
 @app.get("/api/connections")
 def connections():
-    return {"whatsapp": ch.whatsapp_status(), "email_send": ch.email_ready(), "email_read": ch.email_read_ready(),
+    tg.attach(store)
+    return {"telegram": {"ready": tg.ready(), "enabled": tg.enabled(), "pair_code": tg.pair_code()},
+            "whatsapp": ch.whatsapp_status(), "email_send": ch.email_ready(), "email_read": ch.email_read_ready(),
             "phone": devices.phone_ready(), "autonomy": settings.autonomy}
 
 
@@ -190,8 +204,13 @@ async def command(cmd: Command):
     agent = cmd.agent.upper()
     if agent not in AGENTS:
         raise HTTPException(404, f"Unknown agent {agent}")
-    bus.log("YOU", cmd.text, "command")
-    reply = await asyncio.to_thread(engine.run, agent, cmd.text, chat=True)
+    bus.log("YOU", ("🎙 " if cmd.voice else "") + cmd.text, "command")
+
+    def stream_out(text: str) -> None:
+        bus.publish({"type": "delta", "rid": cmd.rid, "agent": agent, "text": text})
+
+    reply = await asyncio.to_thread(engine.run, agent, cmd.text, chat=True, on_text=stream_out, voice=cmd.voice)
+    bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": agent})
     bus.log(agent, reply, "reply")
     return {"agent": agent, "reply": reply}
 
@@ -265,8 +284,8 @@ def remove_routine(routine_id: int):
 APPROVAL_RE = re.compile(r"^\s*(yes|y|approve|ok|send|no|n|reject|cancel)\s+#?(\d+|all)\s*$", re.I)
 
 
-def handle_owner_whatsapp(text: str) -> str:
-    """A message the owner sent to their own 'Message yourself' chat."""
+def handle_owner_message(text: str, via: str = "WhatsApp", voice: bool = False) -> str:
+    """An order the owner sent from their phone (Telegram bot chat or WhatsApp 'Message yourself' chat)."""
     m = APPROVAL_RE.match(text)
     if m:
         yes = m.group(1).lower() in ("yes", "y", "approve", "ok", "send")
@@ -282,9 +301,9 @@ def handle_owner_whatsapp(text: str) -> str:
     first = text.strip().split(maxsplit=1)
     if first and first[0].strip(",:").upper() in AGENTS and len(first) > 1:
         target, text = first[0].strip(",:").upper(), first[1]
-    bus.log("YOU", f"(WhatsApp) {text}", "command")
-    reply = engine.run(target, text + "\n\n(Sent from the owner's phone via WhatsApp - keep the reply short.)",
-                       chat=True)
+    bus.log("YOU", f"({via}) {text}", "command")
+    reply = engine.run(target, text + f"\n\n(Sent from the owner's phone via {via} - keep the reply short.)",
+                       chat=True, voice=voice)
     bus.log(target, reply, "reply")
     return f"{target}: {reply}" if target != "JARVIS" else reply
 
@@ -298,7 +317,7 @@ def whatsapp_incoming(msg: Incoming, x_jarvis_token: str = Header(default="")):
         if not ch.whatsapp_ready():
             return
         try:
-            answer = handle_owner_whatsapp(msg.text)
+            answer = handle_owner_message(msg.text, "WhatsApp")
         except Exception as exc:  # noqa: BLE001
             answer = f"Error: {exc}"
         try:

@@ -1,8 +1,8 @@
 # JARVIS OS
 
 A personal multi-agent system powered by Claude. JARVIS runs your personal life, career and academics as a
-team of 11 AI agents. They take orders by voice, text or WhatsApp, send WhatsApp messages and e-mails for you,
-read and sort your inboxes, control your laptop and Android phone, run routines you set up, work through
+team of 11 AI agents. They take orders by voice, text or Telegram from your phone, send e-mails for you,
+read and sort your inbox, control your laptop and Android phone, run routines you set up, work through
 queued tasks overnight, and send you daily reports.
 
 ![command centre](docs/command-centre.png)
@@ -16,7 +16,7 @@ queued tasks overnight, and send you daily reports.
 | **ORACLE** | Research | Web research, comparisons, decisions, saved as notes |
 | **ATHENA** | Academics | Assignments, exam prep, study plans, revision blocks, study material |
 | **ZEUS** | Career | Job and internship pipeline, CV and cover-letter drafts, interview prep |
-| **HERALD** | Comms & Inbox | Reads new e-mail and WhatsApp, replies for you, turns requests into tasks |
+| **HERALD** | Comms & Inbox | Reads new e-mail, replies for you, turns requests into tasks |
 | **STEVE** | Fitness & Habits | Workouts, routines, habit tracking |
 | **VERONICA** | Finance | Spending log, budgets, savings |
 | **BANNER** | Wellbeing | Sleep, stress and burnout watch |
@@ -31,12 +31,12 @@ queued tasks overnight, and send you daily reports.
 | Every 3 h | SENTINEL | **Deadline watch**: fixes what it can and alerts you only when needed |
 | 21:00 daily | FRIDAY | **Evening report**: what got done, what slipped, plan for tomorrow |
 | 02:00 daily | JARVIS | **Night shift**: every task with an agent assignee gets done autonomously |
-| Every 60 min | HERALD | **Inbox sweep**: new e-mail and WhatsApp → tasks, replies, urgent alerts |
-| Your choice | Any agent | **Your own routines**, e.g. "every weekday at 6am send me a quote and my top 3 on WhatsApp" |
+| Every 60 min | HERALD | **Inbox sweep**: new e-mail → tasks, replies, urgent alerts |
+| Your choice | Any agent | **Your own routines**, e.g. "every weekday at 6am send me a quote and my top 3 on Telegram" |
 | Sun 18:00 | JARVIS | **Weekly review** across life, career and academics |
 
 All times can be changed in `.env`. Reports show up in the dashboard and, if you set them up, arrive by
-**e-mail** and/or **Telegram**.
+**Telegram** and/or **e-mail**.
 
 To queue work for the night, just say it, e.g. *"Oracle, research the best laptops for ML under $1200 tonight"*
 or *"Athena, make me a 2-week revision plan for my calculus exam on Dec 3"*. JARVIS creates the task, assigns it
@@ -67,19 +67,32 @@ python -m jarvis job morning_brief       # run any routine now
 python -m jarvis agents
 ```
 
-## Control JARVIS from your phone (WhatsApp)
+## Talk to JARVIS (voice)
 
-Once WhatsApp is linked, open your own **"Message yourself"** chat on WhatsApp and text JARVIS from anywhere:
+- **Hands-free:** click **👂 Hands-free** in the dashboard (Chrome or Edge), then just speak:
+  *"Jarvis, what's on my plate today?"*, *"Friday, read me my brief"*, *"Edith, open Spotify"*.
+  Say only *"Jarvis"* and it answers *"Yes, Sir?"* and waits for your order.
+- **Push to talk:** click 🎙 or press **Ctrl+Space**. **Esc** stops it talking.
+- **Fast replies:** answers are streamed and spoken sentence by sentence, so JARVIS starts talking before it has
+  finished thinking. Spoken orders use a quicker thinking setting and get short spoken answers.
+  `JARVIS_FAST_MODE=on` makes replies ~2.5x faster again, at double the cost.
+- **From your phone:** send a **voice note** to your Telegram bot. It is transcribed on your laptop (free, private)
+  and JARVIS replies with text, plus a voice note if ElevenLabs voices are on.
+
+## Control JARVIS from your phone (Telegram)
+
+Text your JARVIS bot on Telegram from anywhere:
 
 - `What's on my plate today?`
-- `Tell mum I'll be home by 8`
 - `Email Dr. Okafor asking for the CSC 301 slides`
 - `Send me a screenshot of my laptop`
 - `Remind me at 5pm to submit the form`
 - `ZEUS, find 5 remote internships tonight`
-- `yes 12` / `no 12` / `approve all` / `pending`: approve or cancel what agents prepared
+- `pending`: see what's waiting for your OK
 
-JARVIS answers in the same chat, starting with 🤖.
+When an agent prepares an e-mail or a laptop command that needs your approval, it arrives on Telegram with
+**✅ Send** and **❌ Cancel** buttons. Only your own Telegram account is obeyed; anyone else who finds the bot
+is ignored.
 
 ## What agents can do on their own (autonomy)
 
@@ -91,7 +104,7 @@ Set `JARVIS_AUTONOMY` in `.env`:
 | `trusted` | sent | sent to contacts marked *trusted*, others wait | wait for your OK |
 | `full` | sent | sent | wait for your OK |
 
-Anything waiting appears in the dashboard **Outbox** tab (you can edit it before sending) and on your WhatsApp.
+Anything waiting appears in the dashboard **Outbox** tab (you can edit it before sending) and on Telegram.
 Start with `approve`. Once you trust how your agents write, move to `trusted` and mark close contacts as trusted
 (*"Jarvis, mark Mum as trusted"*).
 
@@ -105,14 +118,13 @@ orders. Your data stays in `data/jarvis.db` on your machine.
 <https://myaccount.google.com/apppasswords>. In `.env`, set `JARVIS_SMTP_USER` to your Gmail address,
 `JARVIS_SMTP_PASSWORD` to the 16-letter app password, and `JARVIS_REPORT_EMAIL_TO` to your address.
 
-**WhatsApp.** Install Node.js from <https://nodejs.org> (LTS). In `.env`, set `JARVIS_WHATSAPP=on` and
-`JARVIS_OWNER_WHATSAPP` to your number (digits only, with country code, e.g. `2348012345678`). Run the start
-script. A QR code appears in the black window. On your phone: WhatsApp → Settings → Linked devices → Link a device,
-then scan it. This only has to be done once.
+**Telegram (your phone remote).** In Telegram, open **@BotFather**, send `/newbot`, choose a name and a
+username ending in `bot`. Copy the token it gives you into `JARVIS_TELEGRAM_BOT_TOKEN` in `.env`. Start JARVIS,
+open your new bot in Telegram and send `/start <code>`. The code is shown in the black window and in the
+dashboard's Autopilot tab. That links the bot to you only.
 
-> WhatsApp links JARVIS the same way WhatsApp Web works, through the open-source `whatsapp-web.js` library.
-> WhatsApp does not officially support automated personal accounts. Keep it to normal personal use: no bulk
-> messages, no messaging strangers. Heavy automated use can get a number banned.
+**WhatsApp (off, not recommended).** A bridge for your personal WhatsApp exists in `bridge/`, but it uses an
+unofficial link that WhatsApp can ban numbers for. It stays off unless you set `JARVIS_WHATSAPP=on`.
 
 **Android phone control (optional).** Phone and laptop on the same Wi-Fi. Install Android platform-tools (ADB)
 from <https://developer.android.com/tools/releases/platform-tools>. On the phone: Settings → About phone → tap
@@ -125,6 +137,9 @@ pitch and speed per agent from the voices on your computer. Premium: put an `ELE
 (from <https://elevenlabs.io>) and each agent speaks with its own realistic AI voice. Swap any of them with
 `JARVIS_VOICE_<AGENT>=<voice id>`, including a voice you cloned yourself. Spoken lines are cached, so the
 boot roll-call only costs credits the first time.
+
+**Start automatically (Windows).** Double-click `install-autostart.bat` once and JARVIS starts every time you
+log in.
 
 **Laptop control** works out of the box. EDITH can open apps and sites, take screenshots, find, read and send files,
 lock the screen, and save documents in `~/JARVIS`. Terminal commands always ask you first.
@@ -142,8 +157,11 @@ jarvis/
   scheduler.py  autopilot: briefs, reports, watchdog, night shift
   server.py     API + live event stream for the dashboard
   store.py      SQLite storage
-  notify.py     e-mail / Telegram delivery
-bridge/                   WhatsApp bridge (Node.js, whatsapp-web.js)
+  notify.py     report delivery (Telegram, e-mail)
+  telegram.py   Telegram bot: remote control, approvals with buttons
+  voice.py      per-agent ElevenLabs voices
+  stt.py        speech-to-text for voice notes (faster-whisper, runs locally)
+bridge/                   optional WhatsApp bridge (off by default)
 web/command-centre.html   the HUD dashboard (voice in/out, live activity, Outbox approvals)
 tests/                    offline tests (pytest)
 ```

@@ -72,9 +72,16 @@ class Settings:
     bridge_token: str = field(default_factory=lambda: _env("JARVIS_BRIDGE_TOKEN"))
     owner_whatsapp: str = field(default_factory=lambda: _env("JARVIS_OWNER_WHATSAPP"))  # your own number
 
+    # Fast mode: Claude Opus 5.5 writes ~2.5x faster at double the price (on/off)
+    fast_mode: bool = field(default_factory=lambda: _env("JARVIS_FAST_MODE", "off").lower() == "on")
+    # Hands-free wake words (comma separated). Any agent name also works ("Friday, ...").
+    wake_words: str = field(default_factory=lambda: _env("JARVIS_WAKE_WORDS", "jarvis,hey jarvis,ok jarvis"))
+    # Speech-to-text for Telegram voice notes (runs on your laptop, free): tiny | base | small | medium
+    whisper_model: str = field(default_factory=lambda: _env("JARVIS_WHISPER_MODEL", "base"))
+
     # Premium voices (ElevenLabs). Without a key the dashboard uses your computer's built-in voices.
     elevenlabs_key: str = field(default_factory=lambda: _env("ELEVENLABS_API_KEY"))
-    elevenlabs_model: str = field(default_factory=lambda: _env("JARVIS_ELEVENLABS_MODEL", "eleven_multilingual_v2"))
+    elevenlabs_model: str = field(default_factory=lambda: _env("JARVIS_ELEVENLABS_MODEL", "eleven_flash_v2_5"))
 
     # How often the inbox sweep runs (minutes); 0 = off
     inbox_sweep_minutes: int = field(default_factory=lambda: int(_env("JARVIS_INBOX_SWEEP_MINUTES", "60")))

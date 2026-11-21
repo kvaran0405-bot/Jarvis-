@@ -66,9 +66,9 @@ def test_whatsapp_yes_runs_approved_command(env, monkeypatch):
     import jarvis.server as server
     monkeypatch.setattr(server, "store", store)
     monkeypatch.setattr(server, "bus", ctx.bus)
-    reply = server.handle_owner_whatsapp("yes 1")
+    reply = server.handle_owner_message("yes 1")
     assert "jarvis-ok" in reply and store.get_message(1)["status"] == "sent"
-    assert "Nothing is waiting" in server.handle_owner_whatsapp("approve all")
+    assert "Nothing is waiting" in server.handle_owner_message("approve all")
 
 
 def test_scheduled_reminder_goes_out_when_due(env):
@@ -126,3 +126,48 @@ def test_voice_synthesis_is_cached(monkeypatch, tmp_path):
     assert p1 == p2 and p1.read_bytes() == b"ID3fake-mp3"
     assert calls == ["https://api.elevenlabs.io/v1/text-to-speech/custom123"]  # second call came from cache
     assert voice.voice_for("JARVIS") == voice.DEFAULT_VOICES["JARVIS"]
+
+
+def test_telegram_pairing_commands_and_buttons(env, monkeypatch):
+    store, ctx, _ = env
+    from jarvis import telegram as tg
+    calls = []
+    monkeypatch.setattr(tg, "api", lambda method, http_timeout=30, **p: calls.append((method, p)) or {})
+    monkeypatch.setattr(settings, "telegram_token", "T")
+    monkeypatch.setattr(settings, "telegram_chat_id", "")
+    monkeypatch.setattr(settings, "whatsapp_enabled", False)
+    tg.attach(store)
+    code = tg.pair_code()
+    texts, decisions = [], []
+    bot = tg.Bot(on_text=lambda t, voice=False: texts.append(t) or "reply", on_decision=lambda i, y: decisions.append((i, y)) or "done",
+                 log=lambda m: None)
+    msg = lambda chat, text: {"update_id": 1, "message": {"chat": {"id": chat}, "text": text}}
+
+    bot.handle(msg(555, "hello"))                 # not paired: ignored
+    bot.handle(msg(555, "/start 000"))            # wrong code: ignored
+    assert not tg.ready() and not texts
+    bot.handle(msg(555, f"/start {code}"))        # right code: linked
+    assert tg.ready() and tg.chat_id() == "555"
+    bot.handle(msg(999, "send all my money"))     # stranger: ignored
+    bot.handle(msg(555, "What's on my plate?"))
+    assert texts == ["What's on my plate?"]
+
+    # an approval request arrives with buttons; tapping Send approves it
+    execute("add_contact", ctx, {"name": "Dr. Okafor", "email": "okafor@uni.edu"})
+    out, _ = execute("send_whatsapp", ctx, {"to": "Dr. Okafor", "message": "hi", "reason": "x"})
+    assert "switched off" in out                  # WhatsApp is off: agents are told to use e-mail
+    execute("send_email", ctx, {"to": "Dr. Okafor", "subject": "Slides", "body": "Could I get the slides?",
+                                "reason": "asked"})
+    sent = [p for m, p in calls if m == "sendMessage" and "reply_markup" in p][-1]
+    assert sent["reply_markup"]["inline_keyboard"][0][0]["callback_data"] == "ok:1"
+    bot.handle({"update_id": 2, "callback_query": {"id": "c", "data": "ok:1",
+                                                    "message": {"chat": {"id": 555}, "message_id": 7}}})
+    assert decisions == [(1, True)]
+
+
+def test_reminder_prefers_telegram(env, monkeypatch):
+    store, ctx, _ = env
+    from jarvis import telegram as tg
+    monkeypatch.setattr(tg, "ready", lambda: True)
+    out, _ = execute("remind_me", ctx, {"text": "Gym", "at": "2030-01-01T07:00"})
+    assert "scheduled" in out and store.get_message(1)["channel"] == "telegram"

@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import threading
 from datetime import datetime
+from typing import Callable
 
 from .agents import AGENTS, Agent, roster
 from .bus import Bus
@@ -65,21 +66,35 @@ class Engine:
                 f"Known facts about the owner:\n{mem}\n[/Context]\n\n")
 
     def tools_for(self, agent: Agent) -> list[dict]:
-        tools = [REGISTRY[name].schema() for name in agent.tools if name in REGISTRY]
+        from . import channels
+        hidden = set() if channels.whatsapp_ready() else {"send_whatsapp", "check_whatsapp", "read_whatsapp"}
+        tools = [REGISTRY[name].schema() for name in agent.tools if name in REGISTRY and name not in hidden]
         if agent.web:
             tools.append({"type": "web_search_20260209", "name": "web_search", "max_uses": 5})
             tools.append({"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 5})
         return tools
 
     # ------------------------------------------------------------ main loop
-    def run(self, agent_name: str, prompt: str, *, chat: bool = False, depth: int = 0) -> str:
-        """Run `prompt` through an agent. chat=True keeps a running conversation (dashboard chat)."""
+    def run(self, agent_name: str, prompt: str, *, chat: bool = False, depth: int = 0,
+            on_text: Callable[[str], None] | None = None, voice: bool = False) -> str:
+        """Run `prompt` through an agent.
+
+        chat=True keeps a running conversation (dashboard / phone chat).
+        on_text receives the reply as it is written (streaming), so speech can start before the reply is finished.
+        voice=True is the fast path for spoken commands: low effort and a short, speakable answer.
+        """
         agent = AGENTS.get(agent_name.upper())
         if agent is None:
             return f"No agent named {agent_name}. Available: {', '.join(AGENTS)}."
         if not self.settings.has_llm:
-            return self._offline_reply(agent, prompt)
+            reply = self._offline_reply(agent, prompt)
+            if on_text:
+                on_text(reply)
+            return reply
 
+        if voice:
+            prompt += ("\n\n(Spoken command. Answer in one to three short spoken sentences: no Markdown, no lists, "
+                       "no links. Act first with your tools, then say what you did. Speak your first sentence early.)")
         lock = self._locks[agent.name] if chat else threading.Lock()
         with lock:
             if chat:
@@ -91,7 +106,7 @@ class Engine:
             messages.append({"role": "user", "content": self._context_block() + prompt})
             self.bus.status(agent.name, "working")
             try:
-                return self._loop(agent, messages, depth)
+                return self._loop(agent, messages, depth, on_text, "low" if voice else agent.effort)
             except Exception as exc:  # noqa: BLE001
                 self.bus.log(agent.name, f"Error: {exc}", "error")
                 if chat:
@@ -100,22 +115,34 @@ class Engine:
             finally:
                 self.bus.status(agent.name, "online")
 
-    def _loop(self, agent: Agent, messages: list, depth: int) -> str:
+    def _call(self, params: dict, on_text: Callable[[str], None] | None):
+        if on_text is None:
+            return self.client.beta.messages.create(**params)
+        with self.client.beta.messages.stream(**params) as stream:
+            for event in stream:
+                if event.type == "content_block_delta" and getattr(event.delta, "type", "") == "text_delta":
+                    on_text(event.delta.text)
+            return stream.get_final_message()
+
+    def _loop(self, agent: Agent, messages: list, depth: int, on_text=None, effort: str | None = None) -> str:
         ctx = ToolContext(self.store, self.bus, self.settings, self, agent.name, depth)
         system = [{"type": "text", "text": self.system_prompt(agent), "cache_control": {"type": "ephemeral"}}]
         tools = self.tools_for(agent)
         for _ in range(MAX_STEPS):
-            response = self.client.beta.messages.create(
+            params = dict(
                 model=self.settings.model,
                 max_tokens=16000,
                 system=system,
                 tools=tools,
                 messages=messages,
                 thinking={"type": "adaptive"},
-                output_config={"effort": agent.effort},
+                output_config={"effort": effort or agent.effort},
                 betas=["server-side-fallback-2026-07-01"],
                 fallbacks="default",
             )
+            if self.settings.fast_mode:
+                params["speed"] = "fast"  # ~2.5x faster output on Claude Opus 5.5, at double the price
+            response = self._call(params, on_text)
             messages.append({"role": "assistant", "content": response.content})
 
             if response.stop_reason == "refusal":
@@ -127,6 +154,8 @@ class Engine:
             if response.stop_reason != "tool_use" or not calls:
                 return "".join(b.text for b in response.content if b.type == "text").strip()
 
+            if on_text:
+                on_text("\n")  # sentence break between "doing it now" and the final answer
             results = []
             for call in calls:
                 self.bus.log(agent.name, _describe_call(call.name, call.input), "tool")

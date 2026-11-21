@@ -149,6 +149,8 @@ def whatsapp_messages(chat_id: str, limit: int = 20) -> list:
 
 # ---------------------------------------------------------------- outbox policy & dispatch
 def is_owner(channel: str, recipient: str) -> bool:
+    if channel == "telegram":  # the bot only ever talks to the owner
+        return True
     if channel == "email":
         mine = {a.strip().lower() for a in (settings.report_email_to, settings.smtp_user) if a}
         return recipient.strip().lower() in mine
@@ -180,6 +182,11 @@ def deliver(store, bus, msg: dict) -> bool:
             output = devices.run_command(msg["body"])
             store.set_message(msg["id"], result=output)
             msg = {**msg, "result": output}
+        elif msg["channel"] == "telegram":
+            from . import telegram as tg
+            if not tg.ready():
+                raise RuntimeError("Telegram is not linked")
+            tg.send(msg["body"])
         elif msg["channel"] == "whatsapp":
             if not whatsapp_ready():
                 raise RuntimeError("WhatsApp is off (JARVIS_WHATSAPP=on and run the bridge)")
