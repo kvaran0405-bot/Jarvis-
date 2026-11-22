@@ -406,6 +406,7 @@ def focus_mode(ctx: ToolContext, minutes: int = 50, task: str = "") -> dict:
     until = (ctx.now() + timedelta(minutes=minutes)).replace(tzinfo=None).isoformat(timespec="minutes")
     ctx.store.set("focus:until", until)
     ctx.store.set("focus:task", task)
+    ctx.store.set("focus:count", str(int(ctx.store.get("focus:count") or 0) + 1))
     music = os.environ.get("JARVIS_FOCUS_MUSIC", "").strip()
     if music:
         try:

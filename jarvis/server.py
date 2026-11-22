@@ -641,6 +641,14 @@ THEME_RE = re.compile(_J + r"(?:switch to |change to |activate |set )?(?:the )?(
 GUEST_RE = re.compile(_J + r"guest mode(?:\s+(on|off))?\s*[.!]?\s*$|^\s*(?:jarvis[,\s]+)?(?:end|exit|stop) guest mode\s*[.!]?\s*$", re.I)
 FIRST_RE = re.compile(_J + r"(?:first contact|let'?s get to know each other|interview me about me)\s*[.!]?\s*$", re.I)
 EXPO_RE = re.compile(_J + r"(?:stark expo|demo mode|show ?off mode|show them what you can do|run the demo)\s*[.!]?\s*$", re.I)
+SHOW_RE = re.compile(_J + r"(?:show me|open|display|pull up)(?: the| my)? (week|calendar|schedule|business|shaabaz|clients|galaxy|"
+                     r"body|gym|muscles|money|spending|singapore|map|city|diagnostics|trophies|achievements|trophy hall|holo ?lab|lab)"
+                     r"\s*[.!?]?\s*$|^\s*(?:jarvis[,\s]+)?(run diagnostics|diagnostics)\s*[.!?]?\s*$", re.I)
+HOLO_VIEWS = {"week": "week", "calendar": "week", "schedule": "week", "business": "business", "shaabaz": "business",
+              "clients": "business", "galaxy": "business", "body": "body", "gym": "body", "muscles": "body",
+              "money": "money", "spending": "money", "singapore": "singapore", "map": "singapore", "city": "singapore",
+              "diagnostics": "diagnostics", "run diagnostics": "diagnostics", "trophies": "trophies",
+              "achievements": "trophies", "trophy hall": "trophies", "holo lab": "week", "hololab": "week", "lab": "week"}
 WAR_RE = re.compile(_J + r"(?:war room|brief me(?: for (.+))?|full briefing)\s*[.!?]?\s*$", re.I)
 
 
@@ -678,6 +686,12 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
                                 "they want you to handle without asking). After each answer, `remember` the lasting "
                                 "facts, react in character, then ask the next question. Stop after about 8 questions "
                                 "with a short summary of what you'll do differently now. Start with the first question.")
+    if m := SHOW_RE.match(text):
+        from . import holo
+        view = HOLO_VIEWS.get((m.group(1) or m.group(2) or "week").lower(), "week")
+        line = holo.narrate(view, holo.data(store))
+        bus.publish({"type": "holo", "view": view})
+        return line, None, None
     if EXPO_RE.match(text):
         bus.publish({"type": "expo"})
         return "Ladies and gentlemen, welcome to the Stark Expo.", None, None
@@ -838,6 +852,13 @@ async def stream():
 def orb():
     from . import hud
     return hud.orb_state(store, bus)
+
+
+@app.get("/api/holo")
+def holo_data():
+    from . import holo
+    holo.check_trophies(store, bus)
+    return holo.data(store)
 
 
 @app.get("/api/greet")

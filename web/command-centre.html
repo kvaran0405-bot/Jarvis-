@@ -160,6 +160,7 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
   <button class="pill hud" id="pauseBtn" title="Stop all AI use until you resume">⏸ Pause</button>
   <button class="pill hud" id="voiceBtn">🔊 Voice</button>
   <button class="pill hud" id="voiceCfg" title="Choose each agent's voice">🎚 Voices</button>
+  <button class="pill hud" id="holoBtn" title="3D holograms of your week, business, body, money, city, diagnostics and trophies" onclick="window.HOLO && HOLO.open('week')">🌐 Holo</button>
   <span class="pill hud hide-sm" id="clock">--:--</span>
   <span class="pill hud ok" id="online">0/0 ONLINE</span>
 </header>
@@ -796,5 +797,6 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
 })();
 </script>
 <script src="/hud-fx.js"></script>
+<script src="/holo.js"></script>
 </body>
 </html>

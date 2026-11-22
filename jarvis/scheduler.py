@@ -324,7 +324,7 @@ class Scheduler:
                 threading.Thread(target=self.run_routine, args=(routine,), daemon=True).start()
 
     MAINTENANCE = {"file_index": every_hours(6), "housekeeping": daily_at("03:00", weekday=6),
-                   "wind_down": daily_at("22:45")}
+                   "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6)}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -350,6 +350,9 @@ class Scheduler:
                 from .life import housekeeping
                 out = housekeeping()
                 self.bus.log("EDITH", f"Weekly tidy: {out['moved_to_old']} old download(s) filed away, backup made", "job")
+            elif name == "trophies":
+                from .holo import check_trophies
+                check_trophies(self.store, self.bus)
             elif name == "wind_down":
                 from . import telegram as tg
                 from .life import in_focus

@@ -225,6 +225,7 @@ function onEvent(ev){
   if(ev.type === "theme"){ SFX.boom(); glitch(document.querySelector("main")); applyTheme(ev.theme, ev.accent); }
   if(ev.type === "guest"){ SFX.whoosh(); applyGuest(ev.on); }
   if(ev.type === "expo") expo();
+  if(ev.type === "holo" && window.HOLO && !(window.HOLO.isOpen() && window.HOLO.view() === ev.view)) window.HOLO.open(ev.view);
   lastActive = Date.now();
 }
 document.getElementById("bar")?.addEventListener("submit", () => SFX.send());
