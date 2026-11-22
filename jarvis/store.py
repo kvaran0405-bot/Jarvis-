@@ -287,7 +287,7 @@ class Store:
             self._db.execute("CREATE TABLE IF NOT EXISTS file_chunks (path TEXT, name TEXT, page TEXT, body TEXT)")
             self.fts = False
         for table, column, decl in (("events", "gid", "TEXT"), ("outbox", "attachment", "TEXT DEFAULT ''"),
-                                    ("gigs", "paid", "REAL DEFAULT 0")):
+                                    ("gigs", "paid", "REAL DEFAULT 0"), ("gigs", "layout", "TEXT DEFAULT ''")):
             cols = {r[1] for r in self._db.execute(f"PRAGMA table_info({table})")}
             if column not in cols:
                 self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
@@ -412,7 +412,7 @@ class Store:
 
     # ---------- business: gigs (events the owner's company runs) ----------
     GIG_FIELDS = {"client", "contact", "event_type", "event_date", "venue", "guests", "budget", "status",
-                  "quote_total", "deposit_paid", "next_step", "notes", "paid"}
+                  "quote_total", "deposit_paid", "next_step", "notes", "paid", "layout"}
 
     def add_gig(self, client: str, **fields) -> int:
         fields = {k: v for k, v in fields.items() if k in self.GIG_FIELDS and v not in (None, "")}

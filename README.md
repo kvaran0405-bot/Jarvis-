@@ -251,6 +251,42 @@ VERONICA reads your bank's **transaction alert e-mails** (turn on e-mail alerts 
 masked to the last 4 digits. OTP / PIN / password e-mails are never shown to any agent, and agents still can't
 open bank apps or sites or move money.
 
+## JARVIS Mark III
+
+**Floating orb:** a glowing JARVIS sphere stays on top of every app, on the laptop (starts with JARVIS) and the
+phone (Autopilot tab → Floating orb). Click or tap to talk, drag it anywhere, right-click or long-press for more.
+
+**Interactive HUD:** tap an agent for their live status, poke the reactor, hover for readouts. Also: suit themes
+("Jarvis, stealth mode"), guest mode, the Stark Expo demo, birthday mode, a boot film on start, and interface sounds
+(✦ FX).
+
+**Holo Lab (🌐 Holo):** "show me my week / Shaabaz / body / money / Singapore / diagnostics / trophies". The Body
+view is a neon front-and-back muscle map from your logged workouts, with a 3D hologram one tap away. 19 trophies
+unlock automatically.
+
+**Butler:**
+- Leave-now alerts with rain advice, and mission briefings on big days.
+- The Stark Daily newspaper every morning, plus before-you-ask suggestions.
+- Water and posture nudges, groceries and expiry dates.
+- "Where is…" searches everything JARVIS knows.
+
+**Laptop command:**
+- Windows, media, volume and brightness by voice; saved workspaces.
+- Folder tidy and bulk rename (preview first).
+- PowerPoint and Excel files made for you; "what's on my screen?".
+- Screenshots get a "Read it?" offer; hand gestures through the webcam (✋ Gestures).
+
+**Phone app v2:**
+- Reactor home with tap-to-talk and hands-free mode; Vision (camera with AR labels, meal and outfit checks).
+- Car mode, find my phone, shared clipboard, location magic, smart replies for every messaging app.
+- Phone autopilot (after your yes), share to JARVIS, quick tile, home widget.
+- Hand calls over from the laptop, and use the phone as a remote for the laptop screen.
+
+**Shaabaz Studio:**
+- Floor planner (2D and 3D, auto layout from room size and guests).
+- Mood-board PDFs, portfolio website, brand kit and QR business card.
+- `python -m jarvis backup` / `restore`. See docs/SELLING.md for turning JARVIS into a product.
+
 ## Your crew of friends
 
 - **Evening check-in (21:30):** FRIDAY, JARVIS or BANNER texts you about your day; just reply. They log your mood

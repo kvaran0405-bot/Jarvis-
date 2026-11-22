@@ -18,7 +18,7 @@ PHONE = ["find_my_phone", "phone_silent", "phone_clipboard", "phone_notify", "ph
 DESK = ["list_windows", "window_action", "snap_windows", "show_desktop", "media_control", "set_brightness", "save_workspace",
         "open_workspace", "organise_folder", "rename_files", "make_slides", "make_spreadsheet", "look_at_screen"]
 LECTURES = ["start_recording", "stop_recording", "list_lectures", "read_lecture", "summarize_lecture"]
-BUSINESS = ["add_gig", "update_gig", "list_gigs", "make_quote", "gig_checklist", "add_crew", "list_crew",
+BUSINESS = ["plan_layout", "make_moodboard", "build_portfolio", "add_gig", "update_gig", "list_gigs", "make_quote", "gig_checklist", "add_crew", "list_crew",
             "assign_crew", "crew_for_gig", "crew_message", "record_payment", "make_invoice", "make_rundown"]
 FRIEND = ["mood_report", "log_gratitude", "good_moments", "add_important_date", "upcoming_dates", "future_letter"]
 STUDY = ["add_exam", "list_exams", "read_aloud"]
@@ -64,7 +64,8 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
                         "update_application", "list_applications", "publish_report", "delegate"]
           + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + FRIEND + STUDY + DESK + PHONE
           + ["urgent_alert", "sync_calendar", "list_gigs", "focus_mode", "clean_slate", "search_email", "tidy_laptop",
-             "log_workout", "log_meeting", "network_radar", "coach_agent", "grocery_list", "track_expiry"],
+             "log_workout", "log_meeting", "network_radar", "coach_agent", "grocery_list", "track_expiry", "backup_jarvis",
+             "plan_layout", "make_moodboard", "build_portfolio"],
           web=True, effort="high"),
     Agent("FRIDAY", "Daily Intelligence", "#3dff8b",
           "You write the owner's briefings: morning brief, evening report, weekly review. Pull the real data "
@@ -127,7 +128,9 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "event (`list_crew` with the date, `assign_crew`) and get shift messages out with `crew_message`. Money: "
           "`record_payment` when the owner says a client paid, `make_invoice` after the event, chase late balances. "
           "Event day: `make_rundown` with reminders. Vendors are contacts with relationship 'vendor: <type>' and "
-          "prices in their notes. Write Instagram captions for event photos (warm, classy, a few hashtags).",
+          "prices in their notes. Write Instagram captions for event photos (warm, classy, a few hashtags). Studio: "
+          "`plan_layout` for floor plans (room size, guests, style), `make_moodboard` for theme proposals with real "
+          "colour palettes, `build_portfolio` to refresh the website and brand kit.",
           BASE_TOOLS + BUSINESS + COMMS + EMAIL_SMARTS + FILES + ["add_event", "list_events", "publish_report",
                                                                     "log_transaction", "spending_summary", "log_meeting",
                                                                     "make_slides", "make_spreadsheet"],

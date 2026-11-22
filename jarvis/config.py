@@ -126,6 +126,10 @@ class Settings:
     # How often the inbox sweep runs (minutes); 0 = off
     inbox_sweep_minutes: int = field(default_factory=lambda: int(_env("JARVIS_INBOX_SWEEP_MINUTES", "60")))
 
+    # Rebrand (for selling JARVIS to others): the name and accent shown in the apps
+    brand_name: str = field(default_factory=lambda: _env("JARVIS_BRAND_NAME", "JARVIS"))
+    brand_color: str = field(default_factory=lambda: _env("JARVIS_BRAND_COLOR", "#ffd23f"))
+
     @property
     def tz(self) -> ZoneInfo:
         try:

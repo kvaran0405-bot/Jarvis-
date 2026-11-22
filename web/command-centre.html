@@ -532,6 +532,7 @@ async function refresh(){
     (window.JarvisNative && JarvisNative.showOrb ? `<div class="conn"><b>Floating orb</b><a href="#" id="orbTog" style="color:var(--c)">${JarvisNative.orbOn() && JarvisNative.canFloat() ? "on · turn off" : "turn on →"}</a></div>` : "") +
     `<div class="h">Suit theme</div><div class="row" style="display:flex;gap:6px;flex-wrap:wrap">${["classic","mark 42","stealth","arc blue","ironheart","wakanda","hulkbuster"].map(t => `<button class="btn" data-theme="${t}" style="${(state.hud?.theme||"classic")===t?"border-color:var(--c)":""}">${t}</button>`).join("")}</div>` +
     `<div class="h">Show off</div><div class="row" style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" data-say="stark expo">▶ Stark Expo demo</button><button class="btn" data-say="${state.hud?.guest ? "guest mode off" : "guest mode on"}">${state.hud?.guest ? "End guest mode" : "Guest mode"}</button><button class="btn" data-say="first contact">First contact</button></div>` +
+    `<div class="h">Studio & safety</div><div class="row" style="display:flex;gap:6px;flex-wrap:wrap"><a class="btn" href="/planner.html" target="_blank">📐 Floor planner</a><a class="btn" href="/site/" target="_blank">🌐 Portfolio site</a><a class="btn" href="/api/backup">🗄 Download backup</a></div>` +
     `<div class="h">Lectures & meetings</div>` + lectureBlock(cx) +
     `<div class="h">Business pipeline · PEPPER</div>` + (state.gigs.length ? state.gigs.map(g => `<div class="item"><div class="t">${esc(g.client)}${g.event_type ? " · " + esc(g.event_type) : ""}</div><div class="s"><span class="tag">${esc(g.status)}</span>${esc(g.event_date || "date tbc")}${g.quote_total ? " · $" + Number(g.quote_total).toLocaleString() : ""}${g.next_step ? " · next: " + esc(g.next_step) : ""}</div></div>`).join("")
       : `<div class="empty">No clients yet. Try: “Pepper, new enquiry: Priya, wedding 14 Feb, 300 pax at Raffles, budget 15k”.</div>`) +
@@ -778,6 +779,7 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
   if(infoResp.status === 401){ location.href = "/login.html?next=/command-centre.html"; return; }
   const info = await infoResp.json();
   info.agents.forEach(a => AGENTS[a.name] = a); ORDER = info.agents.map(a => a.name);
+  if(info.brand && info.brand.name && info.brand.name !== "JARVIS"){ document.querySelector("header .brand b").textContent = info.brand.name.toUpperCase() + " OS"; document.title = info.brand.name; }
   try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; warmAcks(); } catch {}
   try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
   $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";

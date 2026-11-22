@@ -79,6 +79,10 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("agents", help="list the agents")
     sub.add_parser("orb", help="the floating JARVIS orb (always on top)")
+    bk = sub.add_parser("backup", help="back up memories, tasks, clients and settings into one zip")
+    bk.add_argument("--with-settings", action="store_true", help="include .env (contains passwords)")
+    rs = sub.add_parser("restore", help="restore a backup zip (stop JARVIS first)")
+    rs.add_argument("zip")
 
     args = p.parse_args(argv)
     cmd = args.cmd or "serve"
@@ -111,6 +115,14 @@ def main(argv: list[str] | None = None) -> int:
         uvicorn.run("jarvis.server:app", host=settings.host, port=settings.port, log_level="warning")
         return 0
 
+    if cmd == "backup":
+        from .studio import backup
+        print(f"Backup saved: {backup(args.with_settings)}")
+        return 0
+    if cmd == "restore":
+        from .studio import restore
+        print("Restored: " + ", ".join(restore(args.zip)) + ". Start JARVIS again.")
+        return 0
     if cmd == "orb":
         from .orb import main as orb_main
         return orb_main()

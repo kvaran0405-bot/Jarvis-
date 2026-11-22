@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Event Floor Planner</title>
+<meta name="theme-color" content="#07090d"><link rel="icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+:root{--bg:#07090d;--panel:#0c1016;--line:#1a2532;--ink:#dce7f2;--dim:#7d8899;--gold:#e8b04b;--arc:#5fd8ff}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px "JetBrains Mono",monospace}
+.app{display:grid;grid-template-columns:270px minmax(0,1fr);height:100%}
+@media (max-width:820px){.app{grid-template-columns:1fr;grid-template-rows:auto minmax(420px,1fr)}}
+aside{border-right:1px solid var(--line);padding:16px;overflow:auto;display:grid;gap:14px;align-content:start;background:var(--panel)}
+h1{margin:0;font:700 13px Orbitron,sans-serif;letter-spacing:.25em;color:var(--gold)}
+.sub{color:var(--dim);font-size:11px}
+label{display:grid;gap:4px;font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+input,select{background:var(--bg);color:var(--ink);border:1px solid var(--line);padding:8px;font:inherit;width:100%}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button{background:none;border:1px solid var(--line);color:var(--ink);padding:8px 10px;font:600 10px Orbitron,sans-serif;letter-spacing:.12em;cursor:pointer}
+button.main{border-color:var(--gold);color:var(--gold)}
+button:hover,button:focus-visible{border-color:var(--arc);outline:none}
+.pal{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pal button{font-size:9px;padding:7px 4px}
+#stats{font-size:12px;line-height:1.7;border:1px solid var(--line);padding:10px}
+#stats b{color:var(--gold)}
+.warn{color:#ff8a5c}
+main{position:relative;min-width:0;min-height:0}
+#svg,#gl{position:absolute;inset:0;width:100%;height:100%}
+#gl{display:none;touch-action:none}
+.mode{position:absolute;top:12px;right:12px;display:flex;gap:6px;z-index:2}
+.mode button.on{border-color:var(--arc);color:var(--arc)}
+.lbl3{position:absolute;transform:translate(-50%,-120%);font:600 10px Orbitron,sans-serif;letter-spacing:.08em;color:#fff;text-shadow:0 0 6px #000;pointer-events:none;white-space:nowrap}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:10px;color:var(--dim)}
+</style></head><body>
+<div class="app">
+<aside>
+  <div><h1>FLOOR PLANNER</h1><div class="sub" id="who">Shaabaz Studio</div></div>
+  <div class="row"><label>Room width (m)<input id="rw" type="number" value="24" min="8" step="0.5"></label><label>Room length (m)<input id="rl" type="number" value="18" min="8" step="0.5"></label></div>
+  <div class="row"><label>Guests<input id="guests" type="number" value="250" min="0"></label><label>Per table<input id="seats" type="number" value="10" min="4" max="14"></label></div>
+  <label>Style<select id="style"><option value="wedding">Wedding</option><option value="malay">Malay wedding</option><option value="indian">Indian wedding</option><option value="corporate">Corporate</option><option value="dinner">Dinner &amp; dance</option><option value="party">Party</option></select></label>
+  <button class="main" id="auto">AUTO LAYOUT</button>
+  <div id="stats"></div>
+  <div><div class="sub" style="margin-bottom:6px">ADD</div><div class="pal" id="pal"></div></div>
+  <div class="row"><button id="rot">ROTATE (R)</button><button id="del">DELETE (DEL)</button></div>
+  <div class="row"><button class="main" id="save">SAVE</button><button id="png">PICTURE</button></div>
+  <a href="/command-centre.html" style="color:var(--dim);font-size:11px">← back to JARVIS</a>
+</aside>
+<main>
+  <div class="mode"><button id="m2" class="on">2D PLAN</button><button id="m3">3D VIEW</button></div>
+  <svg id="svg" role="img" aria-label="Event floor plan"></svg>
+  <canvas id="gl"></canvas><div id="labels"></div>
+  <div class="hint" id="hint">Drag items to move · tap to select · R rotates · Del removes</div>
+</main>
+</div>
+<script src="/vendor/three.min.js"></script>
+<script>
+const $ = s => document.querySelector(s), NS = "http://www.w3.org/2000/svg";
+const gig = new URLSearchParams(location.search).get("gig");
+const SIZES = {stage:[6,3], dance_floor:[6,5], buffet:[6,1.2], bar:[3,1.2], photo_booth:[2.5,2.5], entrance:[3,.6], dj:[2,1.2], cake:[1.2,1.2],
+  gift_table:[2.4,.9], round_table:[1.8,1.8], long_table:[2.4,.9], sweetheart:[2,1], registration:[2.4,.9]};
+const COLORS = {stage:"#e8b04b", dance_floor:"#b06bff", buffet:"#3dff9a", bar:"#38d6ff", photo_booth:"#ff4f7b", entrance:"#ffffff", dj:"#b06bff",
+  cake:"#ffd23f", gift_table:"#ffb020", round_table:"#5fd8ff", long_table:"#5fd8ff", sweetheart:"#ff7a3d", registration:"#ffb020"};
+let L = null, sel = -1, mode = "2d";
+
+$("#pal").innerHTML = ["round_table", "long_table", "stage", "dance_floor", "buffet", "bar", "photo_booth", "dj", "cake", "sweetheart"]
+  .map(k => `<button data-add="${k}">${k.replace("_", " ").toUpperCase()}</button>`).join("");
+
+async function load(){
+  L = await (await fetch("/api/layout" + (gig ? "?gig=" + gig : ""))).json();
+  if(L.client) $("#who").textContent = L.client;
+  [$("#rw").value, $("#rl").value] = L.room; $("#guests").value = L.guests || 0; $("#seats").value = L.seats || 10; if(L.style) $("#style").value = L.style;
+  draw();
+}
+function stats(){
+  const t = L.items.filter(i => i.type === "round_table").length, lt = L.items.filter(i => i.type === "long_table").length, cap = t * (+$("#seats").value) + lt * 6, g = +$("#guests").value;
+  $("#stats").innerHTML = `<b>${t}</b> round tables${lt ? ` · <b>${lt}</b> long` : ""}<br>Seats <b>${cap}</b> for <b>${g}</b> guests<br>Room <b>${L.room[0]} × ${L.room[1]} m</b>`
+    + (cap < g ? `<br><span class="warn">${g - cap} guests without a seat</span>` : "");
+}
+function draw(){
+  stats(); const [W, H] = L.room, svg = $("#svg"); svg.setAttribute("viewBox", `-1 -1 ${W + 2} ${H + 2}`); svg.innerHTML = "";
+  const g = document.createElementNS(NS, "g"); svg.appendChild(g);
+  const add = (tag, attrs) => { const e = document.createElementNS(NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); g.appendChild(e); return e; };
+  add("rect", {x: 0, y: 0, width: W, height: H, fill: "#0b1219", stroke: "#2a3a4c", "stroke-width": .08});
+  for(let x = 1; x < W; x++) add("line", {x1: x, y1: 0, x2: x, y2: H, stroke: "#132030", "stroke-width": .02});
+  for(let y = 1; y < H; y++) add("line", {x1: 0, y1: y, x2: W, y2: y, stroke: "#132030", "stroke-width": .02});
+  L.items.forEach((it, i) => {
+    const c = COLORS[it.type] || "#5fd8ff", grp = document.createElementNS(NS, "g"); grp.dataset.i = i; g.appendChild(grp);
+    grp.setAttribute("transform", `translate(${it.x + it.w / 2} ${it.y + it.h / 2}) rotate(${it.r || 0})`); grp.style.cursor = "grab";
+    const sh = it.type === "round_table" ? document.createElementNS(NS, "circle") : document.createElementNS(NS, "rect");
+    if(it.type === "round_table"){ sh.setAttribute("r", it.w / 2);
+      for(let k = 0; k < (it.seats || +$("#seats").value); k++){ const a = k / (it.seats || +$("#seats").value) * Math.PI * 2, ch = document.createElementNS(NS, "circle");
+        ch.setAttribute("cx", Math.cos(a) * (it.w / 2 + .32)); ch.setAttribute("cy", Math.sin(a) * (it.w / 2 + .32)); ch.setAttribute("r", .2); ch.setAttribute("fill", "#1d2a38"); ch.setAttribute("stroke", c); ch.setAttribute("stroke-width", .03); grp.appendChild(ch); } }
+    else { sh.setAttribute("x", -it.w / 2); sh.setAttribute("y", -it.h / 2); sh.setAttribute("width", it.w); sh.setAttribute("height", it.h); }
+    sh.setAttribute("fill", c + "33"); sh.setAttribute("stroke", i === sel ? "#fff" : c); sh.setAttribute("stroke-width", i === sel ? .12 : .06); grp.appendChild(sh);
+    const t = document.createElementNS(NS, "text"); t.textContent = it.label || it.type; t.setAttribute("text-anchor", "middle"); t.setAttribute("dy", ".18");
+    t.setAttribute("font-size", Math.min(.55, Math.max(.3, it.w / 6))); t.setAttribute("fill", "#e6edf5"); t.setAttribute("font-family", "Orbitron, sans-serif"); grp.appendChild(t);
+  });
+  if(mode === "3d") build3d();
+}
+// drag in the 2D plan
+let drag = null;
+function svgPoint(e){ const svg = $("#svg"), p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); }
+$("#svg").addEventListener("pointerdown", e => { const grp = e.target.closest("g[data-i]"); if(!grp){ sel = -1; draw(); return; }
+  sel = +grp.dataset.i; const p = svgPoint(e), it = L.items[sel]; drag = {dx: p.x - it.x, dy: p.y - it.y}; $("#svg").setPointerCapture(e.pointerId); draw(); });
+$("#svg").addEventListener("pointermove", e => { if(!drag || sel < 0) return; const p = svgPoint(e), it = L.items[sel];
+  it.x = Math.round(Math.max(0, Math.min(L.room[0] - it.w, p.x - drag.dx)) * 4) / 4; it.y = Math.round(Math.max(0, Math.min(L.room[1] - it.h, p.y - drag.dy)) * 4) / 4; draw(); });
+$("#svg").addEventListener("pointerup", () => drag = null);
+document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => { const k = b.dataset.add, [w, h] = SIZES[k];
+  L.items.push({type: k, x: L.room[0] / 2 - w / 2, y: L.room[1] / 2 - h / 2, w, h, label: k === "round_table" ? "T" + (L.items.filter(i => i.type === "round_table").length + 1) : k.replace("_", " ")});
+  sel = L.items.length - 1; draw(); });
+function rotate(){ if(sel < 0) return; const it = L.items[sel]; it.r = ((it.r || 0) + 90) % 180; if(it.type !== "round_table"){ [it.w, it.h] = [it.h, it.w]; it.r = 0; } draw(); }
+function remove(){ if(sel < 0) return; L.items.splice(sel, 1); sel = -1; draw(); }
+$("#rot").onclick = rotate; $("#del").onclick = remove;
+addEventListener("keydown", e => { if(e.target.tagName === "INPUT") return; if(e.key === "r" || e.key === "R") rotate(); if(e.key === "Delete" || e.key === "Backspace") remove(); });
+$("#auto").onclick = async () => { L = {...L, ...(await (await fetch("/api/layout/auto", {method: "POST", headers: {"Content-Type": "application/json"},
+  body: JSON.stringify({room_w: +$("#rw").value, room_l: +$("#rl").value, guests: +$("#guests").value, style: $("#style").value, seats: +$("#seats").value})})).json())}; sel = -1; draw();
+  if(L.note) $("#hint").textContent = L.note; };
+$("#save").onclick = async () => { L.guests = +$("#guests").value; L.seats = +$("#seats").value; L.style = $("#style").value;
+  await fetch("/api/layout", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({gig: gig ? +gig : null, layout: L})});
+  $("#save").textContent = "SAVED ✓"; setTimeout(() => $("#save").textContent = "SAVE", 1500); };
+$("#png").onclick = () => { const svg = $("#svg"), xml = new XMLSerializer().serializeToString(svg), img = new Image(), [W, H] = L.room, k = 60;
+  img.onload = () => { const c = document.createElement("canvas"); c.width = (W + 2) * k; c.height = (H + 2) * k; const x = c.getContext("2d"); x.fillStyle = "#07090d"; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+    const a = document.createElement("a"); a.download = `floor-plan${L.client ? "-" + L.client.replace(/\W+/g, "-") : ""}.png`; a.href = c.toDataURL("image/png"); a.click(); };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml); };
+
+// 3D view
+let R3 = null;
+function build3d(){
+  const cv = $("#gl");
+  if(!R3){ const renderer = new THREE.WebGLRenderer({canvas: cv, antialias: true}); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const scene = new THREE.Scene(); scene.background = new THREE.Color("#07090d"); const cam = new THREE.PerspectiveCamera(45, 1, .1, 300);
+    scene.add(new THREE.AmbientLight(0xffffff, .55)); const dl = new THREE.DirectionalLight(0xffe2b0, .9); dl.position.set(10, 25, 10); scene.add(dl);
+    R3 = {renderer, scene, cam, group: null, yaw: .6, pitch: .7, zoom: 1, labels: []};
+    let d = null; cv.addEventListener("pointerdown", e => { d = {x: e.clientX, y: e.clientY}; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener("pointermove", e => { if(!d) return; R3.yaw -= (e.clientX - d.x) * .006; R3.pitch = Math.max(.15, Math.min(1.45, R3.pitch + (e.clientY - d.y) * .004)); d = {x: e.clientX, y: e.clientY}; });
+    cv.addEventListener("pointerup", () => d = null); cv.addEventListener("wheel", e => { e.preventDefault(); R3.zoom = Math.max(.4, Math.min(2, R3.zoom * (1 + e.deltaY * .001))); }, {passive: false});
+    (function loop(){ if(mode === "3d"){ const r = cv.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix();
+      const [W, H] = L.room, dist = Math.max(W, H) * 1.25 * R3.zoom; cam.position.set(W / 2 + Math.sin(R3.yaw) * Math.cos(R3.pitch) * dist, Math.sin(R3.pitch) * dist, H / 2 + Math.cos(R3.yaw) * Math.cos(R3.pitch) * dist);
+      cam.lookAt(W / 2, 0, H / 2); renderer.render(scene, cam);
+      const v = new THREE.Vector3(); R3.labels.forEach(([o, el]) => { o.getWorldPosition(v); v.project(cam); el.style.left = (v.x * .5 + .5) * r.width + "px"; el.style.top = (-v.y * .5 + .5) * r.height + "px"; el.style.display = v.z < 1 ? "" : "none"; }); }
+      requestAnimationFrame(loop); })();
+  }
+  const {scene} = R3; if(R3.group) scene.remove(R3.group); $("#labels").innerHTML = ""; R3.labels = [];
+  const grp = new THREE.Group(); R3.group = grp; scene.add(grp); const [W, H] = L.room;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshStandardMaterial({color: "#1a140e", roughness: .8})); floor.rotation.x = -Math.PI / 2; floor.position.set(W / 2, 0, H / 2); grp.add(floor);
+  const grid = new THREE.GridHelper(Math.max(W, H), Math.max(W, H), 0x3a2e20, 0x261e15); grid.position.set(W / 2, .01, H / 2); grp.add(grid);
+  const wallM = new THREE.MeshStandardMaterial({color: "#2a2118", transparent: true, opacity: .55});
+  [[W / 2, 0, W, .15], [W / 2, H, W, .15], [0, H / 2, .15, H], [W, H / 2, .15, H]].forEach(([x, z, w, d]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1.2, d), wallM); m.position.set(x, .6, z); grp.add(m); });
+  const HEIGHT = {stage: .6, dance_floor: .04, buffet: .9, bar: 1.1, photo_booth: 2.2, entrance: 2.6, dj: 1, cake: 1, gift_table: .8, long_table: .76, sweetheart: .76, registration: .8};
+  L.items.forEach(it => { const c = new THREE.Color(COLORS[it.type] || "#5fd8ff"), cx = it.x + it.w / 2, cz = it.y + it.h / 2;
+    const mat = new THREE.MeshStandardMaterial({color: c, roughness: .5, metalness: .1, emissive: c, emissiveIntensity: .12});
+    if(it.type === "round_table"){ const top = new THREE.Mesh(new THREE.CylinderGeometry(it.w / 2, it.w / 2, .06, 28), new THREE.MeshStandardMaterial({color: "#f4efe6", roughness: .6}));
+      top.position.set(cx, .76, cz); grp.add(top); const cloth = new THREE.Mesh(new THREE.CylinderGeometry(it.w / 2 + .02, it.w / 2 + .12, .72, 28, 1, true), new THREE.MeshStandardMaterial({color: "#efe6d6", side: THREE.DoubleSide}));
+      cloth.position.set(cx, .4, cz); grp.add(cloth); const cen = new THREE.Mesh(new THREE.SphereGeometry(.18, 12, 10), new THREE.MeshStandardMaterial({color: "#e8b04b", emissive: "#e8b04b", emissiveIntensity: .4})); cen.position.set(cx, .95, cz); grp.add(cen);
+      const n = it.seats || +$("#seats").value; for(let k = 0; k < n; k++){ const a = k / n * Math.PI * 2, ch = new THREE.Mesh(new THREE.BoxGeometry(.42, .9, .42), new THREE.MeshStandardMaterial({color: "#d9c7a5"}));
+        ch.position.set(cx + Math.cos(a) * (it.w / 2 + .38), .45, cz + Math.sin(a) * (it.w / 2 + .38)); ch.rotation.y = -a; grp.add(ch); } }
+    else { const h = HEIGHT[it.type] || .8, m = new THREE.Mesh(new THREE.BoxGeometry(it.w, h, it.h), mat); m.position.set(cx, h / 2, cz); grp.add(m); }
+    if(it.type !== "round_table" || /VIP/.test(it.label || "")){ const o = new THREE.Object3D(); o.position.set(cx, (HEIGHT[it.type] || 1) + .4, cz); grp.add(o);
+      const el = document.createElement("div"); el.className = "lbl3"; el.textContent = it.label || it.type; $("#labels").appendChild(el); R3.labels.push([o, el]); } });
+}
+function setMode(m){ mode = m; $("#m2").classList.toggle("on", m === "2d"); $("#m3").classList.toggle("on", m === "3d");
+  $("#svg").style.display = m === "2d" ? "" : "none"; $("#gl").style.display = m === "3d" ? "block" : "none"; $("#labels").style.display = m === "3d" ? "" : "none";
+  $("#hint").textContent = m === "2d" ? "Drag items to move · tap to select · R rotates · Del removes" : "Drag to walk around · scroll to zoom"; if(m === "3d") build3d(); }
+$("#m2").onclick = () => setMode("2d"); $("#m3").onclick = () => setMode("3d");
+load();
+</script>
+</body></html>

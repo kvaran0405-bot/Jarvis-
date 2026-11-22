@@ -190,7 +190,8 @@ def index():
 @app.get("/api/agents")
 def agents():
     return {"agents": roster(), "llm": settings.has_llm, "model": settings.model,
-            "owner": settings.owner_name, "channels": channels(), "autonomy": settings.autonomy}
+            "owner": settings.owner_name, "channels": channels(), "autonomy": settings.autonomy,
+            "brand": {"name": settings.brand_name, "color": settings.brand_color}}
 
 
 # ---------------------------------------------------------------- suggested replies
@@ -1049,6 +1050,70 @@ async def laptop_screenshot_view():
         raise HTTPException(403, "banking screen")
     path = await asyncio.to_thread(devices.screenshot)
     return FileResponse(path, media_type="image/png")
+
+
+# ---------------------------------------------------------------- studio: floor plans, portfolio, backups
+@app.get("/api/layout")
+def layout_get(gig: int | None = None):
+    from . import studio
+    if gig:
+        g = store.get_gig(gig)
+        if not g:
+            raise HTTPException(404, "no such gig")
+        lay = json.loads(g.get("layout") or "null") or studio.auto_layout(24, 18, int(g.get("guests") or 200))
+        lay["client"] = g["client"]
+        return lay
+    raw = store.get("studio:last_layout")
+    return json.loads(raw) if raw else studio.auto_layout(24, 18, 250)
+
+
+class LayoutSave(BaseModel):
+    gig: int | None = None
+    layout: dict
+
+
+@app.post("/api/layout")
+def layout_save(ls: LayoutSave):
+    data = json.dumps(ls.layout)[:200_000]
+    if ls.gig:
+        if not store.update_gig(ls.gig, layout=data):
+            raise HTTPException(404, "no such gig")
+    else:
+        store.set("studio:last_layout", data)
+    return {"ok": True}
+
+
+class LayoutAuto(BaseModel):
+    room_w: float
+    room_l: float
+    guests: int
+    style: str = "wedding"
+    seats: int = 10
+
+
+@app.post("/api/layout/auto")
+def layout_auto(a: LayoutAuto):
+    from . import studio
+    return studio.auto_layout(a.room_w, a.room_l, a.guests, a.style, a.seats)
+
+
+@app.get("/site/{name:path}")
+def site(name: str = ""):
+    """Preview of the portfolio website JARVIS built (build_portfolio)."""
+    from pathlib import Path as _P
+    base = (devices.WORKSPACE / "Website").resolve()
+    p = (base / (name or "index.html")).resolve()
+    if not str(p).startswith(str(base)) or not p.is_file():
+        raise HTTPException(404, "Ask PEPPER to build your portfolio first.")
+    return FileResponse(p)
+
+
+@app.get("/api/backup")
+def backup_download():
+    """Download a backup (without .env, which holds passwords)."""
+    from . import studio
+    path = studio.backup(include_settings=False)
+    return FileResponse(path, filename=path.name, media_type="application/zip")
 
 
 # ---------------------------------------------------------------- vision: phone camera, screenshots
