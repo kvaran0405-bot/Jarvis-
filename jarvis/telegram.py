@@ -186,6 +186,9 @@ class Bot:
                 _store.set("telegram:chat_id", sender)
                 send("✅ Linked. I'm JARVIS - text me anything, any time. Try: What's on my plate today?", to=sender)
                 self.log("Telegram linked to your account")
+            elif text.startswith("/start"):
+                send("🔒 Send /start followed by the 6-digit code shown on your laptop "
+                     "(JARVIS window → Autopilot tab), e.g.  /start 123456", to=sender)
             return
         if sender != chat_id():
             return  # strangers are ignored
