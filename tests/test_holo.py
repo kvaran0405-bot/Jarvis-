@@ -17,7 +17,7 @@ def test_holo_data_and_narration():
     s.update_gig(gid, quote_total=12000, status="confirmed")
     d = holo.data(s)
     assert d["week"][0]["title"] == "FIN302 lecture" and d["week"][0]["dur"] == 2
-    assert d["muscles"]["chest"] == 1.0 and d["muscles"]["legs"] == 0
+    assert d["muscles"]["chest"] == 1.0 and d["muscles"]["quads"] == 0 and d["muscles"]["lats"] == 0
     assert d["spending"] == [{"category": "food", "amount": 50}]
     assert "Marina Bay Sands" in d["explored"] and d["today_places"][0]["place"] == "Kaplan City Campus"
     assert "chest" in holo.narrate("body", d) and "$12,000" in holo.narrate("business", d)

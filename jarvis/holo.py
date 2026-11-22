@@ -53,11 +53,24 @@ def place_of(text: str) -> str | None:
 
 
 # ------------------------------------------------------------------ muscles
-MUSCLES = {"chest": ["bench", "push", "chest", "fly", "dip"], "back": ["row", "pull", "lat", "deadlift", "chin"],
-           "legs": ["squat", "leg", "lunge", "calf", "deadlift", "rdl", "hip thrust"],
-           "shoulders": ["overhead", "shoulder", "ohp", "lateral", "military", "arnold"],
-           "arms": ["curl", "tricep", "bicep", "extension", "hammer", "skull"],
-           "core": ["plank", "crunch", "abs", "core", "sit-up", "situp", "leg raise"]}
+MUSCLES = {   # muscle -> exercise keywords (checked as substrings of the logged exercise name)
+    "chest": ["bench", "chest", "push-up", "pushup", "push up", "fly", "flye", "dip", "pec"],
+    "lats": ["pull-up", "pullup", "pull up", "lat ", "lat pull", "pulldown", "row", "chin"],
+    "traps": ["shrug", "trap", "upright row", "face pull", "deadlift", "farmer"],
+    "lower_back": ["deadlift", "back extension", "good morning", "hyperextension", "superman"],
+    "shoulders": ["overhead", "shoulder", "ohp", "lateral raise", "military", "arnold", "front raise", "face pull", "rear delt"],
+    "biceps": ["curl", "chin-up", "chinup", "chin up"],
+    "triceps": ["tricep", "pushdown", "skull", "close-grip", "close grip", "dip", "kickback", "overhead extension"],
+    "forearms": ["wrist", "farmer", "hammer", "grip", "dead hang", "reverse curl"],
+    "abs": ["plank", "crunch", "abs", "ab ", "sit-up", "situp", "sit up", "leg raise", "ab wheel", "hollow"],
+    "obliques": ["oblique", "russian twist", "side plank", "woodchop", "wood chop", "bicycle"],
+    "glutes": ["squat", "hip thrust", "glute", "lunge", "deadlift", "bridge", "step-up", "step up"],
+    "quads": ["squat", "leg press", "lunge", "leg extension", "step-up", "step up", "wall sit", "cycling", "bike"],
+    "hamstrings": ["deadlift", "rdl", "leg curl", "hamstring", "good morning", "nordic"],
+    "calves": ["calf", "run", "jog", "jump rope", "skipping", "sprint"],
+}
+LEGACY_GROUPS = {"back": ["lats", "traps", "lower_back"], "arms": ["biceps", "triceps", "forearms"],
+                 "core": ["abs", "obliques"], "legs": ["glutes", "quads", "hamstrings", "calves"]}
 
 
 def muscle_load(store, today: date) -> dict:
@@ -66,7 +79,7 @@ def muscle_load(store, today: date) -> dict:
     for w in store.query("SELECT exercise, sets FROM workouts WHERE day >= ?", (since,)):
         ex = (w["exercise"] or "").lower()
         for m, keys in MUSCLES.items():
-            if any(k in ex for k in keys):
+            if any(k in f" {ex} " for k in keys):
                 load[m] += w["sets"] or 3
     return {m: min(1.0, v / 12) for m, v in load.items()}
 
@@ -236,8 +249,10 @@ def narrate(view: str, d: dict) -> str:
         return (f"Shaabaz, {owner}. {len(active)} active clients, ${value:,.0f} in play." if active
                 else "The business galaxy is empty for now. PEPPER is ready when the enquiries come.")
     if view == "body":
-        trained = [m for m, v in d["muscles"].items() if v > 0.15]
-        return (f"This week you've trained {', '.join(trained)}." if trained
+        trained = [m.replace("_", " ") for m, v in sorted(d["muscles"].items(), key=lambda x: -x[1]) if v > 0.15]
+        rest = [m.replace("_", " ") for m, v in d["muscles"].items() if v == 0]
+        return (f"This week you've trained {', '.join(trained[:5])}."
+                + (f" Untouched: {', '.join(rest[:3])}." if rest and len(rest) < 10 else "") if trained
                 else f"No workouts logged this week, {owner}. The suit needs maintenance.")
     if view == "money":
         total = sum(s["amount"] for s in d["spending"])

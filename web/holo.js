@@ -10,7 +10,7 @@ let yaw = 0, pitch = 0, zoom = 1, drag = null, labels = [], t0 = performance.now
 
 function loadThree(){
   if(window.THREE) return Promise.resolve(window.THREE);
-  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = "/vendor/three.min.js"; s.onload = () => res(window.THREE); s.onerror = rej; document.head.appendChild(s); });
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = "/vendor/three.min.js"; s.onload = () => window.THREE ? res(window.THREE) : rej(new Error("no THREE")); s.onerror = rej; document.head.appendChild(s); });
 }
 
 const css = document.createElement("style");
@@ -79,7 +79,7 @@ function clear(){
 }
 
 // ------------------------------------------------------------------ the views
-const CAM = {week: [10, 5, 14], business: [0, 12, 17], body: [0, 1.5, 11], money: [0, 7, 15], singapore: [0, 13, 12], diagnostics: [0, 0, 16], trophies: [0, 10, 17]};
+const CAM = {week: [10, 5, 14], business: [0, 12, 17], body: [0, 1.2, 10.5], money: [0, 7, 15], singapore: [0, 13, 12], diagnostics: [0, 0, 16], trophies: [0, 10, 17]};
 const BUILD = {
   week(){
     const R = 4.6;
@@ -116,17 +116,91 @@ const BUILD = {
     animators.push((t, dt) => group.rotation.y += dt * .03);
   },
   body(){
-    const m = data.muscles, heat = v => C("#5fd8ff").lerp(C("#ff7a3d"), Math.min(1, v * 1.4));
-    const part = (geo, x, y, z, key, rx = 0) => { const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: heat(m[key] || 0), transparent: true, opacity: .22 + (m[key] || 0) * .55, blending: THREE.AdditiveBlending, depthWrite: false}));
-      mesh.position.set(x, y, z); mesh.rotation.x = rx; group.add(mesh); const w = new THREE.Mesh(geo, mat("#5fd8ff", .35, true)); w.position.copy(mesh.position); w.rotation.x = rx; group.add(w); return mesh; };
-    part(new THREE.SphereGeometry(.55, 16, 12), 0, 3.3, 0, "none");
-    part(new THREE.BoxGeometry(1.8, 1.1, .5), 0, 2.05, .12, "chest"); part(new THREE.BoxGeometry(1.8, 1.1, .4), 0, 2.05, -.3, "back");
-    part(new THREE.BoxGeometry(1.4, 1.0, .7), 0, .95, 0, "core");
-    [-1.15, 1.15].forEach(x => { part(new THREE.SphereGeometry(.38, 12, 10), x, 2.45, 0, "shoulders");
-      part(new THREE.CylinderGeometry(.22, .18, 1.6, 10), x * 1.05, 1.45, 0, "arms"); part(new THREE.CylinderGeometry(.3, .22, 2.2, 10), x * .45, -1.2, 0, "legs"); });
-    Object.entries(m).forEach(([k, v], i) => { const o = new THREE.Object3D(); o.position.set(i % 2 ? 3.2 : -3.2, 3 - Math.floor(i / 2) * 1.5, 0); group.add(o);
-      label(o, `${k.toUpperCase()}<small>${Math.round(v * 100)}% this week</small>`, v > .15 ? "#ff7a3d" : "#5fd8ff"); });
-    animators.push((t, dt) => group.rotation.y += dt * .35);
+    // Anatomical hologram. Muscles are tapered bellies (like real muscle), with their separate heads, sitting on a
+    // see-through skin and skeleton. Cool cyan = rested, orange to red = worked this week (from your logged workouts).
+    const m = data.muscles || {}, fig = new THREE.Group(); fig.position.y = -.15; group.add(fig);
+    const heat = v => C("#1d8fc0").lerp(C("#ff6a1a"), Math.min(1, v * 1.3)).lerp(C("#ff2a1a"), Math.max(0, v - .75) * 2);
+    // a unit muscle belly: thick in the middle, tapering to tendons at both ends
+    const prof = []; for(let i = 0; i <= 16; i++){ const t = i / 16; prof.push(new THREE.Vector2(Math.max(.02, Math.pow(Math.sin(Math.PI * t), .72) * .5), t - .5)); }
+    const BELLY = new THREE.LatheGeometry(prof, 20), BELLYW = new THREE.LatheGeometry(prof.filter((_, i) => i % 2 === 0), 10);
+    const skin = op => new THREE.MeshBasicMaterial({color: C("#5fd8ff"), wireframe: true, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false});
+    const muscle = (key, [x, y, z], len, w, depth = .7, [rx, ry, rz] = [0, 0, 0], mirror = true) => {
+      (mirror ? [1, -1] : [1]).forEach(side => {
+        const v = m[key] || 0, g = new THREE.Group(); g.position.set(x * side, y, z); g.rotation.set(rx, ry * side, rz * side); g.scale.set(w, len, w * depth);
+        const fill = new THREE.Mesh(BELLY, new THREE.MeshBasicMaterial({color: heat(v), transparent: true, opacity: .16 + v * .34, blending: THREE.AdditiveBlending, depthWrite: false}));
+        const fibre = new THREE.Mesh(BELLYW, new THREE.MeshBasicMaterial({color: v > .15 ? heat(v) : C("#7fe3ff"), wireframe: true, transparent: true, opacity: .14 + v * .22, blending: THREE.AdditiveBlending, depthWrite: false}));
+        g.add(fill, fibre); fig.add(g);
+        if(v > .15) animators.push(t => fill.material.opacity = (.16 + v * .34) * (.8 + .2 * Math.sin(t * 3 + y * 2)));
+      });
+    };
+    const limb = (p1, p2, r1, r2, op = .1) => { const a3 = new THREE.Vector3(...p1), b3 = new THREE.Vector3(...p2), len = a3.distanceTo(b3);
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, len, 14, 5, true), skin(op)); mesh.position.copy(a3).add(b3).multiplyScalar(.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b3.clone().sub(a3).normalize()); fig.add(mesh); };
+    const bone = (pts, op = .3) => fig.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(...p))), new THREE.LineBasicMaterial({color: C("#9fdcff"), transparent: true, opacity: op})));
+    // ---- skin silhouette
+    const torsoP = [[.5, .22], [.56, .55], [.47, 1.0], [.5, 1.4], [.63, 1.9], [.74, 2.35], [.7, 2.62], [.42, 2.8], [.2, 2.9]].map(([r, y]) => new THREE.Vector2(r, y));
+    const torso = new THREE.Mesh(new THREE.LatheGeometry(torsoP, 22), skin(.09)); torso.scale.z = .6; fig.add(torso);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.42, 16, 12), skin(.3)); head.scale.set(1, 1.2, 1.08); head.position.set(0, 3.42, .02); fig.add(head);
+    limb([0, 2.75, 0], [0, 3.1, .02], .21, .17, .2);
+    [1, -1].forEach(sd => {
+      limb([1.0 * sd, 2.45, 0], [1.16 * sd, 1.45, 0], .22, .16); limb([1.16 * sd, 1.45, 0], [1.3 * sd, .58, .02], .16, .1);
+      limb([.33 * sd, .35, 0], [.34 * sd, -1.35, .02], .31, .17); limb([.34 * sd, -1.35, .02], [.33 * sd, -3.72, -.02], .17, .09);
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), skin(.25)); hand.scale.set(.1, .2, .06); hand.position.set(1.33 * sd, .36, .02); fig.add(hand);
+      const foot = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), skin(.25)); foot.scale.set(.12, .07, .3); foot.position.set(.33 * sd, -3.85, .12); fig.add(foot);
+    });
+    // ---- skeleton
+    bone(Array.from({length: 14}, (_, i) => [0, .42 + i * .19, -.24 + Math.sin(i / 2.2) * .05]), .4);
+    for(let i = 0; i < 6; i++){ const y = 2.33 - i * .19, r = .48 + Math.sin(i / 5 * Math.PI) * .1;
+      bone(Array.from({length: 25}, (_, k) => { const a = -Math.PI * .9 + k / 24 * Math.PI * 1.8; return [Math.sin(a) * r, y - Math.abs(Math.sin(a)) * .08, Math.cos(a) * r * .55 - .03]; }), .18); }
+    bone([[-.6, .62, 0], [-.3, .35, .1], [0, .3, .14], [.3, .35, .1], [.6, .62, 0]], .28);
+    [1, -1].forEach(sd => bone([[.15 * sd, 2.66, .08], [.95 * sd, 2.58, 0]], .28));
+    // ---- chest, shoulders, traps
+    muscle("chest", [.32, 2.3, .29], .62, .34, .34, [0, -.25, 1.38]);       // pec, clavicular part
+    muscle("chest", [.36, 2.1, .28], .7, .34, .36, [0, -.25, 1.15]);        // pec, sternal part
+    muscle("shoulders", [.86, 2.47, .17], .5, .23, .8, [-.35, 0, .45]);     // front delt
+    muscle("shoulders", [.99, 2.42, 0], .55, .26, .8, [0, 0, .3]);         // side delt
+    muscle("shoulders", [.86, 2.47, -.17], .5, .22, .8, [.35, 0, .45]);     // rear delt
+    muscle("traps", [.27, 2.77, -.07], .55, .2, .7, [0, 0, 1.05]);          // upper traps
+    muscle("traps", [.18, 2.38, -.3], .62, .24, .4, [0, 0, .35]);           // mid traps
+    // ---- core
+    [[1.97, .21], [1.72, .21], [1.47, .22], [1.17, .32]].forEach(([y, l]) => muscle("abs", [.12, y, .32], l, .2, .42));
+    muscle("obliques", [.45, 1.38, .2], .78, .2, .6, [0, -.3, -.22]);
+    [0, 1, 2].forEach(i => muscle("obliques", [.55, 2.02 - i * .17, .18], .22, .1, .6, [0, -.4, 1.15]));   // serratus
+    // ---- back
+    muscle("lats", [.5, 1.82, -.22], 1.05, .4, .35, [0, .2, .38]);
+    muscle("lower_back", [.12, 1.18, -.28], .8, .14, .7);                   // erector spinae
+    // ---- arms
+    muscle("biceps", [1.09, 1.9, .1], .72, .21, .9, [0, 0, .1]);
+    muscle("triceps", [1.13, 1.9, -.13], .78, .2, .9, [0, 0, .1]);          // long head
+    muscle("triceps", [1.21, 2.0, -.04], .5, .15, .9, [0, 0, .12]);         // lateral head
+    muscle("forearms", [1.2, 1.17, .06], .78, .18, .8, [0, 0, .12]);        // brachioradialis
+    muscle("forearms", [1.26, 1.03, -.05], .68, .14, .8, [0, 0, .14]);      // flexors
+    // ---- hips and legs
+    muscle("glutes", [.27, .5, -.22], .58, .5, .62);                       // gluteus maximus
+    muscle("glutes", [.47, .78, -.08], .32, .3, .6, [0, 0, -.4]);            // gluteus medius
+    muscle("quads", [.33, -.33, .21], 1.4, .21, .9, [0, 0, -.03]);          // rectus femoris
+    muscle("quads", [.48, -.42, .08], 1.3, .23, .85, [0, 0, -.05]);         // vastus lateralis
+    muscle("quads", [.21, -.88, .15], .58, .21, .85, [0, 0, .12]);          // vastus medialis (teardrop)
+    muscle("quads", [.17, -.18, .02], .95, .16, .8, [0, 0, .12]);           // adductors
+    muscle("hamstrings", [.42, -.45, -.15], 1.32, .19, .85, [0, 0, -.03]);  // biceps femoris
+    muscle("hamstrings", [.24, -.45, -.16], 1.32, .18, .85, [0, 0, .03]);   // semitendinosus
+    muscle("calves", [.26, -2.02, -.13], .78, .19, .9);                     // gastrocnemius, inner head
+    muscle("calves", [.41, -2.06, -.12], .72, .17, .9);                     // gastrocnemius, outer head
+    muscle("calves", [.33, -2.55, -.1], .72, .19, .8);                      // soleus
+    muscle("calves", [.38, -2.3, .11], 1.05, .11, .9);                      // tibialis
+    // ---- body-scan beam
+    const scan = ring(1.25, .012, "#5fd8ff", .7); scan.rotation.x = Math.PI / 2; fig.add(scan); const sg = glow("#5fd8ff", 2.6, .22); fig.add(sg);
+    animators.push(t => { const y = 3.9 - ((t * .42) % 1) * 7.9; scan.position.y = y; sg.position.y = y; scan.scale.setScalar(y > 2.9 ? .45 : y > .25 ? 1 : .55); });
+    // ---- labels
+    const POS = {chest: [.45, 2.25, .5], shoulders: [1.1, 2.62, .2], traps: [.3, 2.98, -.2], abs: [0, 1.55, .5], obliques: [.62, 1.35, .35],
+      lats: [.75, 1.85, -.35], lower_back: [0, 1.0, -.45], biceps: [1.25, 2.0, .35], triceps: [1.35, 1.9, -.35], forearms: [1.42, 1.05, .2],
+      glutes: [.3, .5, -.5], quads: [.42, -.25, .45], hamstrings: [.38, -.5, -.45], calves: [.38, -2.15, -.4]};
+    Object.entries(m).filter(([, v]) => v > .15).sort((a2, b2) => b2[1] - a2[1]).slice(0, 6).forEach(([k, v], i) => {
+      const o = new THREE.Object3D(); const p = POS[k] || [0, 0, 0]; o.position.set(i % 2 ? -p[0] : p[0], p[1], p[2]); fig.add(o);
+      label(o, `${k.replace("_", " ").toUpperCase()}<small>${Math.round(v * 100)}%</small>`, v > .8 ? "#ff5a4a" : "#ff8a3d"); });
+    const top = new THREE.Object3D(); top.position.set(0, 4.3, 0); fig.add(top);
+    label(top, `BODY SCAN<small>${Object.values(m).filter(v => v > .15).length} of ${Object.keys(m).length} muscle groups worked this week</small>`, "#5fd8ff");
+    animators.push((t, dt) => group.rotation.y += dt * .3);
   },
   money(){
     const sp = data.spending.slice().sort((a, b) => b.amount - a.amount).slice(0, 8), max = Math.max(1, ...sp.map(s => s.amount));
@@ -206,7 +280,7 @@ function frame(now){
   if(!reduce) animators.forEach(f => f(t, dt));
   const base = new THREE.Vector3(...CAM[view]).multiplyScalar(zoom), sph = new THREE.Spherical().setFromVector3(base);
   sph.theta += yaw; sph.phi = Math.max(.15, Math.min(Math.PI - .15, sph.phi - pitch));
-  const target = new THREE.Vector3().setFromSpherical(sph); camera.position.lerp(target, Math.min(1, dt * 3)); camera.lookAt(0, view === "body" ? 1.3 : 0, 0);
+  const target = new THREE.Vector3().setFromSpherical(sph); camera.position.lerp(target, Math.min(1, dt * 3)); camera.lookAt(0, view === "body" ? .2 : 0, 0);
   renderer.render(scene, camera);
   const v = new THREE.Vector3();
   labels.forEach(L => { L.obj.getWorldPosition(v); v.project(camera); const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
