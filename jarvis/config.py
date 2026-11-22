@@ -125,8 +125,12 @@ class Settings:
     def tz(self) -> ZoneInfo:
         try:
             return ZoneInfo(self.timezone)
-        except Exception:
-            return ZoneInfo("UTC")
+        except Exception:  # no timezone database (Windows without the tzdata package)
+            try:
+                return ZoneInfo("UTC")
+            except Exception:
+                from datetime import timezone
+                return timezone.utc
 
     @property
     def has_llm(self) -> bool:
