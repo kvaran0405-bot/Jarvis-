@@ -133,13 +133,34 @@ VS_MOODS = {
 _vs_seen = {"at": 0.0, "up": False}
 
 
+def _vs_headers() -> dict:
+    key = os.environ.get("JARVIS_VOICESTUDIO_KEY", "").strip()
+    return {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})}
+
+
+# How fast VoiceStudio speaks on this laptop (seconds of work per character). Without a graphics card it can be
+# too slow for live chat; then live replies use the quick voices and VoiceStudio does briefings and voice notes.
+_vs_speed = {"chars": 0, "secs": 0.0}
+LIVE_BUDGET_S = float(os.environ.get("JARVIS_VOICESTUDIO_LIVE_BUDGET", "3.5"))
+
+
+def vs_seconds_per_char() -> float | None:
+    return _vs_speed["secs"] / _vs_speed["chars"] if _vs_speed["chars"] >= 40 else None
+
+
+def vs_too_slow_for(text: str) -> bool:
+    spc = vs_seconds_per_char()
+    return spc is not None and spc * len(text) > LIVE_BUDGET_S
+
+
 def voicestudio_up() -> bool:
     """Is VoiceStudio running on this laptop? (checked at most every 30 s)"""
     import time
     if time.time() - _vs_seen["at"] < 30:
         return _vs_seen["up"]
     try:
-        with urllib.request.urlopen(settings.voicestudio_url.rstrip("/") + "/v1/models", timeout=2) as r:
+        req = urllib.request.Request(settings.voicestudio_url.rstrip("/") + "/v1/models", headers=_vs_headers())
+        with urllib.request.urlopen(req, timeout=2) as r:
             up = r.status == 200
     except Exception:  # noqa: BLE001
         up = False
@@ -229,9 +250,16 @@ def _vs_request(agent: str, words: str, speed: float, fmt: str) -> bytes:
     if not custom:
         body.update(instructions=design, seed=seed)
     req = urllib.request.Request(settings.voicestudio_url.rstrip("/") + "/v1/audio/speech",
-                                 data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=settings.voicestudio_timeout) as resp:
-        return resp.read()
+                                 data=json.dumps(body).encode(), headers=_vs_headers())
+    import time
+    t0 = time.monotonic()
+    with urllib.request.urlopen(req, timeout=max(settings.voicestudio_timeout, 90)) as resp:
+        audio = resp.read()
+    _vs_speed["chars"] += len(words)
+    _vs_speed["secs"] += time.monotonic() - t0
+    if _vs_speed["chars"] > 4000:   # keep it a recent average
+        _vs_speed.update(chars=_vs_speed["chars"] // 2, secs=_vs_speed["secs"] / 2)
+    return audio
 
 
 def _voicestudio(text: str, agent: str, path: Path) -> Path:
@@ -260,9 +288,16 @@ def _voicestudio(text: str, agent: str, path: Path) -> Path:
     return wav_path
 
 
-def synthesize(agent: str, text: str) -> Path:
-    """Return the path of an MP3 of `agent` saying `text` (cached)."""
+def synthesize(agent: str, text: str, live: bool = False) -> Path:
+    """Return the path of an MP3 of `agent` saying `text` (cached).
+    live=True: someone is waiting for this reply right now, so a slow VoiceStudio hands over to the quick voices."""
     prov = provider()
+    if prov == "voicestudio" and live and vs_too_slow_for(speakable(text)):
+        try:
+            import edge_tts  # noqa: F401
+            prov = "edge"
+        except ImportError:
+            pass
     voice_id = voice_for(agent)
     text = speakable(text)[:2500]
     if prov not in ("edge", "voicestudio"):

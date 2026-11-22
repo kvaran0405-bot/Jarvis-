@@ -252,3 +252,37 @@ def gig_checklist(ctx: ToolContext, gig_id: int, steps: list) -> dict:
         made.append(tid)
     ctx.bus.publish({"type": "data", "what": "tasks"})
     return {"tasks_created": len(made), "task_ids": made}
+
+
+# ------------------------------------------------------------------ weather (free, no key: open-meteo.com)
+WEATHER_CODES = {0: "clear", 1: "mostly clear", 2: "partly cloudy", 3: "cloudy", 45: "foggy", 48: "foggy",
+                 51: "light drizzle", 53: "drizzle", 55: "heavy drizzle", 61: "light rain", 63: "rain",
+                 65: "heavy rain", 80: "showers", 81: "heavy showers", 82: "violent showers",
+                 95: "thunderstorms", 96: "thunderstorms with hail", 99: "thunderstorms with hail"}
+
+
+@tool("weather", "Today's and tomorrow's weather where the owner lives (rain chance by time of day, temperature). "
+      "Use it in briefings and before outdoor plans or events.")
+def weather(ctx: ToolContext) -> dict:
+    import json as _json
+    import os
+    import urllib.request
+    lat, _, lon = os.environ.get("JARVIS_WEATHER_LATLON", "1.3521,103.8198").partition(",")   # default: Singapore
+    url = ("https://api.open-meteo.com/v1/forecast?latitude=" + lat.strip() + "&longitude=" + lon.strip() +
+           "&hourly=precipitation_probability,temperature_2m,weather_code&daily=temperature_2m_max,"
+           "temperature_2m_min,precipitation_probability_max,weather_code&forecast_days=2&timezone=auto")
+    try:
+        with urllib.request.urlopen(url, timeout=15) as r:
+            d = _json.load(r)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"weather service unreachable: {exc}"}
+    days = []
+    for i, day in enumerate(d["daily"]["time"]):
+        hours = [(t[11:16], p, c) for t, p, c in zip(d["hourly"]["time"], d["hourly"]["precipitation_probability"],
+                                                     d["hourly"]["weather_code"]) if t.startswith(day)]
+        wet = [f"{h} {p}%" for h, p, _c in hours if p is not None and p >= 40]
+        days.append({"date": day, "sky": WEATHER_CODES.get(d["daily"]["weather_code"][i], "mixed"),
+                     "min_c": d["daily"]["temperature_2m_min"][i], "max_c": d["daily"]["temperature_2m_max"][i],
+                     "rain_chance_max": d["daily"]["precipitation_probability_max"][i],
+                     "rainy_hours": wet[:8] or "none likely"})
+    return {"today": days[0], "tomorrow": days[1] if len(days) > 1 else None}

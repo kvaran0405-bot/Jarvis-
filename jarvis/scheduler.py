@@ -62,7 +62,8 @@ def parse_schedule(text: str):
     raise ValueError(f"Bad schedule '{text}'. Use 'daily 08:00', 'weekly mon 08:00', 'every 2h' or 'every 30m'.")
 
 
-MORNING = ("Compile today's morning brief for the owner: schedule, top 3 priorities, deadlines in the next "
+MORNING = ("Compile today's morning brief for the owner: the weather (call `weather`: rain timing matters for "
+           "travel and outdoor events), schedule, top 3 priorities, deadlines in the next "
            "7 days, overdue items, habits, goals, career pipeline, money, and what the agents completed "
            "overnight (recent reports and tasks done in the last 24h). Publish it as kind 'morning_brief'. "
            "Then think ahead like a chief of staff: `propose` up to 3 concrete actions that would make today or "
@@ -92,6 +93,18 @@ WATCH = ("Deadline sweep: check overdue and next-48h tasks and events, clashes, 
          "Otherwise reply with a one-line all-clear.")
 
 
+JOB_HUNT = ("Nightly job hunt. Read the owner's profile for the roles they want (finance, sales, business "
+            "development, events or anything stated) and their level. Search the web for NEW openings posted in "
+            "the last few days in their city (job boards, company career pages, LinkedIn/JobStreet/MyCareersFuture "
+            "listings that are publicly visible). Call list_applications first and skip anything already tracked. "
+            "Pick at most 5 genuinely good fits (title, company, link, why it fits, salary if listed, closing date) "
+            "and add each with add_application (status 'interested', the link, next_step 'Review & apply by <date>'). "
+            "For the best 2, write a tailored cover letter in the owner's voice using their real experience "
+            "(write_file, named 'Cover letter - <Company> - <Role>.txt'). Then `propose` one yes/no: 'Apply to "
+            "<A> and <B> today?' with the links and letter file names in the plan. If nothing good turned up, say so "
+            "in one line - never pad the list with poor matches.")
+
+
 class Scheduler:
     def __init__(self, engine: Engine):
         self.engine = engine
@@ -104,6 +117,8 @@ class Scheduler:
             Job("deadline_watch", "SENTINEL", "Deadline watch", every_hours(s.watch_every_hours), WATCH),
             Job("night_shift", "JARVIS", "Night shift", daily_at(s.night_shift_at), None),
         ]
+        if s.job_hunt_at.lower() != "off":
+            self.jobs.append(Job("job_hunt", "ZEUS", "Job hunt", daily_at(s.job_hunt_at), JOB_HUNT))
         from . import channels as ch
         if ch.email_read_ready():
             self.jobs.append(Job("money_weekly", "VERONICA", "Weekly money report",
@@ -132,6 +147,12 @@ class Scheduler:
         try:
             self.store.set(f"job:{name}:last", datetime.now(self.settings.tz).isoformat())
             self.bus.log(job.agent, f"{job.label} started", "job")
+            if name == "morning_brief" and self.settings.wake_music:
+                from . import devices
+                try:
+                    devices.open_url(self.settings.wake_music)
+                except Exception:  # noqa: BLE001 - music is a nice-to-have
+                    pass
             result = self.night_shift() if job.prompt is None else self.engine.run(job.agent, job.prompt,
                                                                                     background=True)
             self.bus.log(job.agent, f"{job.label} complete: {result[:200]}", "job")

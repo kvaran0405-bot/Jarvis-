@@ -208,3 +208,89 @@ def test_email_attachment_is_checked_and_queued(env, tmp_path):
     execute("send_email", ctx, {"to": "a@b.com", "subject": "Quote", "body": "Attached", "reason": "quote",
                                 "attachment": str(f)})
     assert store.list_outbox("pending")[0]["attachment"] == str(f)
+
+
+# ---------------------------------------------------------------- claps, home, weather, job hunt, voices
+def _audio_run(sig):
+    import numpy as np
+    from jarvis.clap import BLOCK, RATE, ClapDetector
+    fired = []
+    d = ClapDetector(lambda: fired.append(1))
+    for k in range(0, len(sig) - BLOCK, BLOCK):
+        b = sig[k:k + BLOCK]
+        d.feed(k / RATE, float(abs(b).max()), float(np.sqrt((b ** 2).mean())))
+    return len(fired)
+
+
+def test_double_clap_only():
+    np = pytest.importorskip("numpy")
+    rng = np.random.default_rng(1)
+
+    def room(sec):
+        return rng.normal(0, 0.005, int(sec * 16000))
+
+    def clap(sig, at):
+        n = 480
+        i = int(at * 16000)
+        sig[i:i + n] += rng.normal(0, 0.4, n) * np.exp(-np.linspace(0, 6, n))
+    s = room(4); clap(s, 1.0); clap(s, 1.4)
+    assert _audio_run(s) == 1
+    s = room(4); clap(s, 1.0)
+    assert _audio_run(s) == 0
+    s = room(4); clap(s, 1.0); clap(s, 1.4); clap(s, 1.8)
+    assert _audio_run(s) == 0
+    s = room(4); t = np.arange(32000) / 16000; s[16000:48000] += 0.3 * np.sin(2 * np.pi * 220 * t)
+    assert _audio_run(s) == 0
+
+
+def test_home_phrases():
+    from jarvis.server import HOME_RE
+    for t in ("Jarvis, I'm home", "im home", "I'm back!", "honey I'm home", "hey jarvis i am home"):
+        assert HOME_RE.match(t), t
+    for t in ("I'm home late tomorrow, remind me", "what's at home"):
+        assert not HOME_RE.match(t), t
+
+
+def test_clap_after_being_away_welcomes_home(monkeypatch):
+    from datetime import datetime, timedelta
+    from jarvis import server
+    started = []
+    monkeypatch.setattr(server.threading, "Thread", lambda target, daemon=True: type(
+        "T", (), {"start": lambda self: started.append(target.__name__)})())
+    events = []
+    monkeypatch.setattr(server.bus, "publish", events.append)
+    server.store.set("owner:last_seen", (datetime.now(settings.tz) - timedelta(hours=5)).isoformat())
+    server.on_double_clap()
+    assert started == ["welcome_home"]
+    server.store.set("owner:last_seen", datetime.now(settings.tz).isoformat())
+    server.on_double_clap()
+    assert any(e.get("say") == "Yes Sir?" for e in events)
+
+
+def test_weather_tool(env, monkeypatch):
+    import io
+    import urllib.request
+    _store, _bus, _engine, ctx = env
+    data = {"daily": {"time": ["2030-01-01", "2030-01-02"], "temperature_2m_max": [32, 31],
+                      "temperature_2m_min": [26, 25], "precipitation_probability_max": [80, 10],
+                      "weather_code": [95, 1]},
+            "hourly": {"time": ["2030-01-01T15:00", "2030-01-01T16:00", "2030-01-02T15:00"],
+                       "precipitation_probability": [70, 20, 5], "weather_code": [95, 3, 1]}}
+    monkeypatch.setattr(urllib.request, "urlopen", lambda url, timeout=15: io.BytesIO(json.dumps(data).encode()))
+    out = json.loads(execute("weather", ctx, {})[0])
+    assert out["today"]["sky"] == "thunderstorms" and out["today"]["rainy_hours"] == ["15:00 70%"]
+    assert out["tomorrow"]["rainy_hours"] == "none likely"
+
+
+def test_job_hunt_is_scheduled(env):
+    from jarvis.scheduler import Scheduler
+    _store, _bus, engine, _ctx = env
+    jobs = {j.name: j for j in Scheduler(engine).jobs}
+    assert jobs["job_hunt"].agent == "ZEUS" and "list_applications" in jobs["job_hunt"].prompt
+    assert "weather" in AGENTS["FRIDAY"].tools
+
+
+def test_slow_voicestudio_hands_live_replies_to_quick_voices(monkeypatch):
+    from jarvis import voice
+    monkeypatch.setattr(voice, "_vs_speed", {"chars": 100, "secs": 10.0})   # 0.1 s per character
+    assert voice.vs_too_slow_for("x" * 60) and not voice.vs_too_slow_for("Yes Sir.")

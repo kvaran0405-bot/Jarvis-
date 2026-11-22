@@ -55,6 +55,11 @@ async def lifespan(_app):
                  log=lambda m: bus.log("JARVIS", m, "system"))
     bot.on_update = start_update
     bot.start()
+    from . import clap
+    bus.log("JARVIS", clap.start(on_double_clap), "system")
+    if voice.provider() == "voicestudio":   # time VoiceStudio once, so live replies know if it's quick enough
+        threading.Thread(target=lambda: voice.synthesize("JARVIS", "All systems online, Sir. Good to have you back."),
+                         daemon=True).start()
     if brain.pick(store) == "pro":   # start JARVIS's live session now, so the first spoken reply is quick too
         from . import brains
         brains.warm_up(AGENTS["JARVIS"], engine.system_prompt(AGENTS["JARVIS"]), "low")
@@ -62,6 +67,8 @@ async def lifespan(_app):
     yield
     from . import brains as _brains
     _brains.close_sessions()
+    from . import clap as _clap
+    _clap.stop()
     bot.stop()
     scheduler.stop()
 
@@ -382,7 +389,7 @@ async def tts(sp: Speech):
     if not voice.enabled():
         raise HTTPException(404, "No voice service - the browser's own voice is used instead")
     try:
-        path = await asyncio.to_thread(voice.synthesize, sp.agent, sp.text)
+        path = await asyncio.to_thread(voice.synthesize, sp.agent, sp.text, True)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(502, f"Voice service error: {exc}") from exc
     return FileResponse(path, media_type="audio/wav" if path.suffix == ".wav" else "audio/mpeg")
@@ -479,6 +486,9 @@ async def command(cmd: Command):
     if agent not in AGENTS:
         raise HTTPException(404, f"Unknown agent {agent}")
     bus.log("YOU", ("🎙 " if cmd.voice else "") + cmd.text, "command")
+    if HOME_RE.match(cmd.text):
+        cmd.text, cmd.voice, agent = welcome_prompt(), True, "JARVIS"
+    store.set("owner:last_seen", datetime.now(settings.tz).isoformat())
     if (reply := control(cmd.text)) is not None or (reply := answer_naturally(cmd.text)) is not None:
         bus.publish({"type": "delta", "rid": cmd.rid, "agent": "JARVIS", "text": reply})
         bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": "JARVIS"})
@@ -561,6 +571,43 @@ def remove_routine(routine_id: int):
 
 # ---------------------------------------------------------------- WhatsApp remote control
 APPROVAL_RE = re.compile(r"^\s*(yes|y|approve|ok|send|no|n|reject|cancel)\s+#?(\d+|all)\s*$", re.I)
+
+
+# ---------------------------------------------------------------- "Jarvis, I'm home" and clap to summon
+HOME_RE = re.compile(r"^\s*(?:(?:hey|ok|yo)\s+)?(?:jarvis[,\s]+)?(?:honey,?\s+)?(?:i'?m|i am)\s+(?:home|back)"
+                     r"(?:\s+jarvis)?\s*[.!]*\s*$", re.I)
+AWAY_HOURS = 3
+
+
+def welcome_prompt() -> str:
+    now = datetime.now(settings.tz)
+    return (f"The owner just walked in the door at {now:%H:%M}. Welcome them home like J.A.R.V.I.S. greeting Tony: "
+            "a time-appropriate greeting, then only what matters tonight (anything due or happening in the next 24h, "
+            "anything waiting for their yes/no, one useful heads-up), and one warm or witty line. Check "
+            "status_snapshot first. Three spoken sentences at most, no lists.")
+
+
+def welcome_home() -> None:
+    """Full welcome-home briefing, spoken on the laptop."""
+    from .speech import announce
+    store.set("owner:last_seen", datetime.now(settings.tz).isoformat())
+    if brain.pick(store) is None:
+        announce(bus, "JARVIS", "Welcome home Sir. I'm resting at the moment; say resume when you need me.", phone=False)
+        return
+    reply = engine.run("JARVIS", welcome_prompt(), voice=True)
+    bus.log("JARVIS", reply, "reply")
+    announce(bus, "JARVIS", reply, phone=False)
+
+
+def on_double_clap() -> None:
+    last = store.get("owner:last_seen")
+    away = not last or datetime.fromisoformat(last) < datetime.now(settings.tz) - timedelta(hours=AWAY_HOURS)
+    bus.log("YOU", "👏👏", "command")
+    if away:
+        threading.Thread(target=welcome_home, daemon=True).start()
+    else:
+        store.set("owner:last_seen", datetime.now(settings.tz).isoformat())
+        bus.publish({"type": "ask", "agent": "JARVIS", "say": "Yes Sir?", "text": "Yes Sir?"})
 
 
 def handle_owner_message(text: str, via: str = "WhatsApp", voice: bool = False) -> str:

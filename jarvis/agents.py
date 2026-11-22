@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-BASE_TOOLS = ["get_datetime", "status_snapshot", "list_tasks", "add_task", "update_task",
+BASE_TOOLS = ["get_datetime", "weather", "status_snapshot", "list_tasks", "add_task", "update_task",
               "save_note", "search_notes", "remember", "recall", "learn", "my_notebook", "propose"]
 EMAIL_SMARTS = ["suggest_replies", "send_suggested_reply"]
 COMMS = ["find_contacts", "add_contact", "update_contact", "send_whatsapp", "send_email", "remind_me", "list_outbox",

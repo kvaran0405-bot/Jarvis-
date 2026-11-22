@@ -88,10 +88,13 @@ def start(store, bus, title: str = "", course: str = "") -> dict:
         FOLDER.mkdir(parents=True, exist_ok=True)
         path = FOLDER / f"{now:%Y%m%d-%H%M}-{_slug(title)}.wav"
         lid = store.add_lecture(title, course, str(path), "recording")
+        from . import clap
+        clap.pause(True)   # the recorder gets the microphone to itself
         try:
             _rec = Recorder(lid, path)
         except Exception as exc:  # noqa: BLE001 - no microphone, permission denied, ...
             store.update_lecture(lid, status="failed", error=str(exc)[:300])
+            clap.pause(False)
             return {"error": f"The microphone didn't start: {exc}"}
     bus.log("ATHENA", f"🔴 Recording '{title}'", "job")
     bus.publish({"type": "data", "what": "lectures"})
@@ -106,6 +109,8 @@ def stop(store, bus) -> dict:
             return {"error": "Nothing is being recorded."}
         rec, _rec = _rec, None
     seconds = rec.stop()
+    from . import clap
+    clap.pause(False)
     store.update_lecture(rec.lecture_id, duration_s=seconds, status="transcribing")
     bus.log("ATHENA", f"⏹ Recording stopped ({seconds // 60} min). Transcribing on the laptop…", "job")
     bus.publish({"type": "data", "what": "lectures"})

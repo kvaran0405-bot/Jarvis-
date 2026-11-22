@@ -52,6 +52,9 @@ class Settings:
     night_shift_at: str = field(default_factory=lambda: _env("JARVIS_NIGHT_SHIFT_AT", "02:00"))
     money_weekly_at: str = field(default_factory=lambda: _env("JARVIS_MONEY_WEEKLY_AT", "19:00"))  # Sundays
     weekly_review_at: str = field(default_factory=lambda: _env("JARVIS_WEEKLY_AT", "18:00"))  # Sundays
+    job_hunt_at: str = field(default_factory=lambda: _env("JARVIS_JOB_HUNT_AT", "01:30"))   # "off" to stop it
+    # Opened on the laptop when the morning brief starts (a playlist, radio, YouTube...). Blank = none.
+    wake_music: str = field(default_factory=lambda: _env("JARVIS_WAKE_MUSIC"))
     watch_every_hours: int = field(default_factory=lambda: int(_env("JARVIS_WATCH_EVERY_HOURS", "3")))
 
     # Optional notification channels

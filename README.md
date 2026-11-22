@@ -251,6 +251,17 @@ VERONICA reads your bank's **transaction alert e-mails** (turn on e-mail alerts 
 masked to the last 4 digits. OTP / PIN / password e-mails are never shown to any agent, and agents still can't
 open bank apps or sites or move money.
 
+## Stark mode
+
+- **Clap twice** near the laptop and JARVIS answers "Yes Sir?" and listens. If you've been away 3+ hours, he
+  gives you the welcome-home briefing instead. Say **"Jarvis, I'm home"** for the same briefing any time.
+- **Wake-up:** the morning brief includes the weather (rain timing too), and can open your music
+  (`JARVIS_WAKE_MUSIC`).
+- **Job hunter:** every night at 01:30 ZEUS searches for new roles that fit your profile, tracks the best few,
+  writes cover letters for the top 2 and asks you one yes/no in the morning.
+- **VoiceStudio voices:** if VoiceStudio is running, briefings and voice notes use its emotional voices. If your
+  laptop is too slow for live chat, live replies automatically use the quick voices.
+
 ## Lecture & meeting recorder (ATHENA)
 
 Say **"Jarvis, record this lecture"** (or tap **● Record on laptop** in the Autopilot tab), and **"stop recording"**
