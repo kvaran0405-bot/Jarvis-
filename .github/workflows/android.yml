@@ -1,0 +1,79 @@
+# Builds the JARVIS Android app (APK) and publishes it as a GitHub Release you can download on your phone.
+#
+# Signing: the key is never stored in the repository.
+# - Optional, recommended: add two repository secrets (Settings > Secrets and variables > Actions):
+#     JARVIS_KEYSTORE_B64       your keystore file, base64-encoded
+#     JARVIS_KEYSTORE_PASSWORD  its password (key alias: jarvis)
+#   Then every new version installs over the previous one.
+# - Without them, each build makes a fresh throwaway key, so to update you uninstall the old app first.
+name: Build JARVIS Android app
+
+on:
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.JARVIS_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.JARVIS_KEYSTORE_PASSWORD }}
+        run: |
+          KS="$RUNNER_TEMP/jarvis.keystore"
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$KS"
+            PASS="$KEYSTORE_PASSWORD"
+            echo "Using the saved signing key."
+          else
+            PASS="$(openssl rand -hex 16)"
+            keytool -genkeypair -keystore "$KS" -storepass "$PASS" -keypass "$PASS" -alias jarvis \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=JARVIS, O=Personal" >/dev/null 2>&1
+            echo "No saved key: made a throwaway one (uninstall the old app before installing this one)."
+          fi
+          echo "::add-mask::$PASS"
+          echo "JARVIS_KEYSTORE=$KS" >> "$GITHUB_ENV"
+          echo "JARVIS_KEYSTORE_PASSWORD=$PASS" >> "$GITHUB_ENV"
+
+      - name: Build signed APK
+        env:
+          JARVIS_BUILD: ${{ github.run_number }}
+        run: |
+          gradle -p android assembleRelease --no-daemon --stacktrace
+          cp android/app/build/outputs/apk/release/app-release.apk JARVIS.apk
+          ls -la JARVIS.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-apk
+          path: JARVIS.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: jarvis-app-v${{ github.run_number }}
+          name: JARVIS app v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: JARVIS.apk
+          body: |
+            JARVIS for Android. On your phone: download **JARVIS.apk** below, open it, and allow "Install unknown apps" when asked.
+            First launch asks for your JARVIS address from Tailscale (e.g. https://your-laptop.tailXXXX.ts.net).

@@ -1,0 +1,37 @@
+plugins { id "com.android.application" }
+
+android {
+    namespace "os.jarvis.app"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "os.jarvis.app"
+        minSdk 26
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv("JARVIS_BUILD") ?: "1")
+        versionName "1.0." + (System.getenv("JARVIS_BUILD") ?: "1")
+    }
+
+    signingConfigs {
+        // The signing key is never stored in the repository: the build passes its location and password
+        // in environment variables (see .github/workflows/android.yml).
+        jarvis {
+            storeFile file(System.getenv("JARVIS_KEYSTORE") ?: "missing.keystore")
+            storePassword System.getenv("JARVIS_KEYSTORE_PASSWORD") ?: ""
+            keyAlias "jarvis"
+            keyPassword System.getenv("JARVIS_KEYSTORE_PASSWORD") ?: ""
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.jarvis
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

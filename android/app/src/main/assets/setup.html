@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS setup</title>
+<style>
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:#07090d;color:#d3dbe6;font-family:sans-serif}
+body{display:grid;place-items:center;padding:24px;background:radial-gradient(420px 360px at 50% 30%,rgba(255,210,63,.13),transparent 70%),#07090d}
+.card{width:100%;max-width:380px;text-align:center}
+.orb{width:96px;height:96px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle,#fff 0%,#ffd23f 38%,rgba(255,210,63,.25) 62%,transparent 72%);filter:drop-shadow(0 0 24px #ffd23f)}
+h1{letter-spacing:.3em;color:#ffd23f;font-size:22px;margin:0 0 8px}
+p{color:#8a95a7;font-size:13px;line-height:1.5;margin:0 0 18px}
+input{width:100%;font-size:15px;padding:14px;background:#0c1016;color:#fff;border:1px solid #1b2330;border-radius:8px}
+input:focus{outline:none;border-color:#ffd23f}
+button{margin-top:12px;width:100%;padding:14px;font-size:14px;font-weight:700;letter-spacing:.15em;background:#ffd23f;color:#000;border:0;border-radius:8px}
+small{display:block;color:#5d6878;font-size:12px;margin-top:16px;line-height:1.5;text-align:left}
+code{color:#fff}
+</style></head><body>
+<form class="card" id="f">
+  <div class="orb"></div>
+  <h1>JARVIS</h1>
+  <p>Enter your JARVIS address from Tailscale.<br>It looks like <code>https://zenbook.tail1234.ts.net</code></p>
+  <input id="u" type="url" inputmode="url" autocomplete="url" placeholder="https://your-laptop.….ts.net" aria-label="JARVIS address" required>
+  <button type="submit">CONNECT</button>
+  <small>• Tailscale must be switched on on this phone.<br>• On the laptop, JARVIS must be running and <code>tailscale serve --bg 7334</code> set up (README: "JARVIS on your phone").<br>• At home on the same Wi-Fi you can also use <code>http://&lt;laptop-ip&gt;:7334</code> if you set JARVIS_HOST=0.0.0.0.</small>
+</form>
+<script>
+const u = document.getElementById("u");
+try { u.value = window.JarvisNative ? JarvisNative.getAddress() : ""; } catch (e) {}
+document.getElementById("f").onsubmit = e => { e.preventDefault(); if (window.JarvisNative) JarvisNative.setAddress(u.value); };
+</script>
+</body></html>

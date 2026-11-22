@@ -7,3 +7,9 @@ __pycache__/
 bridge/node_modules/
 bridge/.session/
 bridge/.wwebjs_cache/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.keystore
+*.jks

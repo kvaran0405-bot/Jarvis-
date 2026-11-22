@@ -2,7 +2,8 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Call JARVIS</title>
-<meta name="theme-color" content="#07090d"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png">
+<meta name="theme-color" content="#07090d"><link rel="manifest" href="/manifest.webmanifest">
+<script src="/native-bridge.js"></script><link rel="icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box}
@@ -166,10 +167,12 @@ function startCall(){
   if(!SR){ setState("idle", "Voice needs Chrome or Edge, opened over https (see README)."); return; }
   inCall = true; t0 = Date.now(); timerId = setInterval(tick, 1000); tick();
   try { navigator.wakeLock?.request("screen").catch(() => {}); } catch {}
+  try { window.JarvisNative?.keepAwake(true); } catch {}
   say(agent, `Yes, ${window.OWNER || "Sir"}?`);
 }
 function hangUp(silent){
-  inCall = false; clearInterval(timerId); stopListening(); if(!silent) interrupt(); pendingRid = null;
+  inCall = false; clearInterval(timerId); stopListening();
+  try { window.JarvisNative?.keepAwake(false); } catch {} if(!silent) interrupt(); pendingRid = null;
   setState("idle", "Call ended. Tap to call again.");
 }
 $("#callBtn").onclick = () => inCall ? hangUp() : startCall();

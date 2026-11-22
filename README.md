@@ -213,6 +213,22 @@ between your own devices, so nobody else can see it.
 
 On Telegram, `/app` sends you the link and `/call` opens a voice call.
 
+## The JARVIS Android app (APK)
+
+A real Android app, built automatically by GitHub from the `android/` folder. It loads your command centre and
+adds native **speech recognition**, **text-to-speech**, and voices that play without a tap.
+
+1. Do "JARVIS on your phone" above first (Tailscale and a PIN).
+2. On your phone, open the repository's **Releases** page on GitHub and download **JARVIS.apk** from the newest
+   "JARVIS app" release.
+3. Open it. Android asks to allow installing from this source: allow it once, then **Install**.
+   (OPPO/ColorOS may show an extra security check: choose *Install anyway*.)
+4. Open **JARVIS**, enter your address (e.g. `https://zenbook.tail1234.ts.net`), then your PIN, and allow the
+   microphone.
+
+If your laptop is off, the app shows an offline screen with **Retry** and **Change address**. Updates: see the note
+at the top of `.github/workflows/android.yml` (optional saved signing key so new versions install over old ones).
+
 ## Call JARVIS
 
 Open the app and tap **📞 Call**. Talk normally; JARVIS answers out loud and listens again, like a phone call. Tap

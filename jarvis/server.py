@@ -63,7 +63,7 @@ app = FastAPI(title="JARVIS OS", lifespan=lifespan)
 # On the laptop itself (127.0.0.1) no PIN is needed. Opened from anywhere else - your phone through Tailscale -
 # every page and API call needs the PIN once (then a 30-day cookie).
 OPEN_PATHS = {"/login.html", "/api/login", "/manifest.webmanifest", "/sw.js", "/icon-192.png", "/icon-512.png",
-              "/favicon.ico"}
+              "/favicon.ico", "/native-bridge.js"}
 _failed: list[float] = []
 
 
