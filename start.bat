@@ -4,6 +4,12 @@ cd /d %~dp0
 if not exist .venv python -m venv .venv
 call .venv\Scripts\activate.bat
 pip install -q -r requirements.txt
+if errorlevel 1 (
+  echo.
+  echo  Installing JARVIS's parts failed - see the message above. Take a photo of this window for help.
+  pause
+  exit /b 1
+)
 if not exist .env (copy .env.example .env >nul & echo Created .env - add your ANTHROPIC_API_KEY to it.)
 if not exist profile.md copy profile.example.md profile.md >nul
 findstr /r /c:"^JARVIS_BRIDGE_TOKEN=.." .env >nul || (for /f %%t in ('python -c "import secrets;print(secrets.token_hex(16))"') do echo JARVIS_BRIDGE_TOKEN=%%t>> .env)
@@ -24,3 +30,8 @@ findstr /i /c:"JARVIS_BRAIN=pro" .env >nul && (
   )
 )
 python -m jarvis serve --open
+if errorlevel 1 (
+  echo.
+  echo  JARVIS stopped with an error - see the message above. Take a photo of this window for help.
+  pause
+)
