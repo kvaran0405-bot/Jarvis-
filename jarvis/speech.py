@@ -35,6 +35,10 @@ def announce(bus, agent: str, text: str, *, kind: str = "say", critical: bool = 
         return False
     if in_quiet_hours() and not critical:
         return False
+    if not critical and bus is not None and kind != "ask":
+        from .life import in_focus
+        if in_focus(bus.store):
+            return False   # suited up: only urgent things get through
     bus.publish({"type": kind, "agent": agent, "say": text, "text": text})
     if phone and settings.telegram_voice:
         from . import telegram as tg

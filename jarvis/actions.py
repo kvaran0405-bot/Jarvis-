@@ -532,4 +532,5 @@ def urgent_alert(ctx: ToolContext, message: str, level: str = "urgent") -> dict:
     spoken = announce(ctx.bus, ctx.agent, f"Urgent, {ctx.settings.owner_name}. {message}", kind="ask",
                       critical=(level == "critical"))
     ctx.bus.log(ctx.agent, f"🚨 {message}", "job")
+    ctx.bus.publish({"type": "alert", "agent": ctx.agent, "text": message})
     return {"telegram": "sent" if sent else "not linked", "spoken": spoken}

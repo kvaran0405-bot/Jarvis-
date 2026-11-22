@@ -107,6 +107,9 @@ def status_snapshot(ctx: ToolContext) -> dict:
         "business_pipeline": [{k: g[k] for k in ("id", "client", "event_type", "event_date", "status", "next_step")}
                               for g in s.list_gigs("active", 15)],
         "recent_lectures": [{k: x[k] for k in ("id", "title", "status")} for x in s.list_lectures(3)],
+        "exams_upcoming": [{"course": e["course"], "at": e["exam_at"]} for e in
+                           s.query("SELECT course, exam_at FROM exams WHERE status='upcoming' AND exam_at >= ? "
+                                   "ORDER BY exam_at LIMIT 6", (today,))],
         "money_this_month": s.spending_summary(ctx.now().date().replace(day=1).isoformat()),
         "completed_last_24h": [t for t in s.list_tasks("done", limit=50) if t["updated"] >= _days_ago(ctx, 1)],
         "recent_reports": [{k: r[k] for k in ("id", "kind", "agent", "title", "created")} for r in s.list_reports(5)],
@@ -144,7 +147,12 @@ def list_tasks(ctx: ToolContext, status: str = "open", area: str | None = None, 
       {"task_id": I, "title": S, "status": {"type": "string", "enum": ["todo", "doing", "done", "cancelled"]},
        "priority": I, "due": S, "notes": S, "assignee": S, "result": S}, ["task_id"])
 def update_task(ctx: ToolContext, task_id: int, **fields) -> dict:
+    before = ctx.store.query("SELECT * FROM tasks WHERE id = ?", (task_id,))
     ok = ctx.store.update_task(task_id, **fields)
+    if ok and fields.get("status") == "done" and before and before[0]["status"] != "done" and (
+            before[0]["priority"] <= 2 or before[0]["area"] == "academic"):
+        from .life import celebrate
+        celebrate(ctx.bus, ctx.agent, before[0]["title"])
     ctx.bus.publish({"type": "data", "what": "tasks"})
     return {"updated": ok}
 
@@ -339,3 +347,4 @@ def execute(name: str, ctx: ToolContext, args: dict) -> tuple[str, bool]:
 # Real-world tools (messaging, inboxes, routines, laptop and phone) register themselves on import.
 from . import actions as _actions  # noqa: E402,F401
 from . import extras as _extras  # noqa: E402,F401  (lecture recorder, business kit)
+from . import life as _life  # noqa: E402,F401  (friend layer, study, crew, fitness, focus)

@@ -195,6 +195,64 @@ CREATE TABLE IF NOT EXISTS gigs (
     created TEXT NOT NULL,
     updated TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS mood (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    mood INTEGER,                 -- 1 (awful) .. 5 (great)
+    energy INTEGER,               -- 1 .. 5
+    sleep INTEGER,                -- 1 .. 5, how well they slept
+    note TEXT DEFAULT '',
+    created TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS gratitude (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    text TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS dates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    person TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'birthday',   -- birthday | anniversary | other
+    month_day TEXT NOT NULL,                 -- MM-DD (yearly)
+    year INTEGER,
+    notes TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS exams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course TEXT NOT NULL,
+    exam_at TEXT NOT NULL,
+    topics TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'upcoming'  -- upcoming | done
+);
+CREATE TABLE IF NOT EXISTS crew (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    phone TEXT DEFAULT '',
+    role TEXT DEFAULT '',                    -- usher | setup | emcee | coordinator | ...
+    rate TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    active INTEGER DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS gig_crew (
+    gig_id INTEGER NOT NULL,
+    crew_id INTEGER NOT NULL,
+    role TEXT DEFAULT '',
+    call_time TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'asked',    -- asked | confirmed | declined | attended | no-show
+    PRIMARY KEY (gig_id, crew_id)
+);
+CREATE TABLE IF NOT EXISTS workouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    exercise TEXT NOT NULL,
+    sets INTEGER, reps INTEGER, weight REAL,
+    notes TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS file_index (
+    path TEXT PRIMARY KEY,
+    mtime REAL NOT NULL,
+    chunks INTEGER DEFAULT 0
+);
 """
 
 
@@ -221,7 +279,15 @@ class Store:
 
     def _migrate(self) -> None:
         """Add columns introduced after a database was first created."""
-        for table, column, decl in (("events", "gid", "TEXT"), ("outbox", "attachment", "TEXT DEFAULT ''")):
+        try:   # full-text search over the owner's own files (Ask my files)
+            self._db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS file_chunks USING fts5(path UNINDEXED, name, page "
+                             "UNINDEXED, body, tokenize='porter unicode61')")
+            self.fts = True
+        except sqlite3.OperationalError:   # SQLite without FTS5
+            self._db.execute("CREATE TABLE IF NOT EXISTS file_chunks (path TEXT, name TEXT, page TEXT, body TEXT)")
+            self.fts = False
+        for table, column, decl in (("events", "gid", "TEXT"), ("outbox", "attachment", "TEXT DEFAULT ''"),
+                                    ("gigs", "paid", "REAL DEFAULT 0")):
             cols = {r[1] for r in self._db.execute(f"PRAGMA table_info({table})")}
             if column not in cols:
                 self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
@@ -346,7 +412,7 @@ class Store:
 
     # ---------- business: gigs (events the owner's company runs) ----------
     GIG_FIELDS = {"client", "contact", "event_type", "event_date", "venue", "guests", "budget", "status",
-                  "quote_total", "deposit_paid", "next_step", "notes"}
+                  "quote_total", "deposit_paid", "next_step", "notes", "paid"}
 
     def add_gig(self, client: str, **fields) -> int:
         fields = {k: v for k, v in fields.items() if k in self.GIG_FIELDS and v not in (None, "")}

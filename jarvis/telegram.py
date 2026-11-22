@@ -193,6 +193,11 @@ class Bot:
             if voice_note:
                 self.handle_voice(voice_note)
                 return
+            image = (msg.get("photo") or [None])[-1] or (
+                doc if (doc.get("mime_type") or "").startswith("image/") else None)
+            if image:
+                self.handle_photo(image, caption)
+                return
         if not text or not sender:
             return
         if not chat_id():  # not paired yet: only accept the pairing code
@@ -255,6 +260,31 @@ class Bot:
         mins = round(audio.get("duration", 0) / 60)
         send(f"📼 Got it{f' ({mins} min)' if mins else ''}. Transcribing on the laptop now; notes arrive here when "
              f"ready (lecture #{lid}).")
+
+    def handle_photo(self, image: dict, caption: str = "") -> None:
+        """Photo -> what's in it -> JARVIS acts (dates to the calendar, receipts to the money log, slides to notes)."""
+        from . import vision
+        api("sendChatAction", chat_id=chat_id(), action="typing")
+        path = Path(tempfile.gettempdir()) / f"jarvis-photo-{image['file_unique_id']}.jpg"
+        try:
+            download(image["file_id"], path)
+            seen = vision.describe(path, caption)
+        except Exception as exc:  # noqa: BLE001
+            send(f"📷 I couldn't look at that photo: {exc}"[:600])
+            return
+        finally:
+            path.unlink(missing_ok=True)
+        if "private document" in seen.lower()[:80]:
+            send("📷 That looks like a private document (card, ID or password), so I've ignored it.")
+            return
+        prompt = (f"The owner sent a photo{f' with the message: “{caption}”' if caption else ''}.\n"
+                  f"What it shows (read by the vision model):\n{seen}\n\n"
+                  "Do what they'd want: if they asked something, answer it. Otherwise act on it - dates/events go on "
+                  "the calendar, deadlines become tasks, a receipt is logged as spending, slide or whiteboard content "
+                  "is saved as a note, a business card becomes a contact, an event photo gets 2 Instagram caption "
+                  "options for the events business. Then confirm in one or two sentences.")
+        reply = self.on_text(prompt, voice=False)
+        send(f"📷 {reply}")
 
     def handle_voice(self, voice_note: dict) -> None:
         """Voice note in -> transcribe on this laptop -> agent -> text + spoken reply."""

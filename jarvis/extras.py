@@ -79,7 +79,11 @@ def add_gig(ctx: ToolContext, client: str, **fields) -> dict:
 def update_gig(ctx: ToolContext, gig_id: int, **fields) -> dict:
     if "deposit_paid" in fields:
         fields["deposit_paid"] = int(bool(fields["deposit_paid"]))
+    before = ctx.store.get_gig(gig_id)
     ok = ctx.store.update_gig(gig_id, **fields)
+    if ok and fields.get("status") == "confirmed" and before and before["status"] != "confirmed":
+        from .life import celebrate
+        celebrate(ctx.bus, "PEPPER", f"{before['client']} confirmed")
     ctx.bus.publish({"type": "data", "what": "gigs"})
     return {"updated": ok}
 
@@ -114,49 +118,21 @@ def _nice_date(value: str | None) -> str:
         return value or ""
 
 
-@tool("make_quote", "Make a professional PDF quotation for a client of the owner's events business, saved on the "
-      "laptop (and sent to the owner's phone). items: [{item, qty, unit_price, details}]. Prices come from business.md "
-      "- never invent prices; ask the owner if one is missing. Returns the PDF path to attach with send_email "
-      "(the owner approves before it goes to the client).",
-      {"gig_id": I, "client": S, "event": {"type": "string", "description": "e.g. 'Wedding reception, 14 Feb 2027, "
-                                                                            "Grand Ballroom, 300 pax'"},
-       "items": {"type": "array", "items": {"type": "object", "properties": {
-           "item": S, "qty": {"type": "number"}, "unit_price": {"type": "number"}, "details": S},
-           "required": ["item", "unit_price"]}},
-       "discount": {"type": "number", "description": "amount off the subtotal"},
-       "deposit_pct": {"type": "number", "description": "default 30"}, "valid_days": I,
-       "terms": S, "send_to_phone": {"type": "boolean"}},
-      ["client", "items"])
-def make_quote(ctx: ToolContext, client: str, items: list, gig_id: int | None = None, event: str = "",
-               discount: float = 0, deposit_pct: float = 30, valid_days: int = 14, terms: str = "",
-               send_to_phone: bool = True) -> dict:
+def _business_pdf(kind: str, number: str, client: str, event: str, rows: list, totals: list, date_line: str,
+                  terms: str, closing: str, subfolder: str) -> Path:
+    """Branded A4 PDF (quotation or invoice) in ~/JARVIS/Business/<subfolder>."""
     from . import devices
     from .pdf import MARGIN, PAGE_W, Doc
     biz = business_details()
     cur = biz.get("currency", "$")
     name = biz.get("business name", "Shaabaz Weddings & Events")
-    gig = ctx.store.get_gig(gig_id) if gig_id else None
-    if gig and not event:
-        event = ", ".join(str(x) for x in (gig["event_type"], _nice_date(gig["event_date"]), gig["venue"],
-                                           f"{gig['guests']} pax" if gig["guests"] else "") if x)
-    rows, subtotal = [], 0.0
-    for it in items:
-        qty = float(it.get("qty") or 1)
-        price = float(it["unit_price"])
-        subtotal += qty * price
-        rows.append((str(it["item"]), str(it.get("details") or ""), qty, price, qty * price))
-    total = max(0.0, subtotal - float(discount or 0))
-    deposit = round(total * float(deposit_pct) / 100, 2)
-    today = ctx.now().date()
-    number = f"Q{today:%y%m%d}-{gig_id:03d}" if gig_id else f"Q{ctx.now():%y%m%d-%H%M}"
-
     accent, grey = (0.55, 0.38, 0.12), (0.4, 0.4, 0.4)
     d = Doc()
     right = PAGE_W - MARGIN
     d.rect(0, 842 - 8, PAGE_W, 8, accent)
     d.y -= 16
     d.text(MARGIN, d.y, name, 20, True, accent)
-    d.text(right, d.y, "QUOTATION", 16, True, (0.2, 0.2, 0.2), "right")
+    d.text(right, d.y, kind, 16, True, (0.2, 0.2, 0.2), "right")
     d.y -= 16
     contact = "  |  ".join(biz[k] for k in ("phone", "email", "instagram", "website") if k in biz)
     if contact:
@@ -165,10 +141,9 @@ def make_quote(ctx: ToolContext, client: str, items: list, gig_id: int | None = 
     d.y -= 12
     if "uen" in biz:
         d.text(MARGIN, d.y, f"UEN {biz['uen']}", 9, color=grey)
-    d.text(right, d.y, f"Date: {today:%d %b %Y}   Valid until: {today + timedelta(days=valid_days):%d %b %Y}", 9,
-           color=grey, align="right")
+    d.text(right, d.y, date_line, 9, color=grey, align="right")
     d.y -= 26
-    d.text(MARGIN, d.y, "PREPARED FOR", 8, True, grey)
+    d.text(MARGIN, d.y, "BILL TO" if kind == "INVOICE" else "PREPARED FOR", 8, True, grey)
     d.y -= 14
     d.text(MARGIN, d.y, client, 12, True)
     if event:
@@ -196,14 +171,11 @@ def make_quote(ctx: ToolContext, client: str, items: list, gig_id: int | None = 
         d.line(MARGIN, d.y, right, d.y)
     d.need(90)
     d.y -= 18
-    for label, value, bold in (("Subtotal", subtotal, False), *((("Discount", -float(discount), False),) if discount else ()),
-                               ("Total", total, True), (f"Deposit to confirm ({deposit_pct:g}%)", deposit, False)):
+    for label, value, bold in totals:
         d.text(cols[2] + 70, d.y, label, 11 if bold else 10, bold, align="right")
         d.text(cols[3] - 6, d.y, _money(value, cur), 11 if bold else 10, bold, accent if bold else (0, 0, 0), "right")
         d.y -= 16
     d.y -= 10
-    terms = terms or (f"A {deposit_pct:g}% deposit secures the date; the balance is due 7 days before the event. "
-                      "Prices are valid until the date above. Final guest numbers are confirmed 14 days before the event.")
     d.text(MARGIN, d.y, "TERMS", 8, True, grey)
     d.paragraph(terms, 9, color=(0.25, 0.25, 0.25))
     if "payment" in biz:
@@ -211,11 +183,55 @@ def make_quote(ctx: ToolContext, client: str, items: list, gig_id: int | None = 
         d.text(MARGIN, d.y, "PAYMENT", 8, True, grey)
         d.paragraph(biz["payment"], 9, color=(0.25, 0.25, 0.25))
     d.y -= 20
-    d.paragraph(f"Thank you for considering {name}. We'd love to make your day unforgettable.", 10, color=accent)
+    d.paragraph(closing, 10, color=accent)
 
-    folder = devices.WORKSPACE / "Business" / "Quotes"
+    folder = devices.WORKSPACE / "Business" / subfolder
     safe = re.sub(r"[^A-Za-z0-9]+", "-", client).strip("-")[:30] or "client"
     path = d.save(folder / f"{number}-{safe}.pdf")
+    return path
+
+
+@tool("make_quote", "Make a professional PDF quotation for a client of the owner's events business, saved on the "
+      "laptop (and sent to the owner's phone). items: [{item, qty, unit_price, details}]. Prices come from business.md "
+      "- never invent prices; ask the owner if one is missing. Returns the PDF path to attach with send_email "
+      "(the owner approves before it goes to the client).",
+      {"gig_id": I, "client": S, "event": {"type": "string", "description": "e.g. 'Wedding reception, 14 Feb 2027, "
+                                                                            "Grand Ballroom, 300 pax'"},
+       "items": {"type": "array", "items": {"type": "object", "properties": {
+           "item": S, "qty": {"type": "number"}, "unit_price": {"type": "number"}, "details": S},
+           "required": ["item", "unit_price"]}},
+       "discount": {"type": "number", "description": "amount off the subtotal"},
+       "deposit_pct": {"type": "number", "description": "default 30"}, "valid_days": I,
+       "terms": S, "send_to_phone": {"type": "boolean"}},
+      ["client", "items"])
+def make_quote(ctx: ToolContext, client: str, items: list, gig_id: int | None = None, event: str = "",
+               discount: float = 0, deposit_pct: float = 30, valid_days: int = 14, terms: str = "",
+               send_to_phone: bool = True) -> dict:
+    biz = business_details()
+    cur = biz.get("currency", "$")
+    name = biz.get("business name", "Shaabaz Weddings & Events")
+    gig = ctx.store.get_gig(gig_id) if gig_id else None
+    if gig and not event:
+        event = ", ".join(str(x) for x in (gig["event_type"], _nice_date(gig["event_date"]), gig["venue"],
+                                           f"{gig['guests']} pax" if gig["guests"] else "") if x)
+    rows, subtotal = [], 0.0
+    for it in items:
+        qty = float(it.get("qty") or 1)
+        price = float(it["unit_price"])
+        subtotal += qty * price
+        rows.append((str(it["item"]), str(it.get("details") or ""), qty, price, qty * price))
+    total = max(0.0, subtotal - float(discount or 0))
+    deposit = round(total * float(deposit_pct) / 100, 2)
+    today = ctx.now().date()
+    number = f"Q{today:%y%m%d}-{gig_id:03d}" if gig_id else f"Q{ctx.now():%y%m%d-%H%M}"
+
+    terms = terms or (f"A {deposit_pct:g}% deposit secures the date; the balance is due 7 days before the event. "
+                      "Prices are valid until the date above. Final guest numbers are confirmed 14 days before the event.")
+    totals = [("Subtotal", subtotal, False), *((("Discount", -float(discount), False),) if discount else ()),
+              ("Total", total, True), (f"Deposit to confirm ({deposit_pct:g}%)", deposit, False)]
+    path = _business_pdf("QUOTATION", number, client, event, rows, totals,
+                         f"Date: {today:%d %b %Y}   Valid until: {today + timedelta(days=valid_days):%d %b %Y}", terms,
+                         f"Thank you for considering {name}. We'd love to make your day unforgettable.", "Quotes")
     if gig:
         ctx.store.update_gig(gig["id"], quote_total=total, status="quoted" if gig["status"] == "enquiry" else gig["status"],
                              next_step=f"Follow up on quote {number}")

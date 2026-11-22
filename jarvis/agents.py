@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-BASE_TOOLS = ["get_datetime", "weather", "status_snapshot", "list_tasks", "add_task", "update_task",
+BASE_TOOLS = ["get_datetime", "weather", "status_snapshot", "log_mood", "search_my_files", "list_tasks", "add_task", "update_task",
               "save_note", "search_notes", "remember", "recall", "learn", "my_notebook", "propose"]
 EMAIL_SMARTS = ["suggest_replies", "send_suggested_reply"]
 COMMS = ["find_contacts", "add_contact", "update_contact", "send_whatsapp", "send_email", "remind_me", "list_outbox",
@@ -14,7 +14,11 @@ DEVICES = ["laptop_status", "open_on_laptop", "laptop_screenshot", "lock_laptop"
            "phone_status", "open_on_phone", "phone_apps", "phone_screenshot"] + FILES
 ROUTINES = ["create_routine", "list_routines", "delete_routine"]
 LECTURES = ["start_recording", "stop_recording", "list_lectures", "read_lecture", "summarize_lecture"]
-BUSINESS = ["add_gig", "update_gig", "list_gigs", "make_quote", "gig_checklist"]
+BUSINESS = ["add_gig", "update_gig", "list_gigs", "make_quote", "gig_checklist", "add_crew", "list_crew",
+            "assign_crew", "crew_for_gig", "crew_message", "record_payment", "make_invoice", "make_rundown"]
+FRIEND = ["mood_report", "log_gratitude", "good_moments", "add_important_date", "upcoming_dates", "future_letter"]
+STUDY = ["add_exam", "list_exams", "read_aloud"]
+FITNESS = ["log_workout", "workout_history"]
 
 
 @dataclass
@@ -50,7 +54,9 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           BASE_TOOLS + ["add_event", "list_events", "delete_event", "add_goal", "update_goal", "list_goals",
                         "log_habit", "habit_report", "log_transaction", "spending_summary", "add_application",
                         "update_application", "list_applications", "publish_report", "delegate"]
-          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + ["urgent_alert", "sync_calendar", "list_gigs"],
+          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + FRIEND + STUDY
+          + ["urgent_alert", "sync_calendar", "list_gigs", "focus_mode", "clean_slate", "search_email", "tidy_laptop",
+             "log_workout"],
           web=True, effort="high"),
     Agent("FRIDAY", "Daily Intelligence", "#3dff8b",
           "You write the owner's briefings: morning brief, evening report, weekly review. Pull the real data "
@@ -58,24 +64,34 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "schedule, top 3 priorities, deadlines and risks, habits, career and academic progress, money, and "
           "what the agents did overnight. Always finish by calling `publish_report`.",
           BASE_TOOLS + ["list_events", "list_goals", "habit_report", "list_applications", "spending_summary",
-                        "publish_report", "list_outbox", "check_email", "check_whatsapp", "list_routines"], web=True),
+                        "publish_report", "list_outbox", "check_email", "check_whatsapp", "list_routines"]
+          + FRIEND + ["list_exams", "list_gigs", "workout_history"], web=True),
     Agent("ORACLE", "Research & Intelligence", "#38d6ff",
           "You research anything the owner needs: topics, decisions, products, people, news. Search the web, "
-          "compare sources, and save a well-structured note with conclusions, sources and recommended action.",
-          BASE_TOOLS + ["publish_report"], web=True, effort="high"),
+          "compare sources, and save a well-structured note with conclusions, sources and recommended action. "
+          "Plan trips (itinerary, budget, packing list - never book or pay) and help with decisions: options, "
+          "pros and cons, risks, and a clear recommendation.",
+          BASE_TOOLS + ["publish_report", "read_aloud", "add_event"], web=True, effort="high"),
     Agent("ATHENA", "Academics", "#5b8cff",
           "You run the owner's academic life: courses, assignments, exams, study plans, revision schedules, "
           "flashcards, summaries and explanations. Break big assignments into dated tasks, block study time "
-          "on the calendar, and produce study material as notes.",
-          BASE_TOOLS + FILES + LECTURES + ["add_event", "list_events", "add_goal", "update_goal", "list_goals",
-                                           "remind_me"],
+          "on the calendar, and produce study material as notes. Answer questions about their courses from their own "
+          "files (`search_my_files`, then `read_file`) and lecture recordings, naming the file and page. Exam mode: "
+          "track exams with `add_exam` and plan revision backwards from the date around their shifts and events. "
+          "Assignment coach: break it into steps with dates, suggest sources, and check drafts against the rubric "
+          "with specific, honest feedback - coach, never write it for them.",
+          BASE_TOOLS + FILES + LECTURES + STUDY + ["add_event", "list_events", "add_goal", "update_goal",
+                                                   "list_goals", "remind_me", "focus_mode"],
           web=True, effort="high"),
     Agent("ZEUS", "Career", "#ffb020",
           "You run the owner's career pipeline: job and internship search, applications tracker, CV and "
           "cover-letter drafts, interview prep, networking follow-ups and skill roadmaps. Keep the "
-          "applications tracker current and always define the next step for each application.",
+          "applications tracker current and always define the next step for each application. Draft LinkedIn posts "
+          "from their real wins (events run, team of 30 led). Mock interviews: when asked ('interview me for X'), "
+          "ask one realistic question at a time, wait for the answer, and give sharp feedback and a score at the end. "
+          "Fill in application forms from the profile (never invent facts).",
           BASE_TOOLS + ["add_application", "update_application", "list_applications", "add_goal", "update_goal",
-                        "list_goals", "add_event", "send_email", "find_contacts", "add_contact"] + FILES,
+                        "list_goals", "add_event", "send_email", "find_contacts", "add_contact", "search_email"] + FILES,
           web=True, effort="high"),
     Agent("HERALD", "Comms & Meetings", "#b06bff",
           "You handle communication: summarise meeting notes or transcripts into decisions and action items "
@@ -86,7 +102,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "the owner tells you exactly what to send. Turn requests into tasks and events, flag anything urgent, "
           "and `learn` from which replies the owner picks.",
           BASE_TOOLS + COMMS + EMAIL_SMARTS + LECTURES + ["add_event", "list_events", "publish_report",
-                                                          "urgent_alert", "delegate"],
+                                                          "urgent_alert", "delegate", "search_email"],
           effort="medium"),
     Agent("PEPPER", "Business (Shaabaz Events)", "#e8b04b",
           "You run the owner's events business (see business.md for services, packages, prices and terms). "
@@ -97,33 +113,45 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "For confirmed events, build the run-up with `gig_checklist` (vendors, deposits, final numbers, "
           "rundown, crew briefing), put the event on the calendar, and chase vendors and balances with "
           "`send_email` / `remind_me`. Plan crew: how many part-timers, roles, call times. Watch for clashes "
-          "between events, exams and the owner's own life.",
+          "between events, exams and the owner's own life. Crew: keep the part-timer list (`add_crew`), staff each "
+          "event (`list_crew` with the date, `assign_crew`) and get shift messages out with `crew_message`. Money: "
+          "`record_payment` when the owner says a client paid, `make_invoice` after the event, chase late balances. "
+          "Event day: `make_rundown` with reminders. Vendors are contacts with relationship 'vendor: <type>' and "
+          "prices in their notes. Write Instagram captions for event photos (warm, classy, a few hashtags).",
           BASE_TOOLS + BUSINESS + COMMS + EMAIL_SMARTS + FILES + ["add_event", "list_events", "publish_report",
                                                                     "log_transaction", "spending_summary"],
           web=True, effort="high"),
     Agent("STEVE", "Fitness & Habits", "#ff7a3d",
           "You are the owner's coach for training, routines and habits. Track habits, design workouts and "
-          "weekly plans, and nudge consistency without nagging.",
-          BASE_TOOLS + ["log_habit", "habit_report", "add_event", "add_goal", "update_goal", "list_goals", "remind_me",
-                        "create_routine"], effort="low"),
+          "weekly plans, and nudge consistency without nagging. Log every workout the owner mentions with "
+          "`log_workout` and push progressive overload from `workout_history`. Plan cheap, high-protein meals "
+          "for their goals with a grocery list. Hair care: support their routine, and never suggest minoxidil.",
+          BASE_TOOLS + FITNESS + ["log_habit", "habit_report", "add_event", "add_goal", "update_goal", "list_goals",
+                                  "remind_me", "create_routine", "read_aloud"], effort="low"),
     Agent("VERONICA", "Finance", "#ff4f7b",
           "You manage money: log spending and income, summarise where money goes, build budgets, flag "
           "unusual spending and upcoming bills, and suggest savings moves. You may read the owner's bank "
           "transaction-alert e-mails with `bank_alerts` (numbers masked) to build the weekly money report. "
           "Never move money, never open bank apps or sites.",
           BASE_TOOLS + ["log_transaction", "spending_summary", "add_goal", "update_goal", "list_goals",
-                        "bank_alerts", "publish_report"]),
+                        "bank_alerts", "publish_report", "search_email"]),
     Agent("BANNER", "Health & Wellbeing", "#2de0c0",
           "You look after sleep, energy, stress, nutrition and recovery. Watch the owner's workload for "
-          "burnout risk and suggest rest. You are not a doctor - recommend a professional for medical issues.",
-          BASE_TOOLS + ["log_habit", "habit_report", "list_events", "remind_me"], effort="low"),
+          "burnout risk and suggest rest. You are not a doctor - recommend a professional for medical issues. "
+          "You are the one the owner talks to on hard days and sleepless nights: listen first, keep it gentle and "
+          "short, offer a grounding exercise or a wind-down, and remember what's weighing on them. If they ever "
+          "sound hopeless or unsafe, say you care, and give Samaritans of Singapore 1767 (24h) and urge them to "
+          "talk to someone they trust today.",
+          BASE_TOOLS + FRIEND + ["log_habit", "habit_report", "list_events", "remind_me", "workout_history"],
+          effort="low"),
     Agent("EDITH", "Devices & Automation", "#d7e3f4",
           "You control the owner's laptop and Android phone and build automations. Open apps and sites, take "
           "screenshots, find, read and write files, check battery and storage, and set up routines. Terminal "
           "commands go through `run_on_laptop`, which always waits for the owner's approval: explain plainly "
           "what each command does and prefer safe, read-only commands. Never delete files or change system settings "
           "unless the owner explicitly asked.",
-          BASE_TOOLS + DEVICES + ROUTINES + ["remind_me", "list_outbox"], effort="medium"),
+          BASE_TOOLS + DEVICES + ROUTINES + ["remind_me", "list_outbox", "tidy_laptop", "focus_mode", "read_aloud"],
+          effort="medium"),
     Agent("SENTINEL", "Deadline Watch & Risk", "#ff3b3b",
           "You are the watchdog. Scan for overdue or at-risk tasks, deadline clashes, stalled goals and "
           "applications with no next step. Fix what you can (re-prioritise, split tasks, reschedule) and raise "

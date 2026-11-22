@@ -48,6 +48,12 @@ main{display:grid;grid-template-columns:1fr 380px;height:calc(100% - 50px)}
 .orb .glow{position:absolute;inset:38px;border-radius:50%;background:radial-gradient(circle,#fff 0%,var(--c) 38%,color-mix(in srgb,var(--c) 30%,transparent) 62%,transparent 72%);
   filter:drop-shadow(0 0 28px var(--c));animation:pulse 2.4s ease-in-out infinite;transition:background .6s}
 .orb .ring{position:absolute;inset:6px;border-radius:50%;border:2px solid transparent;border-top-color:var(--c);border-right-color:var(--c);animation:spin 5s linear infinite;opacity:.9}
+.orb #globe{position:absolute;inset:-60px;width:270px;height:270px;opacity:.35;pointer-events:none}
+.orb #dayring{position:absolute;inset:-28px;width:206px;height:206px;pointer-events:none}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:20}
+body.alert::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:19;box-shadow:inset 0 0 120px 30px rgba(255,40,40,.65);animation:alertpulse .6s ease-in-out 6 alternate}
+@keyframes alertpulse{from{opacity:.2}to{opacity:1}}
+#focusbar{display:none;position:fixed;top:48px;left:50%;transform:translateX(-50%);z-index:18;background:rgba(56,214,255,.12);border:1px solid #38d6ff;border-top:0;color:#38d6ff;font:600 11px Orbitron,sans-serif;letter-spacing:.15em;padding:6px 16px;border-radius:0 0 10px 10px}
 .orb .ring.r2{inset:0;border-top-color:transparent;border-right-color:transparent;border-bottom-color:var(--c);border-left-color:color-mix(in srgb,var(--c) 40%,transparent);animation-duration:8s;animation-direction:reverse;opacity:.6}
 .orb.speak .glow{animation-duration:.7s}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -158,11 +164,12 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
   <span class="pill hud ok" id="online">0/0 ONLINE</span>
 </header>
 
+<canvas id="confetti"></canvas><div id="focusbar"></div>
 <main>
   <section id="stage">
     <div id="grid"></div>
     <div id="core">
-      <div class="orb" id="orb"><div class="ring"></div><div class="ring r2"></div><div class="glow"></div></div>
+      <div class="orb" id="orb"><canvas id="globe" width="540" height="540"></canvas><canvas id="dayring" width="412" height="412"></canvas><div class="ring"></div><div class="ring r2"></div><div class="glow"></div></div>
       <div id="who" class="hud">JARVIS</div>
       <div id="role" class="hud">Prime Orchestrator</div>
       <div class="wave"><i></i><i></i><i></i><i></i><i></i></div>
@@ -384,7 +391,57 @@ function openVoiceSettings(){
 async function say(agent, text){ focus(agent); setCard(agent, "reporting"); await Promise.all([logLine(agent, text, "reply", true), speak(agent, text)]); setCard(agent, "online"); }
 
 // ---------------------------------------------------------------- boot sequence
+// ---------------------------------------------------------------- Stark effects
+function confetti(){
+  const c = $("#confetti"), x = c.getContext("2d"); c.width = innerWidth; c.height = innerHeight;
+  const cols = ["#ffd23f","#38d6ff","#3dff8b","#ff4f7b","#e8b04b","#b06bff"];
+  const bits = Array.from({length: 160}, () => ({x: innerWidth/2 + (Math.random()-.5)*200, y: innerHeight*.45, vx: (Math.random()-.5)*14,
+    vy: -Math.random()*14-4, r: Math.random()*6+3, c: cols[Math.floor(Math.random()*cols.length)], a: Math.random()*6}));
+  let n = 0; (function step(){ x.clearRect(0,0,c.width,c.height);
+    bits.forEach(b => { b.x += b.vx; b.y += b.vy; b.vy += .35; b.a += .2; x.fillStyle = b.c; x.save(); x.translate(b.x,b.y); x.rotate(b.a); x.fillRect(-b.r/2,-b.r/4,b.r,b.r/2); x.restore(); });
+    if(++n < 140) requestAnimationFrame(step); else x.clearRect(0,0,c.width,c.height); })();
+}
+function redAlert(){ document.body.classList.remove("alert"); void document.body.offsetWidth; document.body.classList.add("alert"); setTimeout(() => document.body.classList.remove("alert"), 4000); }
+function showFocus(until, task){ const f = $("#focusbar"); clearInterval(window._ft);
+  if(!until){ f.style.display = "none"; return; }
+  const end = new Date(until); f.style.display = "block";
+  const tick = () => { const m = Math.max(0, Math.round((end - new Date())/60000)); f.textContent = `🛡 FOCUS${task ? " · " + task.toUpperCase() : ""} · ${m} MIN`; if(m <= 0){ f.style.display = "none"; clearInterval(window._ft); } };
+  tick(); window._ft = setInterval(tick, 30000);
+}
+function chime(){   // start-up sound, made on the fly
+  try { const a = new (window.AudioContext || window.webkitAudioContext)(), t = a.currentTime;
+    [[220,0],[330,.12],[440,.24],[660,.36]].forEach(([f,d]) => { const o = a.createOscillator(), g = a.createGain();
+      o.type = "sine"; o.frequency.setValueAtTime(f, t+d); o.frequency.exponentialRampToValueAtTime(f*1.5, t+d+.5);
+      g.gain.setValueAtTime(0, t+d); g.gain.linearRampToValueAtTime(.08, t+d+.05); g.gain.exponentialRampToValueAtTime(.0001, t+d+1.1);
+      o.connect(g); g.connect(a.destination); o.start(t+d); o.stop(t+d+1.2); }); } catch {}
+}
+(function globe(){   // slowly turning wireframe globe behind the core
+  const c = $("#globe"); if(!c) return; const x = c.getContext("2d"), R = 230, cx = 270, cy = 270; let rot = 0;
+  (function draw(){ x.clearRect(0,0,540,540); const col = getComputedStyle(document.body).getPropertyValue("--c").trim() || "#ffd23f";
+    x.strokeStyle = col; x.lineWidth = 1;
+    for(let lon = 0; lon < 180; lon += 20){ const a = (lon + rot) * Math.PI/180; x.beginPath(); x.ellipse(cx, cy, Math.abs(R*Math.cos(a)), R, 0, 0, Math.PI*2); x.globalAlpha = .35; x.stroke(); }
+    for(let lat = -60; lat <= 60; lat += 30){ const y = cy + R*Math.sin(lat*Math.PI/180), r = R*Math.cos(lat*Math.PI/180); x.beginPath(); x.ellipse(cx, y, r, r*.18, 0, 0, Math.PI*2); x.globalAlpha = .25; x.stroke(); }
+    x.globalAlpha = 1; rot = (rot + .15) % 360; requestAnimationFrame(draw); })();
+})();
+function drawDayRing(){   // today's events as arcs around the core (12 o'clock = midnight), a dot for now
+  const c = $("#dayring"); if(!c || !state) return; const x = c.getContext("2d"), cx = 206, cy = 206, R = 190;
+  x.clearRect(0,0,412,412); x.lineWidth = 6; x.lineCap = "round";
+  x.strokeStyle = "rgba(255,255,255,.06)"; x.beginPath(); x.arc(cx, cy, R, 0, Math.PI*2); x.stroke();
+  const ang = d => (d.getHours() + d.getMinutes()/60) / 24 * Math.PI*2 - Math.PI/2, today = state.now.slice(0,10);
+  state.events.filter(e => e.start.slice(0,10) === today && e.start.length > 10).forEach(e => {
+    const s = new Date(e.start), en = e.end ? new Date(e.end) : new Date(s.getTime() + 3600e3);
+    x.strokeStyle = e.area === "academic" ? "#5b8cff" : e.area === "career" ? "#e8b04b" : "#3dff8b";
+    x.beginPath(); x.arc(cx, cy, R, ang(s), Math.max(ang(en), ang(s) + .05)); x.stroke(); });
+  const now = new Date(); x.fillStyle = "#fff"; x.beginPath(); x.arc(cx + R*Math.cos(ang(now)), cy + R*Math.sin(ang(now)), 5, 0, Math.PI*2); x.fill();
+}
+setInterval(drawDayRing, 60000);
+async function phoneLink(){   // inside the phone app: let its WhatsApp smart-reply reader talk to JARVIS
+  if(!window.JarvisNative || !JarvisNative.setDeviceToken) return;
+  try { const {token} = await (await fetch("/api/phone/token")).json(); JarvisNative.setDeviceToken(token); } catch {}
+}
+
 async function boot(){
+  chime();
   const {lines} = await (await fetch("/api/boot")).json();
   for(const {agent, text} of lines){ await say(agent, text); await new Promise(r => setTimeout(r, 250)); }
   focus("JARVIS");
@@ -395,6 +452,7 @@ const fmt = d => d ? new Date(d.length<=10 ? d+"T00:00" : d).toLocaleString([], 
 async function refresh(){
   state = await (await fetch("/api/state")).json();
   const today = state.now.slice(0,10);
+  drawDayRing(); if(state.focus) showFocus(state.focus.until, state.focus.task);
   const t = state.tasks;
   $("#p-tasks").innerHTML = (t.length ? "" : `<div class="empty">No open tasks. Tell JARVIS what's on your plate.</div>`) +
     t.map(x => `<div class="item ${x.due && x.due.slice(0,10) < today ? "overdue":""}"><div class="row">
@@ -463,6 +521,8 @@ async function refresh(){
     `<div class="conn"><b>Google Calendar</b>${cx.google.ready
       ? `<span class="${cx.google.error ? "n" : "y"}" title="${esc(cx.google.error || "")}">${cx.google.error ? "sync problem" : "synced " + (cx.google.last_sync ? fmt(cx.google.last_sync) : "")} · <a href="#" id="gsync" style="color:inherit">sync now</a></span>`
       : `<a class="n" href="/google-setup.html" target="_blank" style="color:var(--accent,#38d6ff)">set up →</a>`}</div>` +
+    (window.JarvisNative && JarvisNative.hasNotificationAccess ? `<div class="conn"><b>WhatsApp smart replies</b>${JarvisNative.hasNotificationAccess()
+      ? `<span class="y">on</span>` : `<a href="#" id="waOn" style="color:var(--accent,#38d6ff)">turn on →</a>`}</div>` : "") +
     `<div class="h">Lectures & meetings</div>` + lectureBlock(cx) +
     `<div class="h">Business pipeline · PEPPER</div>` + (state.gigs.length ? state.gigs.map(g => `<div class="item"><div class="t">${esc(g.client)}${g.event_type ? " · " + esc(g.event_type) : ""}</div><div class="s"><span class="tag">${esc(g.status)}</span>${esc(g.event_date || "date tbc")}${g.quote_total ? " · $" + Number(g.quote_total).toLocaleString() : ""}${g.next_step ? " · next: " + esc(g.next_step) : ""}</div></div>`).join("")
       : `<div class="empty">No clients yet. Try: “Pepper, new enquiry: Priya, wedding 14 Feb, 300 pax at Raffles, budget 15k”.</div>`) +
@@ -471,6 +531,7 @@ async function refresh(){
       : `<div class="empty">None yet. Ask JARVIS, e.g. “every weekday at 6am send me a motivational quote and my schedule on WhatsApp”.</div>`) +
     `<div class="h">Built-in routines</div>` + state.jobs.map(j => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${j.label}</div><div class="s"><span class="tag" style="color:${AGENTS[j.agent]?.color}">${j.agent}</span>${j.running?"running…":j.last_run?"last "+fmt(j.last_run):"never run"}</div></div><button class="btn" data-job="${j.name}">Run now</button></div></div>`).join("") +
     `<div class="h">How the night shift works</div><div class="empty" style="line-height:1.6">Any task with an agent assignee (e.g. “ORACLE, research laptops under $1000 tonight”) is worked on autonomously overnight. Results land in Notes and in the morning brief.</div>`;
+  const wa = $("#waOn"); if(wa) wa.onclick = e => { e.preventDefault(); JarvisNative.openNotificationAccess(); };
   const gs = $("#gsync"); if(gs) gs.onclick = async e => { e.preventDefault(); gs.textContent = "syncing…"; await fetch("/api/google/sync", {method:"POST"}); refresh(); };
   const rec = $("#recBtn"); if(rec) rec.onclick = async () => { rec.textContent = "…";
     const r = await (await fetch(state.recording.recording ? "/api/lectures/stop" : "/api/lectures/start", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title: ($("#recTitle")||{}).value || ""})})).json();
@@ -685,6 +746,9 @@ function connect(){
     }
     else if(ev.type === "report"){ logLine(ev.agent, `📄 Report filed: ${ev.title}`, "job"); refresh(); }
     else if(ev.type === "data"){ clearTimeout(window._rt); window._rt = setTimeout(refresh, 400); }
+    else if(ev.type === "celebrate"){ confetti(); logLine(ev.agent, "🎉 " + ev.text, "job"); }
+    else if(ev.type === "alert"){ redAlert(); }
+    else if(ev.type === "focus"){ showFocus(ev.until, ev.task); }
   };
 }
 
@@ -699,7 +763,7 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
   try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; warmAcks(); } catch {}
   try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
   $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";
-  buildGrid(); focus("JARVIS"); await refresh(); connect();
+  buildGrid(); focus("JARVIS"); await refresh(); connect(); phoneLink();
   state.activity.slice(-25).forEach(a => logLine(a.agent, a.message, a.kind));
   const params = new URLSearchParams(location.search);
   if(params.get("kiosk") === "1"){   // the always-on JARVIS window: audio allowed, no click needed

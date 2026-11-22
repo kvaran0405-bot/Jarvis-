@@ -350,3 +350,30 @@ def synthesize_for_phone(agent: str, text: str) -> Path:
     if not edge_path.exists():
         _edge(speakable(text)[:2500], agent, edge_path)
     return edge_path
+
+
+def long_audio(agent: str, text: str) -> Path:
+    """A long read-aloud (an article, notes) as one MP3, made in pieces with the quick free voices."""
+    import re as _re
+    text = strip_moods(text)
+    parts, cur = [], ""
+    for sentence in _re.split(r"(?<=[.!?])\s+", text):
+        if len(cur) + len(sentence) > 1800 and cur:
+            parts.append(cur)
+            cur = ""
+        cur += sentence + " "
+    if cur.strip():
+        parts.append(cur)
+    key = hashlib.sha256(f"long|{agent}|{text}".encode()).hexdigest()[:32]
+    out = CACHE / f"long-{key}.mp3"
+    if out.exists():
+        return out
+    CACHE.mkdir(parents=True, exist_ok=True)
+    audio = bytearray()
+    for i, part in enumerate(parts):
+        piece = CACHE / f"long-{key}-{i}.mp3"
+        _edge(part, agent, piece)
+        audio += piece.read_bytes()
+        piece.unlink(missing_ok=True)
+    out.write_bytes(bytes(audio))
+    return out

@@ -251,6 +251,39 @@ VERONICA reads your bank's **transaction alert e-mails** (turn on e-mail alerts 
 masked to the last 4 digits. OTP / PIN / password e-mails are never shown to any agent, and agents still can't
 open bank apps or sites or move money.
 
+## Your crew of friends
+
+- **Evening check-in (21:30):** FRIDAY, JARVIS or BANNER texts you about your day; just reply. They log your mood
+  and one good thing, and notice patterns. **Sunday heart-to-heart** with BANNER, plus a nudge to see friends.
+- **"I can't sleep"** gets BANNER keeping you company. **"Hype me up"** gets a ZEUS pep talk. **"Be real with me"**
+  gets the honest version.
+- Birthdays and anniversaries ("Jarvis, Mum's birthday is 12 March") come up in the morning brief with gift ideas.
+- Confetti and a proud line when you finish an assignment, confirm a gig or keep a gym streak.
+- Monthly life report with grades per area and your best moments. Letters to future you.
+
+## Study
+
+- **Ask my files:** "Athena, what did week 5 say about WACC?" She searches your Documents, OneDrive, Desktop and
+  Downloads (PDF, Word, PowerPoint, text) and names the file and slide.
+- **Exam mode:** "Athena, FIN302 exam is 3 Dec 9am, topics hedging and NPV" gives you a countdown, a revision plan
+  and a daily quiz at 19:30.
+- **Read-aloud:** "Read this to me" sends an article or your notes to your phone as audio.
+- **Photos:** send a poster, a slide, a receipt or a business card to Telegram and JARVIS files it.
+
+## Stark protocols
+
+- **"Suit up for 50 minutes on the essay"**: focus mode. Non-urgent announcements wait, and a banner counts down.
+- **"Clean slate protocol"** moves today's leftovers to tomorrow. **"House party protocol"** runs event-day checks.
+  **"War room"** gets a spoken briefing from PEPPER, ATHENA, ZEUS, VERONICA and SENTINEL.
+- **"What should I do now?"** gets the one best next thing.
+
+## WhatsApp smart replies (phone app)
+
+In the JARVIS app: Autopilot → **WhatsApp smart replies → turn on**, and allow JARVIS in *Notification access*.
+When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies with **Send A/B/C** buttons.
+Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
+are ignored.
+
 ## Stark mode
 
 - **Clap twice** near the laptop and JARVIS answers "Yes Sir?" and listens. If you've been away 3+ hours, he

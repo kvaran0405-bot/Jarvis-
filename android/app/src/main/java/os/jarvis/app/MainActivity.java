@@ -116,6 +116,10 @@ public class MainActivity extends Activity {
         });
 
         if (!hasMic()) askMic();
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 44);
+        }
         tts = new TextToSpeech(this, status -> {
             ttsReady = status == TextToSpeech.SUCCESS;
             if (ttsReady) tts.setLanguage(Locale.UK);
@@ -215,6 +219,22 @@ public class MainActivity extends Activity {
 
     /** Methods the JARVIS pages call as window.JarvisNative.* (they run on a background thread). */
     private class Bridge {
+        @JavascriptInterface
+        public void setDeviceToken(String token) {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("device_token", token).apply();
+        }
+
+        @JavascriptInterface
+        public boolean hasNotificationAccess() {
+            String on = android.provider.Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
+            return on != null && on.contains(getPackageName());
+        }
+
+        @JavascriptInterface
+        public void openNotificationAccess() {
+            ui.post(() -> startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")));
+        }
+
         @JavascriptInterface
         public boolean speechAvailable() {
             return SpeechRecognizer.isRecognitionAvailable(MainActivity.this);
