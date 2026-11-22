@@ -460,10 +460,13 @@ async function refresh(){
     (cx.telegram.ready ? row("Telegram", true, "") : row("Telegram", false, cx.telegram.enabled ? `send /start ${cx.telegram.pair_code} to your bot` : "not set up")) +
     row("WhatsApp", cx.whatsapp.ready, /off/.test(cx.whatsapp.reason || "") ? "off" : "bridge not running") + row("Email (send)", cx.email_send, "not set up") +
     row("Email (read)", cx.email_read, "not set up") + row("Android phone", cx.phone, "not set up") +
+    `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">⬆ Update JARVIS</div><div class="s">Get the newest version and restart (settings kept)</div></div><button class="btn" id="updBtn">Update</button></div></div>` +
     `<div class="h">Your routines</div>` + (state.routines.length ? state.routines.map(r => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${esc(r.name)}</div><div class="s"><span class="tag" style="color:${AGENTS[r.agent]?.color}">${r.agent}</span>${esc(r.schedule)}${r.enabled ? "" : " · paused"}</div></div><button class="btn" data-rt="${r.id}">${r.enabled ? "Pause" : "Resume"}</button></div></div>`).join("")
       : `<div class="empty">None yet. Ask JARVIS, e.g. “every weekday at 6am send me a motivational quote and my schedule on WhatsApp”.</div>`) +
     `<div class="h">Built-in routines</div>` + state.jobs.map(j => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${j.label}</div><div class="s"><span class="tag" style="color:${AGENTS[j.agent]?.color}">${j.agent}</span>${j.running?"running…":j.last_run?"last "+fmt(j.last_run):"never run"}</div></div><button class="btn" data-job="${j.name}">Run now</button></div></div>`).join("") +
     `<div class="h">How the night shift works</div><div class="empty" style="line-height:1.6">Any task with an agent assignee (e.g. “ORACLE, research laptops under $1000 tonight”) is worked on autonomously overnight. Results land in Notes and in the morning brief.</div>`;
+  const upd = $("#updBtn"); if(upd) upd.onclick = async () => { upd.textContent = "Updating…";
+    const r = await (await fetch("/api/update", {method:"POST"})).json(); logLine("JARVIS", r.result, "system"); queueSpeech("JARVIS", r.result); };
   document.querySelectorAll("[data-rt]").forEach(b => b.onclick = async () => { await fetch(`/api/routines/${b.dataset.rt}/toggle`, {method:"POST"}); refresh(); });
   document.querySelectorAll("[data-job]").forEach(b => b.onclick = async () => { b.textContent = "Started"; await fetch(`/api/jobs/${b.dataset.job}/run`, {method:"POST"}); setTimeout(refresh, 800); });
 }

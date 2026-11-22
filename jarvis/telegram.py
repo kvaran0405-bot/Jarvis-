@@ -122,6 +122,7 @@ class Bot:
                  on_proposal: Callable[[int, bool], str] | None = None):
         self.on_text, self.on_decision, self.log, self.on_reply = on_text, on_decision, log, on_reply
         self.on_proposal = on_proposal
+        self.on_update: Callable[[], str] | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -192,6 +193,12 @@ class Bot:
             return
         if sender != chat_id():
             return  # strangers are ignored
+        if text == "/voicecheck":
+            send(voice_check())
+            return
+        if text == "/update" and self.on_update:
+            send(self.on_update())
+            return
         if text in ("/app", "/call"):
             from .config import settings as cfg
             send(f"📱 Your JARVIS app: {cfg.app_url}/command-centre.html\n📞 Call JARVIS: {cfg.app_url}/call.html"
@@ -203,23 +210,30 @@ class Bot:
                  "• pending - see what's waiting for your OK\n\n"
                  "Save your Claude plan:\n• /pause  or  pause for 3 hours - I use no AI at all\n"
                  "• /saver - run on free Gemini only\n• /resume - back to normal\n• /status - which brain I'm using\n\n"
-                 "📱 /app - open the JARVIS app   📞 /call - talk to me live")
+                 "📱 /app - open the JARVIS app   📞 /call - talk to me live\n"
+                 "🔎 /voicecheck - test voice notes   ⬆ /update - get my newest version")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
-        send(self.on_text(text, voice=False))
+        reply = self.on_text(text, voice=False)
+        send(reply)
+        if settings.telegram_voice_replies == "always":
+            self.voice_reply(reply)
 
     def handle_voice(self, voice_note: dict) -> None:
         """Voice note in -> transcribe on this laptop -> agent -> text + spoken reply."""
         from . import stt
         from . import voice as tts
         if not stt.available():
-            send("🎙 To understand voice notes, run this once on the laptop:  pip install faster-whisper")
+            send("🎙 I can't understand voice notes yet: the speech part isn't installed. Send /voicecheck for details.")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
         tmp = Path(tempfile.gettempdir()) / f"jarvis-voice-{voice_note['file_unique_id']}.ogg"
         try:
             download(voice_note["file_id"], tmp)
             heard = stt.transcribe(str(tmp))
+        except Exception as exc:  # noqa: BLE001 - tell the owner instead of going quiet
+            send(f"🎙 I couldn't process that voice note: {exc}"[:600])
+            return
         finally:
             tmp.unlink(missing_ok=True)
         if not heard:
@@ -227,10 +241,45 @@ class Bot:
             return
         reply = self.on_text(heard, voice=True)
         send(f"🎙 “{heard}”\n\n{reply}")
-        if tts.enabled():
+        self.voice_reply(reply)
+
+    def voice_reply(self, reply: str) -> None:
+        """Send the reply as a voice note, in the speaking agent's voice."""
+        from . import voice as tts
+        if not tts.enabled():
+            return
+        try:
             api("sendChatAction", chat_id=chat_id(), action="record_voice")
             from .agents import AGENTS
             prefix, _, rest = reply.partition(":")
             agent, spoken = (prefix, rest) if prefix in AGENTS and rest else ("JARVIS", reply)
             send_voice(str(tts.synthesize_for_phone(agent, spoken)))
+        except Exception as exc:  # noqa: BLE001
+            send(f"🔇 I couldn't make the voice note: {exc}"[:600])
 
+
+
+def voice_check() -> str:
+    """/voicecheck: what works for voice notes, in plain words."""
+    from . import stt
+    from . import voice as tts
+    lines = ["🔎 Voice check"]
+    try:
+        import faster_whisper  # noqa: F401
+        lines.append("🎙 Understanding your voice notes: installed ✅ (the first one downloads a speech model, ~1 min)")
+    except Exception as exc:  # noqa: BLE001
+        lines.append(f"🎙 Understanding your voice notes: NOT installed ❌ ({type(exc).__name__}: {exc})"[:300])
+    prov = tts.provider()
+    lines.append(f"🔊 Voice for replies: {prov}" + (" ✅" if prov != "browser" else
+                 " ❌ (no voice service, so I can't make voice notes)"))
+    if prov != "browser":
+        try:
+            path = tts.synthesize_for_phone("JARVIS", "Voice check complete, Sir.")
+            send_voice(str(path))
+            lines.append("📨 Test voice note: sent above ✅")
+        except Exception as exc:  # noqa: BLE001
+            lines.append(f"📨 Test voice note failed ❌: {exc}"[:300])
+    from .config import settings as cfg
+    lines.append(f"Voice replies: {cfg.telegram_voice_replies} (always = every reply, voice = only when you send a "
+                 "voice note). Change with JARVIS_TELEGRAM_VOICE_REPLIES in .env.")
+    return "\n".join(lines)

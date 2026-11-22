@@ -120,6 +120,12 @@ While paused, JARVIS makes **no AI calls at all**. Routines wait, and messages y
 Keep the program running for the autopilot to work. On a laptop, leave it plugged in with sleep turned off,
 or run it on a small always-on machine or VPS.
 
+### Updating
+
+Double-click **update** in the JARVIS folder (or send `/update` to your Telegram bot, or press *Update* in the
+dashboard's Autopilot tab). It downloads the newest version and restarts JARVIS. Your `.env`, profile and memory are
+kept. The first time it installs Git and may ask you to sign in to GitHub in the browser.
+
 ### Terminal use
 ```bash
 python -m jarvis ask "What's on my plate this week?"

@@ -113,6 +113,8 @@ class Settings:
     # Agents speak up on their own (briefs, reminders, ideas, alerts) on the laptop and as Telegram voice notes
     proactive_voice: bool = field(default_factory=lambda: _env("JARVIS_PROACTIVE_VOICE", "on").lower() != "off")
     telegram_voice: bool = field(default_factory=lambda: _env("JARVIS_TELEGRAM_VOICE", "on").lower() != "off")
+    # Reply on Telegram with a voice note: always | voice (only when you sent a voice note) | off
+    telegram_voice_replies: str = field(default_factory=lambda: _env("JARVIS_TELEGRAM_VOICE_REPLIES", "always").lower())
 
     # Premium voices (ElevenLabs). Without a key the dashboard uses your computer's built-in voices.
     elevenlabs_key: str = field(default_factory=lambda: _env("ELEVENLABS_API_KEY"))

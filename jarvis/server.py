@@ -49,6 +49,7 @@ async def lifespan(_app):
                  on_text=lambda text, voice=False: handle_owner_message(text, "Telegram", voice),
                  on_decision=lambda msg_id, yes: approve_message(msg_id) if yes else reject_message(msg_id),
                  log=lambda m: bus.log("JARVIS", m, "system"))
+    bot.on_update = start_update
     bot.start()
     if brain.pick(store) == "pro":   # start JARVIS's live session now, so the first spoken reply is quick too
         from . import brains
@@ -265,6 +266,26 @@ def choose(sid: int, c: ReplyChoice):
 @app.post("/api/suggestions/{sid}/ignore")
 def ignore(sid: int):
     return {"result": pick_reply(sid, None)}
+
+
+# ---------------------------------------------------------------- self-update
+def start_update() -> str:
+    """Run update.bat / update.sh in its own window: it downloads the newest JARVIS and restarts this one."""
+    import os
+    import subprocess
+    if os.name == "nt":
+        script = ROOT / "update.bat"
+        # 'start' opens a separate window whose process isn't ours, so stopping JARVIS doesn't stop the update
+        subprocess.Popen(["cmd", "/c", "start", "JARVIS update", "cmd", "/c", str(script)], cwd=ROOT)
+    else:
+        subprocess.Popen(["bash", str(ROOT / "update.sh")], cwd=ROOT, start_new_session=True)
+    bus.log("JARVIS", "⬆ Updating to the newest version - back in a minute.", "system")
+    return "⬆ Updating now, Sir. I'll be back in about a minute."
+
+
+@app.post("/api/update")
+def update_now():
+    return {"result": start_update()}
 
 
 # ---------------------------------------------------------------- brain & pause switch

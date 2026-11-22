@@ -343,3 +343,17 @@ def test_voicestudio_backend(monkeypatch, tmp_path):
     srv.shutdown(); srv.server_close()
     voice._vs_seen.update(at=0.0)
     assert voice.provider() == "edge"                                      # VoiceStudio off -> free online voices
+
+
+def test_voicecheck_reports_and_sends_sample(monkeypatch, tmp_path):
+    from jarvis import telegram as tg
+    from jarvis import voice
+    sent = []
+    monkeypatch.setattr(voice, "provider", lambda: "edge")
+    monkeypatch.setattr(voice, "synthesize_for_phone", lambda a, t: tmp_path / "x.mp3")
+    monkeypatch.setattr(tg, "send_voice", lambda p: sent.append(p))
+    report = tg.voice_check()
+    assert "Understanding your voice notes" in report and "Voice for replies: edge ✅" in report
+    assert "Test voice note: sent" in report and sent
+    monkeypatch.setattr(voice, "provider", lambda: "browser")
+    assert "can't make voice notes" in tg.voice_check()

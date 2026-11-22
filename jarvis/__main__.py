@@ -54,6 +54,10 @@ def main(argv: list[str] | None = None) -> int:
         import uvicorn
         from .config import settings
         url = f"http://{settings.host}:{settings.port}/command-centre.html?autostart=true"
+        import os
+        from .config import ROOT
+        (ROOT / "data").mkdir(exist_ok=True)
+        (ROOT / "data" / "jarvis.pid").write_text(str(os.getpid()))   # lets update.bat restart JARVIS
         print(f"JARVIS OS online -> {url}")
         if getattr(args, "open", False):  # open the browser once the server is actually up
             import threading
