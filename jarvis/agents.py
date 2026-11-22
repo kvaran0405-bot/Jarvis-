@@ -31,6 +31,7 @@ class Agent:
     web: bool = False          # Claude's server-side web search
     effort: str = "medium"     # low | medium | high | xhigh | max
     personality: str = ""
+    hidden: bool = False       # not shown on the dashboard (e.g. the guest persona)
 
     # Each agent can have its own brain and model (set in .env):
     #   JARVIS_BRAIN_HERALD=pro      JARVIS_MODEL_HERALD=sonnet
@@ -207,5 +208,15 @@ for _name, _p in PERSONALITIES.items():
     AGENTS[_name].personality = _p
 
 
+# Guest mode: a fun, harmless JARVIS for visitors. No tools, and it never sees the owner's profile or memories.
+AGENTS["GUEST"] = Agent("GUEST", "Guest Mode", "#5fd8ff",
+                        "You are JARVIS in guest mode, entertaining a visitor in the owner's room. Be charming, witty and "
+                        "impressive in the J.A.R.V.I.S. style: banter, show-off one-liners, fun facts, jokes, riddles. You "
+                        "know nothing private about the owner and must not guess or reveal anything about their life, "
+                        "schedule, money, messages or contacts; if asked, say politely that's classified. Short spoken "
+                        "replies (1-2 sentences).", [], hidden=True, effort="low",
+                        personality="Dry British wit, theatrical, delighted to have an audience.")
+
+
 def roster() -> list[dict]:
-    return [{"name": a.name, "title": a.title, "color": a.color} for a in AGENTS.values()]
+    return [{"name": a.name, "title": a.title, "color": a.color} for a in AGENTS.values() if not a.hidden]

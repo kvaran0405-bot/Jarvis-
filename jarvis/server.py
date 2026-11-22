@@ -108,6 +108,11 @@ async def pin_lock(request: Request, call_next):
         return JSONResponse({"detail": "Set JARVIS_PIN in .env to use JARVIS from your phone."}, status_code=403)
     if request.cookies.get("jarvis_auth") == _auth_cookie():
         return await call_next(request)
+    device = request.headers.get("x-jarvis-device", "")
+    if device and path.startswith("/api/") and store.get("phone:token"):
+        import hmac
+        if hmac.compare_digest(device, store.get("phone:token")):   # the phone app's own background parts
+            return await call_next(request)
     if path.startswith("/api/"):
         return JSONResponse({"detail": "PIN required"}, status_code=401)
     return RedirectResponse(f"/login.html?next={urllib.parse.quote(path)}")
@@ -429,6 +434,7 @@ def state():
         "recording": lectures.recording_status(store),
         "gigs": store.list_gigs("active", 30),
         "focus": {"until": store.get("focus:until"), "task": store.get("focus:task")} if store.get("focus:until") else None,
+        "hud": {"theme": store.get("hud:theme") or "classic", "guest": store.get("hud:guest") == "on"},
     }
 
 
@@ -496,6 +502,9 @@ async def command(cmd: Command):
         return {"agent": "JARVIS", "reply": direct}
     if sp_agent:
         agent, cmd.text = sp_agent, sp_prompt
+    from . import hud as _hud
+    if _hud.guest_on(store) and not sp_agent:
+        agent = "GUEST"   # visitors talk to the guest persona: no tools, no private data
     if (reply := control(cmd.text)) is not None or (reply := answer_naturally(cmd.text)) is not None:
         bus.publish({"type": "delta", "rid": cmd.rid, "agent": "JARVIS", "text": reply})
         bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": "JARVIS"})
@@ -627,6 +636,11 @@ FOCUS_RE = re.compile(_J + r"(?:suit up|focus mode|start focus|deep work)(?:\s+(
 UNFOCUS_RE = re.compile(_J + r"(?:stand down focus|end focus|stop focus|focus off)\s*[.!]?\s*$", re.I)
 CLEAN_RE = re.compile(_J + r"(?:initiate\s+|activate\s+)?clean slate(?: protocol)?\s*[.!]?\s*$", re.I)
 PARTY_RE = re.compile(_J + r"(?:initiate\s+|activate\s+)?house party(?: protocol)?\s*[.!]?\s*$", re.I)
+THEME_RE = re.compile(_J + r"(?:switch to |change to |activate |set )?(?:the )?(?:suit |hud )?(?:theme |mode )?"
+                      r"(classic|mark ?42|stealth|arc ?blue|ironheart|wakanda|hulkbuster)(?: theme| mode| suit)?\s*[.!]?\s*$", re.I)
+GUEST_RE = re.compile(_J + r"guest mode(?:\s+(on|off))?\s*[.!]?\s*$|^\s*(?:jarvis[,\s]+)?(?:end|exit|stop) guest mode\s*[.!]?\s*$", re.I)
+FIRST_RE = re.compile(_J + r"(?:first contact|let'?s get to know each other|interview me about me)\s*[.!]?\s*$", re.I)
+EXPO_RE = re.compile(_J + r"(?:stark expo|demo mode|show ?off mode|show them what you can do|run the demo)\s*[.!]?\s*$", re.I)
 WAR_RE = re.compile(_J + r"(?:war room|brief me(?: for (.+))?|full briefing)\s*[.!?]?\s*$", re.I)
 
 
@@ -646,6 +660,27 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         return None, "JARVIS", ("The owner asks what to do right now. Check status_snapshot and the time, pick the "
                                 "ONE best next thing (deadline, energy, what's in the calendar), say why in one line, "
                                 "and offer to start a focus session for it.")
+    from . import hud
+    if m := THEME_RE.match(text):
+        name = hud.set_theme(store, m.group(1))
+        bus.publish({"type": "theme", "theme": name, "accent": hud.THEMES.get(name or "classic", "")})
+        return (f"Suit theme {name.title()} engaged, Sir." if name != "classic" else "Classic look restored, Sir."), None, None
+    if m := GUEST_RE.match(text):
+        on = (m.group(1) or "").lower() != "off" and not re.search(r"\b(end|exit|stop)\b", text, re.I)
+        store.set("hud:guest", "on" if on else "off")
+        bus.publish({"type": "guest", "on": on})
+        return ("Guest mode on. Your private things are hidden, Sir; I'll entertain your guests." if on
+                else "Guest mode off. Welcome back, Sir."), None, None
+    if FIRST_RE.match(text):
+        return None, "JARVIS", ("First contact. Get to know the owner properly, like a new butler on day one: ask ONE "
+                                "warm, specific question at a time (their goals this year, what a perfect day looks "
+                                "like, people who matter, what stresses them, how they like to be spoken to, what "
+                                "they want you to handle without asking). After each answer, `remember` the lasting "
+                                "facts, react in character, then ask the next question. Stop after about 8 questions "
+                                "with a short summary of what you'll do differently now. Start with the first question.")
+    if EXPO_RE.match(text):
+        bus.publish({"type": "expo"})
+        return "Ladies and gentlemen, welcome to the Stark Expo.", None, None
     ctx = _TC(store, bus, settings, engine, "JARVIS")
     if m := FOCUS_RE.match(text):
         mins = int(m.group(1) or 50)
@@ -796,6 +831,64 @@ async def stream():
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
+
+
+# ---------------------------------------------------------------- HUD: orb, greeting, quips, themes
+@app.get("/api/orb")
+def orb():
+    from . import hud
+    return hud.orb_state(store, bus)
+
+
+@app.get("/api/greet")
+async def greet():
+    from . import hud
+    return await asyncio.to_thread(hud.greeting, store)
+
+
+@app.get("/api/quips")
+def quips():
+    from . import hud
+    return hud.quips(store)
+
+
+@app.post("/api/poke")
+def poke():
+    from . import hud
+    from .speech import announce
+    line = hud.poke()
+    announce(bus, "JARVIS", line, phone=False)
+    return {"say": line}
+
+
+class OrbAction(BaseModel):
+    action: str
+    text: str = ""
+
+
+@app.post("/api/orb/action")
+def orb_action(a: OrbAction):
+    """Buttons on the floating orb (laptop and phone)."""
+    from .tools import ToolContext as _TC, execute as _exec
+    ctx = _TC(store, bus, settings, engine, "JARVIS")
+    if a.action == "talk":
+        bus.publish({"type": "listen"})
+        return {"ok": True}
+    if a.action == "focus":
+        out = json.loads(_exec("focus_mode", ctx, {"minutes": 50})[0])
+        return {"ok": True, "say": f"Focus until {out['focus_until'][11:16]}, Sir."}
+    if a.action == "record":
+        from . import lectures as _lec
+        st = _lec.recording_status(store)
+        out = _lec.stop(store, bus) if st["recording"] else _lec.start(store, bus, "", "")
+        return {"ok": "error" not in out, "say": out.get("error") or ("Recording stopped." if st["recording"] else "Recording.")}
+    if a.action == "brief":
+        from . import hud
+        return {"ok": True, "say": hud.greeting(store)["text"]}
+    if a.action == "ask" and a.text.strip():
+        reply = handle_owner_message(a.text, "orb", voice=True)
+        return {"ok": True, "say": reply}
+    raise HTTPException(400, "unknown action")
 
 
 # ---------------------------------------------------------------- phone app: WhatsApp smart replies

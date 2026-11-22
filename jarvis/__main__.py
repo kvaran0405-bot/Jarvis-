@@ -30,6 +30,36 @@ def open_jarvis_window(url: str) -> bool:
     return True
 
 
+def start_orb_later(settings) -> None:
+    """Launch the floating orb as its own small process once the server answers (JARVIS_ORB=off to skip)."""
+    import os
+    import subprocess
+    import threading
+    import time
+    import urllib.request
+    from pathlib import Path
+    if os.environ.get("JARVIS_ORB", "on").lower() == "off":
+        return
+    if os.name != "nt" and not os.environ.get("DISPLAY") and sys.platform != "darwin":
+        return   # no desktop to float on
+
+    def go():
+        for _ in range(60):
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{settings.port}/api/orb", timeout=1)
+                break
+            except Exception:  # noqa: BLE001 - not up yet
+                time.sleep(.5)
+        exe = sys.executable
+        if os.name == "nt":   # pythonw: no black console window for the orb
+            w = Path(exe).with_name("pythonw.exe")
+            exe = str(w) if w.exists() else exe
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        subprocess.Popen([exe, "-m", "jarvis", "orb"], cwd=str(Path(__file__).resolve().parent.parent),
+                         creationflags=flags)
+    threading.Thread(target=go, daemon=True).start()
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="jarvis", description="JARVIS OS - your personal multi-agent system")
     sub = p.add_subparsers(dest="cmd")
@@ -43,9 +73,12 @@ def main(argv: list[str] | None = None) -> int:
 
     j = sub.add_parser("job", help="run a scheduled job now")
     j.add_argument("name", choices=["morning_brief", "evening_report", "weekly_review", "deadline_watch",
-                                    "night_shift", "inbox_sweep", "money_weekly", "job_hunt"])
+                                    "night_shift", "inbox_sweep", "money_weekly", "job_hunt", "evening_checkin",
+                                    "heart_to_heart", "exam_quiz", "business_sweep", "career_weekly",
+                                    "fitness_weekly", "monthly_report", "subscriptions"])
 
     sub.add_parser("agents", help="list the agents")
+    sub.add_parser("orb", help="the floating JARVIS orb (always on top)")
 
     args = p.parse_args(argv)
     cmd = args.cmd or "serve"
@@ -74,8 +107,13 @@ def main(argv: list[str] | None = None) -> int:
                     except Exception:  # noqa: BLE001 - not up yet
                         time.sleep(0.5)
             threading.Thread(target=open_when_ready, daemon=True).start()
+        start_orb_later(settings)
         uvicorn.run("jarvis.server:app", host=settings.host, port=settings.port, log_level="warning")
         return 0
+
+    if cmd == "orb":
+        from .orb import main as orb_main
+        return orb_main()
 
     from .server import engine, scheduler  # builds store/bus/engine without starting HTTP
 

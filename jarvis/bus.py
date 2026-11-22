@@ -13,6 +13,8 @@ class Bus:
         self.store = store
         self._subs: list[queue.Queue] = []
         self._lock = threading.Lock()
+        self.last_voice: tuple[str, float, int] = ("JARVIS", 0.0, 0)
+        self.last_text = ""
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=500)
@@ -26,6 +28,14 @@ class Bus:
                 self._subs.remove(q)
 
     def publish(self, event: dict[str, Any]) -> None:
+        import time
+        if event.get("type") in ("delta", "say", "ask"):   # the floating orb pulses while someone is talking
+            words = str(event.get("say") or event.get("text") or "")
+            if event.get("type") == "delta" and self.last_voice[0] == (event.get("agent") or "JARVIS") \
+                    and time.time() - self.last_voice[1] < 8:
+                words = (self.last_text + words)[-240:]   # streamed reply: keep the running sentence
+            self.last_text = words
+            self.last_voice = (event.get("agent") or "JARVIS", time.time(), len(words))
         with self._lock:
             subs = list(self._subs)
         for q in subs:
@@ -42,3 +52,9 @@ class Bus:
     def status(self, agent: str, state: str) -> None:
         """Agent state for the dashboard grid: online | working | reporting."""
         self.publish({"type": "status", "agent": agent, "state": state})
+
+    @property
+    def screens(self) -> int:
+        """How many dashboards / apps are connected right now."""
+        with self._lock:
+            return len(self._subs)

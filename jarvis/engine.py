@@ -77,6 +77,9 @@ class Engine:
 
     # ------------------------------------------------------------ prompts
     def system_prompt(self, agent: Agent) -> str:
+        if agent.hidden:   # guest persona: nothing about the owner
+            return (f"You are {agent.name}. {agent.mission}\nPersonality: {agent.personality}\n"
+                    "Never use mood tags with a comma before a name. Plain text, no Markdown.")
         team = "\n".join(f"- {a['name']}: {a['title']}" for a in roster())
         profile = self.settings.profile() or "(no profile written yet - learn about the owner and use `remember`)"
         return (
@@ -106,6 +109,8 @@ class Engine:
         return f"\n\nThe owner's business (business.md):\n{text}"
 
     def _context_block(self, agent: Agent | None = None) -> str:
+        if agent is not None and agent.hidden:
+            return ""
         now = datetime.now(self.settings.tz)
         facts = [m["fact"] for m in self.store.memories(40)]
         mem = "\n".join(f"- {f}" for f in facts) if facts else "- (none yet)"

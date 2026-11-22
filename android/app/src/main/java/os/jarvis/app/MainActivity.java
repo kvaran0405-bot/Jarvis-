@@ -127,6 +127,29 @@ public class MainActivity extends Activity {
 
         if (savedInstanceState != null) web.restoreState(savedInstanceState);
         else openHome();
+        if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("orb_on", false) && FloatingOrb.canShow(this)) {
+            startForegroundService(new Intent(this, FloatingOrb.class));
+        }
+        handleOrbIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleOrbIntent(intent);
+    }
+
+    /** Taps on the floating orb arrive here: talk, call or just open JARVIS. */
+    private void handleOrbIntent(Intent intent) {
+        String act = intent == null ? null : intent.getStringExtra("jarvis_action");
+        if (act == null) return;
+        intent.removeExtra("jarvis_action");
+        String a = address();
+        if (a == null) return;
+        if (act.equals("call")) { web.loadUrl(a + "/call.html"); return; }
+        if (act.equals("talk")) {
+            ui.postDelayed(() -> web.evaluateJavascript("window.jarvisTalk ? jarvisTalk() : 0", null), 600);
+        }
     }
 
     // ------------------------------------------------------------------ navigation
@@ -219,6 +242,26 @@ public class MainActivity extends Activity {
 
     /** Methods the JARVIS pages call as window.JarvisNative.* (they run on a background thread). */
     private class Bridge {
+        @JavascriptInterface
+        public boolean canFloat() { return FloatingOrb.canShow(MainActivity.this); }
+
+        @JavascriptInterface
+        public boolean orbOn() { return getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("orb_on", false); }
+
+        @JavascriptInterface
+        public void showOrb(boolean on) {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean("orb_on", on).apply();
+            ui.post(() -> {
+                if (!on) { stopService(new Intent(MainActivity.this, FloatingOrb.class)); return; }
+                if (!FloatingOrb.canShow(MainActivity.this)) {
+                    startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getPackageName())));
+                    return;
+                }
+                startForegroundService(new Intent(MainActivity.this, FloatingOrb.class));
+            });
+        }
+
         @JavascriptInterface
         public void setDeviceToken(String token) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("device_token", token).apply();

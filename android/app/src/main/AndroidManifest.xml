@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Android 11+: allow talking to the speech recogniser and text-to-speech services -->
     <queries>
@@ -44,5 +47,15 @@
             </intent-filter>
         </service>
         <receiver android:name=".SmartReplies$ReplyReceiver" android:exported="false" />
+
+        <!-- The floating JARVIS orb over all apps -->
+        <service
+            android:name=".FloatingOrb"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Floating assistant button the user turned on, shown over other apps" />
+        </service>
     </application>
 </manifest>

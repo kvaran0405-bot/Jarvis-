@@ -213,6 +213,7 @@ const stripMoods = t => String(t ?? "").replace(MOOD_RE, "");
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let AGENTS = {}, ORDER = [], voiceOn = true, state = null;
+Object.defineProperty(window, "AGENTS", {get: () => AGENTS}); Object.defineProperty(window, "ORDER", {get: () => ORDER});
 try { voiceOn = localStorage.getItem("jarvis-voice") !== "off"; } catch {}
 
 const VOICE = { // per-agent voice character
@@ -304,11 +305,11 @@ function playClip(clip){
   return new Promise(res => {
     if(clip.gen !== speechGen || !voiceOn) return res();
     let finished = false;
-    const done = () => { if(finished) return; finished = true; $("#orb").classList.remove("speak"); res(); };
-    focus(clip.agent); $("#orb").classList.add("speak");
+    const done = () => { if(finished) return; finished = true; $("#orb").classList.remove("speak"); window.HUDFX?.speakEnd(clip); res(); };
+    focus(clip.agent); $("#orb").classList.add("speak"); window.HUDFX?.speakStart(clip, null);
     const browser = () => "speechSynthesis" in window ? speakBrowser(clip.agent, clip.text, done) : done();
     if(clip.audio){
-      clip.audio.then(b => { if(clip.gen !== speechGen) return done(); const a = new Audio(URL.createObjectURL(b)); currentAudio = a; a.onended = a.onerror = done; return a.play(); })
+      clip.audio.then(b => { if(clip.gen !== speechGen) return done(); const a = new Audio(URL.createObjectURL(b)); currentAudio = a; a.onended = a.onerror = done; window.HUDFX?.speakStart(clip, a); return a.play(); })
         .catch(browser);
       setTimeout(done, 9000 + clip.text.length*120); // safety
     } else browser();
@@ -441,6 +442,7 @@ async function phoneLink(){   // inside the phone app: let its WhatsApp smart-re
 }
 
 async function boot(){
+  if(window.HUDFX?.boot){ await window.HUDFX.boot(); focus("JARVIS"); return; }   // Mark III cinematic boot
   chime();
   const {lines} = await (await fetch("/api/boot")).json();
   for(const {agent, text} of lines){ await say(agent, text); await new Promise(r => setTimeout(r, 250)); }
@@ -523,6 +525,9 @@ async function refresh(){
       : `<a class="n" href="/google-setup.html" target="_blank" style="color:var(--accent,#38d6ff)">set up →</a>`}</div>` +
     (window.JarvisNative && JarvisNative.hasNotificationAccess ? `<div class="conn"><b>WhatsApp smart replies</b>${JarvisNative.hasNotificationAccess()
       ? `<span class="y">on</span>` : `<a href="#" id="waOn" style="color:var(--accent,#38d6ff)">turn on →</a>`}</div>` : "") +
+    (window.JarvisNative && JarvisNative.showOrb ? `<div class="conn"><b>Floating orb</b><a href="#" id="orbTog" style="color:var(--c)">${JarvisNative.orbOn() && JarvisNative.canFloat() ? "on · turn off" : "turn on →"}</a></div>` : "") +
+    `<div class="h">Suit theme</div><div class="row" style="display:flex;gap:6px;flex-wrap:wrap">${["classic","mark 42","stealth","arc blue","ironheart","wakanda","hulkbuster"].map(t => `<button class="btn" data-theme="${t}" style="${(state.hud?.theme||"classic")===t?"border-color:var(--c)":""}">${t}</button>`).join("")}</div>` +
+    `<div class="h">Show off</div><div class="row" style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" data-say="stark expo">▶ Stark Expo demo</button><button class="btn" data-say="${state.hud?.guest ? "guest mode off" : "guest mode on"}">${state.hud?.guest ? "End guest mode" : "Guest mode"}</button><button class="btn" data-say="first contact">First contact</button></div>` +
     `<div class="h">Lectures & meetings</div>` + lectureBlock(cx) +
     `<div class="h">Business pipeline · PEPPER</div>` + (state.gigs.length ? state.gigs.map(g => `<div class="item"><div class="t">${esc(g.client)}${g.event_type ? " · " + esc(g.event_type) : ""}</div><div class="s"><span class="tag">${esc(g.status)}</span>${esc(g.event_date || "date tbc")}${g.quote_total ? " · $" + Number(g.quote_total).toLocaleString() : ""}${g.next_step ? " · next: " + esc(g.next_step) : ""}</div></div>`).join("")
       : `<div class="empty">No clients yet. Try: “Pepper, new enquiry: Priya, wedding 14 Feb, 300 pax at Raffles, budget 15k”.</div>`) +
@@ -531,6 +536,9 @@ async function refresh(){
       : `<div class="empty">None yet. Ask JARVIS, e.g. “every weekday at 6am send me a motivational quote and my schedule on WhatsApp”.</div>`) +
     `<div class="h">Built-in routines</div>` + state.jobs.map(j => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${j.label}</div><div class="s"><span class="tag" style="color:${AGENTS[j.agent]?.color}">${j.agent}</span>${j.running?"running…":j.last_run?"last "+fmt(j.last_run):"never run"}</div></div><button class="btn" data-job="${j.name}">Run now</button></div></div>`).join("") +
     `<div class="h">How the night shift works</div><div class="empty" style="line-height:1.6">Any task with an agent assignee (e.g. “ORACLE, research laptops under $1000 tonight”) is worked on autonomously overnight. Results land in Notes and in the morning brief.</div>`;
+  const ot = $("#orbTog"); if(ot) ot.onclick = e => { e.preventDefault(); JarvisNative.showOrb(!(JarvisNative.orbOn() && JarvisNative.canFloat())); setTimeout(refresh, 800); };
+  document.querySelectorAll("[data-theme]").forEach(b => b.onclick = () => sendCommand("theme " + b.dataset.theme, "JARVIS"));
+  document.querySelectorAll("[data-say]").forEach(b => b.onclick = () => sendCommand(b.dataset.say, "JARVIS", true));
   const wa = $("#waOn"); if(wa) wa.onclick = e => { e.preventDefault(); JarvisNative.openNotificationAccess(); };
   const gs = $("#gsync"); if(gs) gs.onclick = async e => { e.preventDefault(); gs.textContent = "syncing…"; await fetch("/api/google/sync", {method:"POST"}); refresh(); };
   const rec = $("#recBtn"); if(rec) rec.onclick = async () => { rec.textContent = "…";
@@ -721,11 +729,15 @@ function openPauseMenu(){
   document.querySelectorAll("[data-ph]").forEach(b => b.onclick = () => { setBrain("paused", b.dataset.ph ? +b.dataset.ph : null); $("#modal").style.display = "none"; });
 }
 
+// the floating orb (laptop) and the phone orb ask the dashboard to listen
+window.jarvisTalk = () => { const m = $("#mic"); if(m && !m.hidden && !m.classList.contains("rec")) m.click(); };
+
 // ---------------------------------------------------------------- live stream
 function connect(){
   const es = new EventSource("/api/stream");
   es.onmessage = e => {
     const ev = JSON.parse(e.data);
+    try { window.HUDFX?.onEvent(ev); } catch {}
     if(ev.type === "activity"){
       if(ev.kind === "reply") { logLine(ev.agent, ev.message, "reply", true); }
       else logLine(ev.agent, ev.message, ev.kind);
@@ -749,6 +761,7 @@ function connect(){
     else if(ev.type === "celebrate"){ confetti(); logLine(ev.agent, "🎉 " + ev.text, "job"); }
     else if(ev.type === "alert"){ redAlert(); }
     else if(ev.type === "focus"){ showFocus(ev.until, ev.task); }
+    else if(ev.type === "listen"){ window.jarvisTalk(); }
   };
 }
 
@@ -766,6 +779,7 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
   buildGrid(); focus("JARVIS"); await refresh(); connect(); phoneLink();
   state.activity.slice(-25).forEach(a => logLine(a.agent, a.message, a.kind));
   const params = new URLSearchParams(location.search);
+  if(params.get("listen") === "1") setTimeout(() => window.jarvisTalk(), 4500);
   if(params.get("kiosk") === "1"){   // the always-on JARVIS window: audio allowed, no click needed
     voiceOn = true; $("#voiceBtn").textContent = "🔊 Voice"; boot().then(() => { if(rec && !handsFree) setHandsFree(true); });
   } else if(params.get("autostart") === "true"){
@@ -781,5 +795,6 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
     if(innerWidth <= 900) setTimeout(() => document.querySelector("aside").scrollIntoView(), 300); }
 })();
 </script>
+<script src="/hud-fx.js"></script>
 </body>
 </html>
