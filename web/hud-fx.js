@@ -225,6 +225,24 @@ async function syncHud(){
 }
 syncHud();
 
+// ------------------------------------------------------------------ living HUD: time of day and real weather
+(function living(){
+  const tint = () => { const h = new Date().getHours();
+    const c = h < 6 ? "rgba(40,60,140,.10)" : h < 11 ? "rgba(95,216,255,.06)" : h < 17 ? "rgba(255,255,255,.02)" : h < 21 ? "rgba(255,140,40,.07)" : "rgba(255,90,40,.06)";
+    document.documentElement.style.setProperty("--daytint", c); };
+  const st = document.createElement("style");
+  st.textContent = `body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:var(--daytint,transparent);transition:background 3s}#hudRain{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.35}`;
+  document.head.appendChild(st); tint(); setInterval(tint, 300000);
+  let raining = false; const cv = document.createElement("canvas"); cv.id = "hudRain"; document.body.appendChild(cv); const x = cv.getContext("2d");
+  const drops = Array.from({length: 90}, () => ({x: Math.random(), y: Math.random(), v: .6 + Math.random() * .8}));
+  async function check(){ try { const g = await (await fetch("/api/greet")).json(); const hrs = g.weather?.today?.rainy_hours, now = new Date().getHours();
+    raining = Array.isArray(hrs) && hrs.some(h => Math.abs(parseInt(h) - now) <= 0); } catch {} }
+  check(); setInterval(check, 900000);
+  (function frame(){ cv.width = innerWidth; cv.height = innerHeight; if(raining && !reduce){ x.strokeStyle = "rgba(150,200,255,.6)"; x.lineWidth = 1;
+      drops.forEach(d => { d.y += d.v * .012; if(d.y > 1){ d.y = 0; d.x = Math.random(); } x.beginPath(); x.moveTo(d.x * cv.width, d.y * cv.height); x.lineTo(d.x * cv.width - 3, d.y * cv.height + 12); x.stroke(); }); }
+    setTimeout(() => requestAnimationFrame(frame), raining ? 30 : 2000); })();
+})();
+
 // ------------------------------------------------------------------ events from JARVIS
 function onEvent(ev){
   if(ev.type === "activity" && ev.agent && ev.agent !== "YOU" && ["job", "report", "reply"].includes(ev.kind)) react(ev.agent);
