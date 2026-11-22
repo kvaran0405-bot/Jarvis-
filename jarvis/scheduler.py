@@ -351,7 +351,7 @@ class Scheduler:
                 threading.Thread(target=self.run_routine, args=(routine,), daemon=True).start()
 
     MAINTENANCE = {"file_index": every_hours(6), "housekeeping": daily_at("03:00", weekday=6),
-                   "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6), "leave_now": every_hours(1 / 12),
+                   "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6), "leave_now": every_hours(1 / 12), "screenshots": every_hours(1 / 60),
                    "nudge": every_hours(2)}
 
     def maintenance(self, now: datetime) -> None:
@@ -381,6 +381,10 @@ class Scheduler:
             elif name == "leave_now":
                 from .butler import leave_now_check
                 leave_now_check(self.store, self.bus)
+            elif name == "screenshots":
+                from .desktop import new_screenshots
+                for path in new_screenshots(self.store):
+                    self.bus.publish({"type": "screenshot", "path": path, "name": path.replace("\\", "/").rsplit("/", 1)[-1]})
             elif name == "nudge":
                 from .butler import wellness_nudge
                 wellness_nudge(self.store, self.bus)

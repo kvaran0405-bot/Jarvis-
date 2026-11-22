@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Vision</title>
+<meta name="theme-color" content="#03060a"><link rel="icon" href="/icon-192.png">
+<script src="/native-bridge.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:#03060a;color:#dce7f2;font-family:"JetBrains Mono",monospace;overflow:hidden}
+video,#hud{position:fixed;inset:0;width:100%;height:100%;object-fit:cover}
+#hud{pointer-events:none}
+.top{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:max(12px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 8px max(14px,env(safe-area-inset-left));background:linear-gradient(#03060acc,transparent)}
+.top a{color:#8a95a7;text-decoration:none;font-size:12px;border:1px solid #1b2330;padding:6px 10px;border-radius:16px}
+.top b{font:700 12px Orbitron,sans-serif;letter-spacing:.3em;color:#5fd8ff;margin-right:auto}
+#sub{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom));width:min(560px,92%);text-align:center;font:600 16px/1.45 "JetBrains Mono",monospace;color:#fff;text-shadow:0 2px 8px #000,0 0 3px #000}
+#sub small{display:block;font:700 9px Orbitron,sans-serif;letter-spacing:.3em;color:#5fd8ff;margin-bottom:4px}
+.deck{position:fixed;left:0;right:0;bottom:0;padding:10px max(14px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));display:grid;gap:12px;justify-items:center;background:linear-gradient(transparent,#03060aee 40%)}
+.modes{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.modes button{background:rgba(10,17,26,.8);color:#c9d3e0;border:1px solid #1f3346;font:600 10px Orbitron,sans-serif;letter-spacing:.14em;padding:8px 11px;border-radius:14px}
+.modes button.on{color:#5fd8ff;border-color:#5fd8ff;box-shadow:0 0 12px rgba(95,216,255,.35)}
+.row{display:flex;align-items:center;gap:26px}
+.btn{width:54px;height:54px;border-radius:50%;border:1px solid #1f3346;background:rgba(10,17,26,.8);color:#fff;font-size:20px;display:grid;place-items:center}
+.btn.on{background:#5fd8ff;color:#000}
+#shoot{width:76px;height:76px;border-radius:50%;border:3px solid #5fd8ff;background:radial-gradient(circle,#fff 0 30%,#5fd8ff 31% 46%,transparent 47%);box-shadow:0 0 24px rgba(95,216,255,.6)}
+#shoot.busy{animation:spin 1s linear infinite;border-style:dashed}
+@keyframes spin{to{transform:rotate(360deg)}}
+#err{position:fixed;inset:0;display:none;place-items:center;text-align:center;padding:24px;color:#8a95a7}
+</style></head><body>
+<video id="cam" playsinline muted autoplay></video>
+<canvas id="hud"></canvas>
+<div class="top"><b>VISION</b><a href="/command-centre.html">← JARVIS</a></div>
+<div id="sub" aria-live="polite"><small>JARVIS</small>Point the camera and tap the button.</div>
+<div class="deck">
+  <div class="modes" role="radiogroup" aria-label="What should JARVIS look for">
+    <button data-m="scan" class="on">Scan</button><button data-m="ask">Ask</button><button data-m="meal">Meal</button><button data-m="outfit">Outfit</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="live" title="Live: look every few seconds" aria-label="Live mode">◉</button>
+    <button id="shoot" aria-label="Look now"></button>
+    <button class="btn" id="mic" title="Ask by voice" aria-label="Ask by voice">🎙</button>
+  </div>
+</div>
+<div id="err"></div>
+<script>
+const $ = s => document.querySelector(s);
+let mode = "scan", items = [], busy = false, liveT = null, scanY = 0, facing = "environment", stream = null;
+const cam = $("#cam"), hud = $("#hud"), x = hud.getContext("2d");
+
+async function start(){
+  try { if(stream) stream.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: facing, width: {ideal: 1280}}, audio: false}); cam.srcObject = stream; }
+  catch(e){ $("#err").style.display = "grid"; $("#err").textContent = "JARVIS needs the camera. Allow camera access for the JARVIS app (or this browser), then reload."; }
+}
+function fit(){ hud.width = innerWidth * devicePixelRatio; hud.height = innerHeight * devicePixelRatio; x.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0); }
+addEventListener("resize", fit); fit();
+
+// map a box (fractions of the camera image) to the screen, accounting for object-fit: cover
+function toScreen([bx, by, bw, bh]){
+  const vw = cam.videoWidth || innerWidth, vh = cam.videoHeight || innerHeight, s = Math.max(innerWidth / vw, innerHeight / vh);
+  const ox = (innerWidth - vw * s) / 2, oy = (innerHeight - vh * s) / 2;
+  return [ox + bx * vw * s, oy + by * vh * s, bw * vw * s, bh * vh * s];
+}
+function draw(t){
+  const W = innerWidth, H = innerHeight; x.clearRect(0, 0, W, H);
+  x.strokeStyle = "rgba(95,216,255,.10)"; x.lineWidth = 1;
+  for(let i = 0; i < W; i += 40){ x.beginPath(); x.moveTo(i, 0); x.lineTo(i, H); x.stroke(); }
+  for(let j = 0; j < H; j += 40){ x.beginPath(); x.moveTo(0, j); x.lineTo(W, j); x.stroke(); }
+  const c = 36, m = 24; x.strokeStyle = "#5fd8ff"; x.lineWidth = 2;
+  [[m, m + 50, 1, 1], [W - m, m + 50, -1, 1], [m, H - 170, 1, -1], [W - m, H - 170, -1, -1]].forEach(([px, py, dx, dy]) => { x.beginPath(); x.moveTo(px + dx * c, py); x.lineTo(px, py); x.lineTo(px, py + dy * c); x.stroke(); });
+  if(busy || liveT){ scanY = (scanY + 4) % H; const g = x.createLinearGradient(0, scanY - 30, 0, scanY); g.addColorStop(0, "rgba(95,216,255,0)"); g.addColorStop(1, "rgba(95,216,255,.45)"); x.fillStyle = g; x.fillRect(0, scanY - 30, W, 30); }
+  items.forEach((it, i) => { const [bx, by, bw, bh] = toScreen(it.box), col = ["#3dff9a", "#ffd23f", "#5fd8ff", "#ff7a3d", "#b06bff"][i % 5], L = 14;
+    x.strokeStyle = col; x.lineWidth = 2; x.shadowColor = col; x.shadowBlur = 10;
+    [[bx, by, 1, 1], [bx + bw, by, -1, 1], [bx, by + bh, 1, -1], [bx + bw, by + bh, -1, -1]].forEach(([px, py, dx, dy]) => { x.beginPath(); x.moveTo(px + dx * L, py); x.lineTo(px, py); x.lineTo(px, py + dy * L); x.stroke(); });
+    x.shadowBlur = 0; x.fillStyle = "rgba(3,6,10,.75)"; const lbl = it.label.toUpperCase(); x.font = "700 11px Orbitron, sans-serif";
+    const w = Math.max(x.measureText(lbl).width, x.measureText(it.note).width) + 14, lx = Math.max(6, Math.min(bx, W - w - 6)), ly = Math.max(56, by - 36);
+    x.fillRect(lx, ly, w, 32); x.fillStyle = col; x.fillText(lbl, lx + 7, ly + 13); x.fillStyle = "#dce7f2"; x.font = "500 11px 'JetBrains Mono', monospace"; x.fillText(it.note, lx + 7, ly + 26); });
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+function speak(text){
+  $("#sub").innerHTML = `<small>JARVIS</small>${text.replace(/[<>&]/g, "")}`;
+  fetch("/api/tts", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent: "JARVIS", text})})
+    .then(r => { if(!r.ok) throw 0; return r.blob(); }).then(b => new Audio(URL.createObjectURL(b)).play())
+    .catch(() => { try { const u = new SpeechSynthesisUtterance(text); speechSynthesis.cancel(); speechSynthesis.speak(u); } catch {} });
+}
+async function look(question = ""){
+  if(busy || !cam.videoWidth) return; busy = true; $("#shoot").classList.add("busy");
+  const c = document.createElement("canvas"), k = Math.min(1, 1024 / cam.videoWidth); c.width = cam.videoWidth * k; c.height = cam.videoHeight * k;
+  c.getContext("2d").drawImage(cam, 0, 0, c.width, c.height);
+  try {
+    const r = await fetch("/api/vision", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({image: c.toDataURL("image/jpeg", .8), mode, question})});
+    if(r.status === 401){ location.href = "/login.html?next=/vision.html"; return; }
+    const out = await r.json(); items = out.items || []; if(out.answer) speak(out.answer);
+  } catch { speak("I lost the link to your laptop, Sir."); }
+  busy = false; $("#shoot").classList.remove("busy");
+}
+$("#shoot").onclick = () => look();
+$("#live").onclick = () => { if(liveT){ clearInterval(liveT); liveT = null; $("#live").classList.remove("on"); return; }
+  $("#live").classList.add("on"); look(); liveT = setInterval(() => look(), 6000); };
+document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { mode = b.dataset.m; document.querySelectorAll("[data-m]").forEach(z => z.classList.toggle("on", z === b)); items = [];
+  if(mode === "ask") $("#mic").click(); });
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+$("#mic").onclick = () => { if(!SR){ speak("Voice questions need Chrome or the JARVIS app."); return; }
+  const rec = new SR(); rec.lang = "en-US"; rec.interimResults = false; $("#mic").classList.add("on"); $("#sub").innerHTML = "<small>LISTENING</small>Ask about what you're pointing at…";
+  rec.onresult = e => { const q = e.results[0][0].transcript; $("#sub").innerHTML = `<small>YOU</small>${q.replace(/[<>&]/g, "")}`; if(mode === "scan") mode = "ask"; look(q); };
+  rec.onend = () => $("#mic").classList.remove("on"); try { rec.start(); } catch {} };
+start();
+</script>
+</body></html>

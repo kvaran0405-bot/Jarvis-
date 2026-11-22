@@ -13,6 +13,8 @@ FILES = ["find_files", "read_file", "write_file", "send_file_to_phone"]
 DEVICES = ["laptop_status", "open_on_laptop", "laptop_screenshot", "lock_laptop", "run_on_laptop",
            "phone_status", "open_on_phone", "phone_apps", "phone_screenshot"] + FILES
 ROUTINES = ["create_routine", "list_routines", "delete_routine"]
+DESK = ["list_windows", "window_action", "snap_windows", "show_desktop", "media_control", "set_brightness", "save_workspace",
+        "open_workspace", "organise_folder", "rename_files", "make_slides", "make_spreadsheet", "look_at_screen"]
 LECTURES = ["start_recording", "stop_recording", "list_lectures", "read_lecture", "summarize_lecture"]
 BUSINESS = ["add_gig", "update_gig", "list_gigs", "make_quote", "gig_checklist", "add_crew", "list_crew",
             "assign_crew", "crew_for_gig", "crew_message", "record_payment", "make_invoice", "make_rundown"]
@@ -58,7 +60,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           BASE_TOOLS + ["add_event", "list_events", "delete_event", "add_goal", "update_goal", "list_goals",
                         "log_habit", "habit_report", "log_transaction", "spending_summary", "add_application",
                         "update_application", "list_applications", "publish_report", "delegate"]
-          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + FRIEND + STUDY
+          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + FRIEND + STUDY + DESK
           + ["urgent_alert", "sync_calendar", "list_gigs", "focus_mode", "clean_slate", "search_email", "tidy_laptop",
              "log_workout", "log_meeting", "network_radar", "coach_agent", "grocery_list", "track_expiry"],
           web=True, effort="high"),
@@ -86,7 +88,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "Assignment coach: break it into steps with dates, suggest sources, and check drafts against the rubric "
           "with specific, honest feedback - coach, never write it for them.",
           BASE_TOOLS + FILES + LECTURES + STUDY + ["add_event", "list_events", "add_goal", "update_goal",
-                                                   "list_goals", "remind_me", "focus_mode"],
+                                                   "list_goals", "remind_me", "focus_mode", "make_slides", "look_at_screen"],
           web=True, effort="high"),
     Agent("ZEUS", "Career", "#ffb020",
           "You run the owner's career pipeline: job and internship search, applications tracker, CV and "
@@ -125,7 +127,8 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "Event day: `make_rundown` with reminders. Vendors are contacts with relationship 'vendor: <type>' and "
           "prices in their notes. Write Instagram captions for event photos (warm, classy, a few hashtags).",
           BASE_TOOLS + BUSINESS + COMMS + EMAIL_SMARTS + FILES + ["add_event", "list_events", "publish_report",
-                                                                    "log_transaction", "spending_summary", "log_meeting"],
+                                                                    "log_transaction", "spending_summary", "log_meeting",
+                                                                    "make_slides", "make_spreadsheet"],
           web=True, effort="high"),
     Agent("STEVE", "Fitness & Habits", "#ff7a3d",
           "You are the owner's coach for training, routines and habits. Track habits, design workouts and "
@@ -155,8 +158,10 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "screenshots, find, read and write files, check battery and storage, and set up routines. Terminal "
           "commands go through `run_on_laptop`, which always waits for the owner's approval: explain plainly "
           "what each command does and prefer safe, read-only commands. Never delete files or change system settings "
-          "unless the owner explicitly asked.",
-          BASE_TOOLS + DEVICES + ROUTINES + ["remind_me", "list_outbox", "tidy_laptop", "focus_mode", "read_aloud"],
+          "unless the owner explicitly asked. Chain laptop actions from one sentence ('open Spotify, play my focus mix, "
+          "close Chrome, dim the screen'): windows, media, brightness, workspaces. File chores (organise, rename) "
+          "always show a preview and `propose` it first. Use `look_at_screen` when the owner refers to what's on screen.",
+          BASE_TOOLS + DEVICES + ROUTINES + DESK + ["remind_me", "list_outbox", "tidy_laptop", "focus_mode", "read_aloud"],
           effort="medium"),
     Agent("SENTINEL", "Deadline Watch & Risk", "#ff3b3b",
           "You are the watchdog. Scan for overdue or at-risk tasks, deadline clashes, stalled goals and "

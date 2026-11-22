@@ -934,6 +934,61 @@ def orb_action(a: OrbAction):
     raise HTTPException(400, "unknown action")
 
 
+# ---------------------------------------------------------------- vision: phone camera, screenshots
+class VisionShot(BaseModel):
+    image: str            # data URL from the camera
+    mode: str = "scan"    # scan | ask | meal | outfit
+    question: str = ""
+
+
+@app.post("/api/vision")
+async def vision_live(v: VisionShot):
+    import base64
+    from . import vision
+    if brain.pick(store) is None:
+        return {"answer": "I'm paused, Sir. Say resume and I'll take a look.", "items": []}
+    head, _, b64 = v.image.partition(",")
+    mime = head[5:].split(";")[0] if head.startswith("data:") else "image/jpeg"
+    try:
+        data = base64.b64decode(b64 or head)
+    except ValueError:
+        raise HTTPException(400, "bad image") from None
+    if len(data) > 6_000_000:
+        raise HTTPException(413, "image too large")
+    try:
+        out = await asyncio.to_thread(vision.live, data, mime, v.mode, v.question)
+    except Exception as exc:  # noqa: BLE001
+        return {"answer": f"I couldn't see that: {exc}"[:300], "items": []}
+    bus.log("JARVIS", f"👁 {out['answer']}", "reply")
+    return out
+
+
+class ShotPath(BaseModel):
+    path: str
+
+
+@app.post("/api/screenshot/analyse")
+async def screenshot_analyse(s: ShotPath):
+    from pathlib import Path as _P
+    from . import vision
+    from .guard import blocked
+    p = _P(s.path)
+    if not p.is_file() or not devices._inside(p, devices.HOME) or blocked(p.name):
+        raise HTTPException(400, "not a screenshot I can read")
+    try:
+        seen = await asyncio.to_thread(vision.describe, p, "")
+    except Exception as exc:  # noqa: BLE001
+        return {"reply": f"I couldn't read it: {exc}"}
+    if "private document" in seen.lower()[:80]:
+        return {"reply": "That screenshot looks private, so I've left it alone, Sir."}
+    prompt = (f"The owner just took a screenshot. What it shows:\n{seen}\n\nAct on it the way they'd want: an error gets "
+              "a fix, a schedule or event goes on the calendar, a receipt is logged, a chat gets a suggested reply, "
+              "anything else gets a one-line useful summary. Then confirm in one or two sentences.")
+    reply = await asyncio.to_thread(engine.run, "JARVIS", prompt, chat=True)
+    bus.log("JARVIS", reply, "reply")
+    return {"reply": reply}
+
+
 # ---------------------------------------------------------------- phone app: WhatsApp smart replies
 @app.get("/api/phone/token")
 def phone_token():

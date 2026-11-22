@@ -9,3 +9,5 @@ edge-tts>=7.0           # free natural voices for every agent
 tzdata>=2024.1          # world timezones (Windows doesn't ship them)
 sounddevice>=0.4.6     # lecture recorder: records the laptop microphone
 numpy>=1.26            # (needed by the recorder and the speech engine)
+python-pptx>=0.6.23    # PowerPoint decks JARVIS makes for you
+openpyxl>=3.1          # Excel files JARVIS makes for you

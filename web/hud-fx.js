@@ -303,6 +303,15 @@ function onEvent2(ev){
   _onEvent(ev);
   if(ev.type === "nudge"){ toast(ev.agent || "BANNER", ev.text); }
   if(ev.type === "mission"){ dossier(ev.text); }
+  if(ev.type === "screenshot"){
+    const t = $("#hudToast"); if(!t) return; t.style.setProperty("--tc", "#5fd8ff");
+    t.innerHTML = `<b>EDITH · NEW SCREENSHOT</b>${esc(ev.name)}<div style="display:flex;gap:6px;margin-top:8px"><button class="btn" id="shotGo">Read it</button><button class="btn no" id="shotNo">Ignore</button></div>`;
+    t.classList.add("on"); SFX.arrive(); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 20000);
+    $("#shotNo").onclick = () => t.classList.remove("on");
+    $("#shotGo").onclick = async () => { $("#shotGo").textContent = "Reading…";
+      try { const r = await (await fetch("/api/screenshot/analyse", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({path: ev.path})})).json();
+        t.classList.remove("on"); window.queueSpeech?.("JARVIS", r.reply || r.detail || "Done."); } catch { t.classList.remove("on"); } };
+  }
 }
 
 window.HUDFX = {speakStart, speakEnd, onEvent: onEvent2, boot, expo, sfx: SFX, toast, dossier};

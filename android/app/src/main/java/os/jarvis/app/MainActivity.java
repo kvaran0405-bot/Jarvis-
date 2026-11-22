@@ -96,7 +96,8 @@ public class MainActivity extends Activity {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
                 ui.post(() -> {
-                    if (hasMic()) request.grant(request.getResources());
+                    boolean wantsCam = java.util.Arrays.asList(request.getResources()).contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE);
+                    if (hasMic() && (!wantsCam || hasCamera())) request.grant(request.getResources());
                     else { pendingWebPermission = request; askMic(); }
                 });
             }
@@ -202,8 +203,12 @@ public class MainActivity extends Activity {
         return checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
     }
 
+    private boolean hasCamera() {
+        return checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+    }
+
     private void askMic() {
-        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
+        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA}, REQ_MIC);
     }
 
     @Override
