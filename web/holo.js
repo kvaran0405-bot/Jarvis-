@@ -6,6 +6,7 @@ const VIEWS = [["week", "Week"], ["business", "Shaabaz"], ["body", "Body"], ["mo
                ["diagnostics", "Diagnostics"], ["trophies", "Trophies"]];
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let THREE = null, root = null, renderer, scene, camera, group, data = null, view = "week", raf = 0, open = false, tour = null;
+let body3d = false;
 let yaw = 0, pitch = 0, zoom = 1, drag = null, labels = [], t0 = performance.now(), animators = [];
 
 function loadThree(){
@@ -26,13 +27,16 @@ css.textContent = `
 #holo .lbl{position:absolute;transform:translate(-50%,-130%);white-space:nowrap;font:600 10px Orbitron,sans-serif;letter-spacing:.12em;color:var(--lc,#fff);text-shadow:0 0 8px var(--lc,#fff);pointer-events:none;z-index:1}
 #holo .lbl small{display:block;text-align:center;font:500 10px "JetBrains Mono",monospace;letter-spacing:0;color:#8a95a7;text-shadow:none}
 #holo .hint{position:absolute;bottom:max(14px,env(safe-area-inset-bottom));left:0;right:0;text-align:center;font:500 10px "JetBrains Mono",monospace;color:#5d6878;letter-spacing:.12em;z-index:2}
+#holo .bpanel{position:absolute;inset:64px 0 36px;display:none;place-items:center;z-index:1;overflow:auto;padding:0 max(14px,env(safe-area-inset-right))}
+#holo .bpanel.on{display:grid}
+#holo .b3d{position:absolute;right:max(14px,env(safe-area-inset-right));bottom:max(40px,env(safe-area-inset-bottom));z-index:2;background:rgba(10,17,26,.75);color:#c9d3e0;border:1px solid rgba(95,216,255,.25);font:600 10px Orbitron,sans-serif;letter-spacing:.14em;padding:8px 10px;cursor:pointer;display:none}
 #holo .scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.02) 0 1px,transparent 1px 3px)}
 @media (max-width:700px){#holo .hbar button{padding:7px 7px;font-size:9px}#holo .ttl{flex-basis:100%}}`;
 document.head.appendChild(css);
 
 function build(){
   root = document.createElement("div"); root.id = "holo";
-  root.innerHTML = `<canvas></canvas><div class="scan"></div><div class="labels"></div>
+  root.innerHTML = `<canvas></canvas><div class="scan"></div><div class="labels"></div><div class="bpanel"></div><button class="b3d">3D HOLOGRAM</button>
     <div class="hbar"><span class="ttl">HOLO LAB</span>${VIEWS.map(([k, n]) => `<button data-v="${k}">${n}</button>`).join("")}<button class="x" aria-label="Close">✕</button></div>
     <div class="hint">DRAG TO SPIN · SCROLL / PINCH TO ZOOM · ESC TO CLOSE</div>`;
   document.body.appendChild(root);
@@ -49,6 +53,7 @@ function build(){
   const grid = new THREE.GridHelper(80, 40, 0x1b4a66, 0x0c2030); grid.position.y = -6; grid.material.transparent = true; grid.material.opacity = .3; scene.add(grid);
   root.querySelectorAll("[data-v]").forEach(b => b.onclick = () => { stopTour(); show(b.dataset.v, true); });
   root.querySelector(".x").onclick = close;
+  root.querySelector(".b3d").onclick = () => { body3d = !body3d; show("body"); };
   cv.addEventListener("pointerdown", e => { stopTour(); drag = {x: e.clientX, y: e.clientY}; cv.setPointerCapture(e.pointerId); });
   cv.addEventListener("pointermove", e => { if(!drag) return; yaw += (e.clientX - drag.x) * .006; pitch = Math.max(-.7, Math.min(.7, pitch + (e.clientY - drag.y) * .004)); drag = {x: e.clientX, y: e.clientY}; });
   cv.addEventListener("pointerup", () => drag = null);
@@ -267,8 +272,14 @@ const BUILD = {
 };
 
 function show(v, speak){
+  if(v !== "body") body3d = false;
   view = BUILD[v] ? v : "week"; yaw = 0; pitch = 0; zoom = 1; clear(); t0 = performance.now();
-  try { BUILD[view](); } catch(err){ console.error(err); }
+  const panel = root.querySelector(".bpanel"), flat = view === "body" && !body3d && window.BodyMap;
+  panel.classList.toggle("on", !!flat); root.querySelector(".b3d").style.display = view === "body" ? "block" : "none";
+  root.querySelector(".b3d").textContent = flat ? "3D HOLOGRAM" : "BODY MAP";
+  root.querySelector(".hint").textContent = flat ? "HOVER OR TAP A MUSCLE FOR DETAILS · ESC TO CLOSE" : "DRAG TO SPIN · SCROLL / PINCH TO ZOOM · ESC TO CLOSE";
+  if(flat) window.BodyMap.render(panel, data.muscles);
+  else try { BUILD[view](); } catch(err){ console.error(err); }
   root.querySelectorAll("[data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === view));
   window.HUD_SFX?.whoosh?.();
   if(speak && window.sendCommand) window.sendCommand(`show me ${view === "business" ? "Shaabaz" : view}`, "JARVIS", true);
