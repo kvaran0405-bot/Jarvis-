@@ -628,7 +628,8 @@ async def stream():
         finally:
             bus.unsubscribe(q)
 
-    return StreamingResponse(gen(), media_type="text/event-stream")
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
 
 
 app.mount("/", StaticFiles(directory=ROOT / "web"), name="web")

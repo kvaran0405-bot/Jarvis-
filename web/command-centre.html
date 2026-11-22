@@ -328,14 +328,32 @@ function stopSpeaking(){
 const streams = {};
 function feedStream(rid, agent, text, final){
   const st = streams[rid] || (streams[rid] = {buf:"", any:false});
+  if(st.ended) return;
   st.buf += text || "";
   let m;
   while((m = st.buf.match(/^[\s\S]*?[.!?…](?=\s)|^[^\n]*\n/))){
     const sentence = m[0]; st.buf = st.buf.slice(sentence.length);
-    if(sentence.trim()){ st.any = true; queueSpeech(agent, withMood(st, sentence)); }
+    if(sentence.trim()){ st.any = true; st.lastSpoken = sentence; queueSpeech(agent, withMood(st, sentence)); }
   }
-  if(final && st.buf.trim()){ st.any = true; queueSpeech(agent, withMood(st, st.buf)); st.buf = ""; }
+  if(final && st.buf.trim()){ st.any = true; st.lastSpoken = st.buf; queueSpeech(agent, withMood(st, st.buf)); st.buf = ""; }
+  if(final) st.ended = true;
 }
+// The full reply has arrived. Streamed pieces can still be on their way (slower over Tailscale), so wait for the
+// end of the stream; if it doesn't come, speak whatever part of the reply hasn't been spoken yet.
+function finishStream(rid, agent, reply, speakFn, feedFn){
+  const st = streams[rid]; if(!st) return;
+  if(!st.any && !st.ended){ st.ended = true; speakFn(agent, reply || "Done."); return; }
+  setTimeout(() => {
+    if(st.ended) return;
+    st.ended = true;
+    const said = (st.lastSpoken || "").trim(), full = reply || "";
+    const at = said ? full.lastIndexOf(said.replace(/^\[\w+\]\s*/, "")) : -1;
+    const rest = at >= 0 ? full.slice(at + said.replace(/^\[\w+\]\s*/, "").length) : st.buf;
+    if(rest.trim()) speakFn(agent, withMood(st, rest));
+  }, 4000);
+  setTimeout(() => { delete streams[rid]; }, 60000);
+}
+
 function openVoiceSettings(){
   const opts = browserVoices();
   const msg = {
@@ -496,9 +514,8 @@ async function sendCommand(text, agent, voice=false){
   try {
     const r = await fetch("/api/command", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, agent, voice, rid})});
     const data = await r.json();
-    if(!streams[rid].any) queueSpeech(agent, data.reply || "Done.");  // stream missed: speak the full reply
+    finishStream(rid, agent, data.reply, queueSpeech);
   } catch(err){ logLine("JARVIS", "Connection to core lost: "+err, "error"); }
-  delete streams[rid];
   refresh();
 }
 let nextIsVoice = false;
