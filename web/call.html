@@ -150,6 +150,9 @@ async function handle(text){
   if(BYE.test(text)){ say(agent, `Goodbye, ${window.OWNER || "Sir"}.`).then(() => hangUp()); return; }
   const rid = Math.random().toString(36).slice(2); pendingRid = rid; streams[rid] = {buf:"", any:false, all:""};
   setState("thinking", `${agent} is thinking…`);
+  setTimeout(() => { if(streams[rid] && !streams[rid].any && pendingRid === rid){ streams[rid].any = false;
+    const acks = {JARVIS:["Right away Sir.","One moment Sir.","Certainly Sir."]}[agent] || ["One moment."];
+    say(agent, acks[Math.floor(Math.random()*acks.length)]); } }, 1200);
   try {
     const r = await fetch("/api/command", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, agent, voice:true, rid})});
     if(r.status === 401){ location.href = "/login.html?next=/call.html"; return; }

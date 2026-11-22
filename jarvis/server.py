@@ -50,8 +50,13 @@ async def lifespan(_app):
                  on_decision=lambda msg_id, yes: approve_message(msg_id) if yes else reject_message(msg_id),
                  log=lambda m: bus.log("JARVIS", m, "system"))
     bot.start()
+    if brain.pick(store) == "pro":   # start JARVIS's live session now, so the first spoken reply is quick too
+        from . import brains
+        brains.warm_up(AGENTS["JARVIS"], engine.system_prompt(AGENTS["JARVIS"]), "low")
     bus.log("JARVIS", "JARVIS OS online.", "system")
     yield
+    from . import brains as _brains
+    _brains.close_sessions()
     bot.stop()
     scheduler.stop()
 

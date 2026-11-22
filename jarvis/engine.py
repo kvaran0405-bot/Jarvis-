@@ -49,7 +49,8 @@ Operating rules:
   every evening this week?") rather than asking "when are your exams?". Ask only when guessing would be harmful.
   Keep records (tasks, notes, calendar for study blocks) up to date yourself without asking.
 - When the owner shares a lasting fact about themselves, store it with `remember`.
-- Output Markdown. Keep spoken-style replies short (2-6 sentences) unless a report or document is requested."""
+- Output Markdown. Keep conversational replies short (1-3 sentences) unless a report or document is requested.
+- Greetings, thanks and small talk: answer straight away in character, without calling any tools."""
 
 
 class Engine:
@@ -127,7 +128,8 @@ class Engine:
             return reply
 
         if voice:
-            prompt += ("\n\n(Spoken command. Answer in one to three short spoken sentences: no Markdown, no lists, "
+            prompt += ("\n\n(Spoken command. Answer in one or two short spoken sentences, like a butler at your shoulder: "
+                       "the answer first, at most one dry aside. No Markdown, no lists, "
                        "no links, no 'Sources' line. Act first with your tools, then say what you did, in character and with "
                        "feeling (mood tags). Speak your first sentence early.)")
         effort = "low" if voice else agent.effort
@@ -166,6 +168,9 @@ class Engine:
                 messages.clear()
             messages.append({"role": "user", "content": full_prompt})
             return self._loop(agent, messages, depth, on_text, effort, approved)
+        if which == "pro" and chat and depth == 0 and not approved:   # live chat: kept-alive session, fast replies
+            return brains.run_pro_live(agent, full_prompt, self.system_prompt(agent), effort=effort, on_text=on_text,
+                                       log=log, model=agent.model or None)
         if which == "pro":
             session = self._chats.get(key) if chat else None
             reply, session = brains.run_pro(agent, full_prompt, self.system_prompt(agent), self.tool_names_for(agent),
@@ -234,6 +239,7 @@ class Engine:
         return "I've hit my step limit for this request; progress so far is saved."
 
     def reset_chat(self, agent_name: str | None = None) -> None:
+        brains.close_sessions(agent_name.upper() if agent_name else None)
         if agent_name:
             for key in [k for k in self._chats if k[1] == agent_name.upper()]:
                 self._chats.pop(key, None)

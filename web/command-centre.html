@@ -478,9 +478,21 @@ document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
   b.classList.add("on"); $("#p-"+b.dataset.p).classList.add("on"); });
 
 // ---------------------------------------------------------------- commands
+// A quick spoken acknowledgement if the real answer takes more than a moment (like a butler saying "Right away").
+const ACKS = {
+  JARVIS: ["Right away Sir.", "One moment Sir.", "Certainly Sir.", "On it Sir.", "Very good Sir."],
+  FRIDAY: ["On it, boss.", "Gimme a sec.", "Sure thing."], EDITH: ["Working on it.", "One moment."],
+  SENTINEL: ["Checking."], STEVE: ["You got it."], ZEUS: ["Understood."], VERONICA: ["Let me look."],
+};
+function ackFor(agent){ const a = ACKS[agent] || ["One moment."]; return a[Math.floor(Math.random() * a.length)]; }
+function warmAcks(){   // pre-make the acknowledgement audio so it plays instantly
+  if(VOICE_PROVIDER === "browser") return;
+  ACKS.JARVIS.forEach(t => fetch("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({agent:"JARVIS", text:t})}).catch(() => {}));
+}
 async function sendCommand(text, agent, voice=false){
   const rid = Math.random().toString(36).slice(2);
   streams[rid] = {buf:"", any:false}; focus(agent); stopSpeaking();
+  if(voice) setTimeout(() => { if(streams[rid] && !streams[rid].any && !streams[rid].acked){ streams[rid].acked = true; queueSpeech(agent, ackFor(agent)); } }, 1200);
   try {
     const r = await fetch("/api/command", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, agent, voice, rid})});
     const data = await r.json();
@@ -630,7 +642,7 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
   if(infoResp.status === 401){ location.href = "/login.html?next=/command-centre.html"; return; }
   const info = await infoResp.json();
   info.agents.forEach(a => AGENTS[a.name] = a); ORDER = info.agents.map(a => a.name);
-  try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; } catch {}
+  try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; warmAcks(); } catch {}
   try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
   $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";
   buildGrid(); focus("JARVIS"); await refresh(); connect();

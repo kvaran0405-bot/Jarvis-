@@ -7,6 +7,7 @@ Both use the exact same JARVIS tools as the API brain:
 from __future__ import annotations
 
 import json
+import queue
 import re
 import subprocess
 import threading
@@ -31,6 +32,133 @@ class BrainError(Exception):
 
 # ================================================================ Claude Code (your Pro / Max plan)
 LIMIT_RE = re.compile(r"(usage|rate|session|weekly)\s*limit|limit reached|hit your limit|out of (extra )?usage", re.I)
+
+
+class ProSession:
+    """A Claude Code process kept running between messages (stream-json in and out), so a chat reply starts in about
+    a second instead of paying Claude Code's start-up on every message. One per agent + effort + model."""
+
+    MAX_TURNS = 40   # then start fresh, so the conversation doesn't grow forever
+
+    def __init__(self, agent, system_text: str, effort: str, model: str | None):
+        cli = brain.claude_cli()
+        if not cli:
+            raise BrainError("Claude Code is not installed - see README 'Use your Claude plan'.")
+        WORK.mkdir(parents=True, exist_ok=True)
+        sys_file = WORK / f"system-{agent.name}-live.md"
+        sys_file.write_text(system_text, encoding="utf-8")
+        mcp_file = WORK / f"mcp-{agent.name}-live.json"
+        mcp_file.write_text(json.dumps({"mcpServers": {"jarvis": {
+            "type": "http", "url": f"http://127.0.0.1:{settings.port}/mcp/{agent.name}?depth=0&approved=0",
+            "headers": {"X-Jarvis-Token": settings.bridge_token}}}}), encoding="utf-8")
+        cmd = [cli, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+               "--include-partial-messages", "--system-prompt-file", str(sys_file),
+               "--mcp-config", str(mcp_file), "--strict-mcp-config",
+               "--tools", "WebSearch,WebFetch", "--allowedTools", "mcp__jarvis,WebSearch,WebFetch",
+               "--permission-mode", "dontAsk",
+               "--model", model if model and not model.startswith("gemini") else settings.pro_model,
+               "--effort", effort]
+        self.proc = subprocess.Popen(cmd, cwd=WORK, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", bufsize=1)
+        self.lines: "queue.Queue[str | None]" = queue.Queue()
+        self.err: list[str] = []
+        threading.Thread(target=self._pump, daemon=True).start()
+        threading.Thread(target=lambda: self.err.extend(self.proc.stderr), daemon=True).start()
+        self.turns = 0
+        self.lock = threading.Lock()
+
+    def _pump(self) -> None:
+        for line in self.proc.stdout:
+            self.lines.put(line)
+        self.lines.put(None)   # process ended
+
+    def alive(self) -> bool:
+        return self.proc.poll() is None and self.turns < self.MAX_TURNS
+
+    def close(self) -> None:
+        try:
+            self.proc.stdin.close()
+            self.proc.terminate()
+        except Exception:  # noqa: BLE001
+            pass
+
+    def ask(self, prompt: str, on_text: Callable[[str], None] | None, log: Callable[[str], None],
+            timeout: float = 600) -> str:
+        with self.lock:
+            self.turns += 1
+            self.proc.stdin.write(json.dumps({"type": "user", "message": {"role": "user", "content": prompt}}) + "\n")
+            self.proc.stdin.flush()
+            streamed = False
+            while True:
+                line = self.lines.get(timeout=timeout)
+                if line is None:
+                    raise BrainError(" ".join(self.err)[-400:] or "Claude Code stopped")
+                line = line.strip()
+                if not line.startswith("{"):
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                kind = obj.get("type")
+                if kind == "stream_event":
+                    ev = obj.get("event", {})
+                    delta = ev.get("delta", {}) if ev.get("type") == "content_block_delta" else {}
+                    if delta.get("type") == "text_delta" and on_text:
+                        on_text(delta.get("text", ""))
+                        streamed = True
+                    elif ev.get("type") == "message_stop" and on_text and streamed:
+                        on_text("\n")
+                elif kind == "assistant":
+                    for block in obj.get("message", {}).get("content", []):
+                        if block.get("type") == "tool_use" and not block.get("name", "").startswith("mcp__jarvis"):
+                            log(f"{block.get('name')} {json.dumps(block.get('input', {}))[:120]}")
+                elif kind == "result":
+                    text = (obj.get("result") or "").strip()
+                    if obj.get("is_error"):
+                        if LIMIT_RE.search(text):
+                            raise LimitReached(text[:300])
+                        raise BrainError(text[:400] or "Claude Code error")
+                    return text
+
+
+_sessions: dict[tuple, ProSession] = {}
+_sessions_lock = threading.Lock()
+
+
+def run_pro_live(agent, prompt: str, system_text: str, *, effort: str, on_text, log, model: str | None = None) -> str:
+    """Chat turn on a kept-alive Claude Code session (falls back to a fresh one if it died)."""
+    key = (agent.name, effort, model or settings.pro_model)
+    with _sessions_lock:
+        sess = _sessions.get(key)
+        if sess is None or not sess.alive():
+            if sess:
+                sess.close()
+            sess = _sessions[key] = ProSession(agent, system_text, effort, model)
+    try:
+        return sess.ask(prompt, on_text, log)
+    except (BrainError, queue.Empty):
+        close_sessions(agent.name)
+        raise
+
+
+def close_sessions(agent_name: str | None = None) -> None:
+    with _sessions_lock:
+        for key in [k for k in _sessions if agent_name is None or k[0] == agent_name]:
+            _sessions.pop(key).close()
+
+
+def warm_up(agent, system_text: str, effort: str) -> None:
+    """Start JARVIS's chat session in the background so the very first reply is quick too."""
+    def go():
+        try:
+            key = (agent.name, effort, settings.pro_model)
+            with _sessions_lock:
+                if key not in _sessions:
+                    _sessions[key] = ProSession(agent, system_text, effort, None)
+        except Exception:  # noqa: BLE001 - not fatal: the first message will start it
+            pass
+    threading.Thread(target=go, daemon=True).start()
 
 
 def run_pro(agent, prompt: str, system_text: str, tool_names: list[str], *, depth: int, effort: str,
