@@ -95,7 +95,7 @@ function addLog(who, text){
 
 // ------------------------------------------------------------ speaking (sentence by sentence)
 let CUSTOM = {}; try { CUSTOM = JSON.parse(localStorage.getItem("jarvis-voices") || "{}"); } catch {}
-const BASE = {JARVIS:{pitch:.85,rate:1.02},FRIDAY:{pitch:1.25,rate:1.05},ZEUS:{pitch:.6,rate:.95},SENTINEL:{pitch:.5,rate:.92},VERONICA:{pitch:1.3,rate:1.05},ATHENA:{pitch:1.2,rate:1}};
+const BASE = {JARVIS:{pitch:.85,rate:1.02},FRIDAY:{pitch:1.25,rate:1.05},ZEUS:{pitch:.6,rate:.95},SENTINEL:{pitch:.5,rate:.92},VERONICA:{pitch:1.3,rate:1.05},ATHENA:{pitch:1.2,rate:1},PEPPER:{pitch:1.15,rate:1.02}};
 function speakBrowser(a, text, done){
   const mood = (String(text).match(/^\s*\[(\w+)\]/) || [])[1]?.toLowerCase(), [dr, dp] = MOODS[mood] || [0, 0];
   const u = new SpeechSynthesisUtterance(stripMoods(text)); const v = {pitch:1, rate:1, ...(BASE[a]||{}), ...(CUSTOM[a]||{})};

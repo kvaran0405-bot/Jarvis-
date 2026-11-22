@@ -76,7 +76,8 @@ WEEKLY = ("Run the weekly review across personal life, career and academics: win
 INBOX = ("Inbox sweep. Call check_email(new_only=true). For each new e-mail that matters: read it in full, then "
          "call suggest_replies with a one-line gist in your own voice (who, what they want, by when), an English "
          "translation if it isn't in English, and 2-3 ready replies the owner can tap to send. Create tasks or "
-         "events for requests and deadlines. Ignore newsletters, promotions and automated mail. If something is "
+         "events for requests and deadlines. Client enquiries for the owner's events business go to PEPPER with "
+         "`delegate` (PEPPER logs the gig and suggests the replies). Ignore newsletters, promotions and automated mail. If something is "
          "urgent, publish an 'alert' report. Finish with a 2-line summary, or just 'Inbox clear.'")
 MONEY = ("Weekly money report. Call bank_alerts(days=7) and spending_summary(days=7). List the week's transactions "
          "from the alerts (date, merchant, amount, card/account last 4 digits), group them by category, total "
@@ -198,6 +199,9 @@ class Scheduler:
         from . import brain
         now = datetime.now(self.settings.tz)
         self.dispatch_outbox()  # approved messages still go out - sending them needs no AI
+        from . import gcal
+        if gcal.ready():   # calendar sync needs no AI either
+            threading.Thread(target=gcal.sync, daemon=True).start()
         if brain.pick(self.store, background=True) is None:
             return  # paused (or no brain): no automatic thinking at all
         for job in self.jobs:

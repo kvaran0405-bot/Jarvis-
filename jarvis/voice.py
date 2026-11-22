@@ -27,6 +27,7 @@ DEFAULT_VOICES = {
     "BANNER": "N2lVS1w4EtoT3dr4eOWO",    # Callum - gravelly male
     "EDITH": "MF3mGyEYCl7XYWbV9V3O",     # Elli - crisp female
     "SENTINEL": "yoZ06aMxZJJ28mfd3POQ",  # Sam - low, raspy male
+    "PEPPER": "EXAVITQu4vr4xnSDxMaL",    # Sarah - poised female
 }
 
 
@@ -44,6 +45,7 @@ EDGE_VOICES = {
     "BANNER": ("en-US-BrianMultilingualNeural", "-8%", "-3Hz"),  # soft-spoken scientist (expressive voice)
     "HERALD": ("en-GB-ThomasNeural", "+0%", "+0Hz"),          # smooth British diplomat
     "ORACLE": ("en-US-SteffanNeural", "-4%", "-2Hz"),         # calm analyst
+    "PEPPER": ("en-US-AriaNeural", "+0%", "+0Hz"),            # poised, warm, in charge
 }
 
 
@@ -118,6 +120,7 @@ VS_VOICES = {
     "BANNER": ("male, middle-aged, low pitch, american accent", 1909),
     "HERALD": ("male, middle-aged, moderate pitch, british accent", 2010),
     "ORACLE": ("male, young adult, low pitch, american accent", 2111),
+    "PEPPER": ("female, young adult, moderate pitch, american accent", 2212),
 }
 # Moods -> VoiceStudio's real non-verbal sounds (default OmniVoice engine) and a speed change.
 VS_MOODS = {

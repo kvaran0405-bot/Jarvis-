@@ -80,7 +80,23 @@ class Engine:
             f"{RULES.format(owner=self.settings.owner_name, tz=self.settings.timezone)}\n\n"
             f"The team:\n{team}\n\n"
             f"About the owner (profile.md):\n{profile}"
+            + self._business_block(agent)
         )
+
+    def _business_block(self, agent: Agent) -> str:
+        """The owner's events business (business.md): services, packages, prices, terms. For the business agent
+        (and JARVIS when it covers for PEPPER)."""
+        if agent.name not in ("PEPPER", "JARVIS"):
+            return ""
+        from .config import ROOT
+        path = ROOT / "business.md"
+        if not path.exists():
+            return ("\n\nThe owner's business: no business.md yet. If prices or packages are needed, ask the owner "
+                    "and offer to save them (they copy business.example.md to business.md).") if agent.name == "PEPPER" else ""
+        text = path.read_text(encoding="utf-8").strip()
+        if agent.name == "JARVIS":
+            text = text[:1500]
+        return f"\n\nThe owner's business (business.md):\n{text}"
 
     def _context_block(self, agent: Agent | None = None) -> str:
         now = datetime.now(self.settings.tz)

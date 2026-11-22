@@ -1,6 +1,7 @@
 .env
 data/
 profile.md
+business.md
 __pycache__/
 *.pyc
 .venv/

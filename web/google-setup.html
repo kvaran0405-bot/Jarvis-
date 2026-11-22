@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Connect Google Calendar</title>
+<meta name="theme-color" content="#07090d"><link rel="icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box} html,body{margin:0;background:#07090d;color:#d3dbe6;font-family:"JetBrains Mono",monospace}
+main{max-width:720px;margin:0 auto;padding:28px 16px 60px;line-height:1.65;font-size:14px}
+h1{font-family:Orbitron,sans-serif;letter-spacing:.12em;color:#ffd23f;font-size:20px;margin:0 0 6px}
+.lead{color:#8a95a7;margin:0 0 24px}
+ol{padding-left:0;list-style:none;counter-reset:s;margin:0}
+ol>li{counter-increment:s;position:relative;padding:14px 14px 14px 52px;margin:0 0 12px;background:#0c1016;border:1px solid #1b2330;border-radius:10px}
+ol>li::before{content:counter(s);position:absolute;left:14px;top:13px;width:26px;height:26px;border-radius:50%;background:#ffd23f;color:#000;font:700 13px/26px Orbitron,sans-serif;text-align:center}
+b{color:#fff} a{color:#38d6ff} code{background:#151b25;padding:1px 6px;border-radius:4px;color:#ffd23f}
+button{padding:10px 16px;font:600 12px Orbitron,sans-serif;letter-spacing:.12em;background:#ffd23f;color:#000;border:0;border-radius:8px;cursor:pointer;margin-top:8px}
+button.ghost{background:transparent;color:#ffd23f;border:1px solid #ffd23f}
+input{width:100%;font:13px "JetBrains Mono",monospace;padding:12px;background:#07090d;color:#fff;border:1px solid #1b2330;border-radius:8px;margin-top:8px}
+input:focus{outline:none;border-color:#ffd23f}
+.note{font-size:12px;color:#8a95a7}
+#msg{margin-top:10px;min-height:20px} .ok{color:#3dff8b} .bad{color:#ff6b6b}
+pre{max-height:140px;overflow:auto;background:#07090d;border:1px solid #1b2330;border-radius:8px;padding:10px;font-size:11px;color:#8a95a7;white-space:pre-wrap}
+</style></head><body><main>
+<h1>CONNECT GOOGLE CALENDAR</h1>
+<p class="lead">About 5 minutes, once. After this, JARVIS sees your real Google Calendar, and anything the agents add shows up on your phone's calendar too.</p>
+<ol>
+  <li><b>Copy your JARVIS script.</b> It already contains your own secret key.<br>
+    <button id="copy">Copy script</button> <span id="copied" class="ok"></span>
+    <pre id="code">Loading…</pre></li>
+  <li>Open <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com → New project</a>
+    (sign in with the Google account whose calendar you use).</li>
+  <li>Select all the sample code in the editor (<code>Ctrl+A</code>), delete it, and <b>paste</b> your script (<code>Ctrl+V</code>).
+    Click the 💾 <b>Save</b> icon. Name the project <code>JARVIS</code> if it asks.</li>
+  <li>At the top, choose the function <code>authorize</code> and click <b>▶ Run</b>. Google asks for permission:
+    <b>Review permissions</b> → pick your account → <b>Advanced</b> → <b>Go to JARVIS (unsafe)</b> → <b>Allow</b>.
+    <div class="note">“Unsafe” only means Google hasn't reviewed it: it's your own script, running in your own account.</div></li>
+  <li>Click the blue <b>Deploy</b> button → <b>New deployment</b> → the ⚙ gear → <b>Web app</b>. Set:
+    <br>• Execute as: <b>Me</b><br>• Who has access: <b>Anyone</b>
+    <div class="note">“Anyone” is needed so JARVIS can reach it without a Google login; the secret key stops everyone else.</div>
+    Click <b>Deploy</b>, then <b>Copy</b> the <b>Web app URL</b> (it ends in <code>/exec</code>).</li>
+  <li><b>Paste the Web app URL here</b> and connect:
+    <input id="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+    <button id="go">Connect</button>
+    <div id="msg" role="status"></div></li>
+</ol>
+<p class="note">To disconnect later: <button class="ghost" id="off">Disconnect</button> (and delete the project at script.google.com).</p>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let script = "";
+fetch("/api/google/script").then(r => r.text()).then(t => { script = t; $("#code").textContent = t; });
+$("#copy").onclick = async () => {
+  try { await navigator.clipboard.writeText(script); }
+  catch { const r = document.createRange(); r.selectNodeContents($("#code")); getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand("copy"); }
+  $("#copied").textContent = "✓ copied";
+};
+$("#go").onclick = async () => {
+  $("#msg").className = ""; $("#msg").textContent = "Testing the link…";
+  const r = await (await fetch("/api/google/connect", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({url: $("#url").value})})).json();
+  if(r.ok){ $("#msg").className = "ok"; $("#msg").textContent = `✓ Connected to “${r.calendar}”. Syncing your events now — you can close this page.`; }
+  else { $("#msg").className = "bad"; $("#msg").textContent = r.error; }
+};
+$("#off").onclick = async () => { await fetch("/api/google/disconnect", {method:"POST"}); $("#msg").className = ""; $("#msg").textContent = "Disconnected."; };
+</script></body></html>

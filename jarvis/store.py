@@ -165,6 +165,36 @@ CREATE TABLE IF NOT EXISTS routines (
     enabled INTEGER NOT NULL DEFAULT 1,
     last_run TEXT
 );
+CREATE TABLE IF NOT EXISTS lectures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    course TEXT DEFAULT '',
+    started TEXT NOT NULL,
+    duration_s INTEGER DEFAULT 0,
+    audio_path TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'recording',   -- recording | transcribing | summarising | ready | transcribed | failed
+    transcript TEXT DEFAULT '',
+    summary TEXT DEFAULT '',
+    note_id INTEGER,
+    error TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS gigs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client TEXT NOT NULL,
+    contact TEXT DEFAULT '',                    -- phone / e-mail / Instagram handle
+    event_type TEXT DEFAULT '',                 -- wedding | engagement | birthday | corporate | ...
+    event_date TEXT,
+    venue TEXT DEFAULT '',
+    guests INTEGER,
+    budget TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'enquiry',     -- enquiry | quoted | confirmed | done | lost
+    quote_total REAL,
+    deposit_paid INTEGER DEFAULT 0,
+    next_step TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created TEXT NOT NULL,
+    updated TEXT NOT NULL
+);
 """
 
 
@@ -186,7 +216,15 @@ class Store:
         self._db = sqlite3.connect(str(path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
+        self._migrate()
         self._db.commit()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after a database was first created."""
+        for table, column, decl in (("events", "gid", "TEXT"), ("outbox", "attachment", "TEXT DEFAULT ''")):
+            cols = {r[1] for r in self._db.execute(f"PRAGMA table_info({table})")}
+            if column not in cols:
+                self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
     # ---------- low level ----------
     def query(self, sql: str, params: tuple | list = ()) -> list[dict[str, Any]]:
@@ -259,6 +297,84 @@ class Store:
 
     def delete_event(self, event_id: int) -> bool:
         return self.execute("DELETE FROM events WHERE id = ?", (event_id,)) > 0
+
+    def get_event(self, event_id: int) -> dict | None:
+        rows = self.query("SELECT * FROM events WHERE id = ?", (event_id,))
+        return rows[0] if rows else None
+
+    def set_event_gid(self, event_id: int, gid: str) -> None:
+        self.execute("UPDATE events SET gid = ? WHERE id = ?", (gid, event_id))
+
+    def upsert_google_event(self, gid: str, title: str, start: str, end: str | None, location: str,
+                            notes: str) -> int:
+        rows = self.query("SELECT id FROM events WHERE gid = ?", (gid,))
+        if rows:
+            self.execute("UPDATE events SET title=?, start=?, end=?, location=?, notes=? WHERE id=?",
+                         (title, start, end, location, notes, rows[0]["id"]))
+            return rows[0]["id"]
+        return self.execute("INSERT INTO events (title, start, end, location, area, notes, gid) VALUES (?,?,?,?,?,?,?)",
+                            (title, start, end, location, "personal", notes, gid))
+
+    def google_events_between(self, start: str, end: str) -> list[dict]:
+        return self.query("SELECT * FROM events WHERE gid IS NOT NULL AND gid != '' AND start >= ? AND start < ?",
+                          (start, end))
+
+    def unsynced_events(self, since: str) -> list[dict]:
+        return self.query("SELECT * FROM events WHERE (gid IS NULL OR gid = '') AND start >= ? ORDER BY start",
+                          (since,))
+
+    # ---------- lectures ----------
+    def add_lecture(self, title: str, course: str = "", audio_path: str = "", status: str = "recording") -> int:
+        return self.execute("INSERT INTO lectures (title, course, started, audio_path, status) VALUES (?,?,?,?,?)",
+                            (title, course, now_iso(), audio_path, status))
+
+    def update_lecture(self, lecture_id: int, **fields) -> bool:
+        allowed = {"title", "course", "duration_s", "audio_path", "status", "transcript", "summary", "note_id", "error"}
+        fields = {k: v for k, v in fields.items() if k in allowed}
+        if not fields:
+            return False
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        return self.execute(f"UPDATE lectures SET {sets} WHERE id = ?", (*fields.values(), lecture_id)) > 0
+
+    def get_lecture(self, lecture_id: int) -> dict | None:
+        rows = self.query("SELECT * FROM lectures WHERE id = ?", (lecture_id,))
+        return rows[0] if rows else None
+
+    def list_lectures(self, limit: int = 20) -> list[dict]:
+        return self.query("SELECT id, title, course, started, duration_s, status, error, note_id, "
+                          "substr(summary, 1, 400) AS summary_preview FROM lectures ORDER BY id DESC LIMIT ?", (limit,))
+
+    # ---------- business: gigs (events the owner's company runs) ----------
+    GIG_FIELDS = {"client", "contact", "event_type", "event_date", "venue", "guests", "budget", "status",
+                  "quote_total", "deposit_paid", "next_step", "notes"}
+
+    def add_gig(self, client: str, **fields) -> int:
+        fields = {k: v for k, v in fields.items() if k in self.GIG_FIELDS and v not in (None, "")}
+        fields.update(client=client, created=now_iso(), updated=now_iso())
+        cols = ", ".join(fields)
+        return self.execute(f"INSERT INTO gigs ({cols}) VALUES ({','.join('?' * len(fields))})",
+                            tuple(fields.values()))
+
+    def update_gig(self, gig_id: int, **fields) -> bool:
+        fields = {k: v for k, v in fields.items() if k in self.GIG_FIELDS}
+        if not fields:
+            return False
+        fields["updated"] = now_iso()
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        return self.execute(f"UPDATE gigs SET {sets} WHERE id = ?", (*fields.values(), gig_id)) > 0
+
+    def get_gig(self, gig_id: int) -> dict | None:
+        rows = self.query("SELECT * FROM gigs WHERE id = ?", (gig_id,))
+        return rows[0] if rows else None
+
+    def list_gigs(self, status: str | None = None, limit: int = 50) -> list[dict]:
+        if status == "active":
+            return self.query("SELECT * FROM gigs WHERE status IN ('enquiry','quoted','confirmed') "
+                              "ORDER BY COALESCE(event_date, '9999') LIMIT ?", (limit,))
+        if status:
+            return self.query("SELECT * FROM gigs WHERE status = ? ORDER BY COALESCE(event_date, '9999') LIMIT ?",
+                              (status, limit))
+        return self.query("SELECT * FROM gigs ORDER BY id DESC LIMIT ?", (limit,))
 
     # ---------- notes / memory ----------
     def add_note(self, title: str, body: str, tags: str = "", agent: str = "") -> int:
@@ -441,13 +557,14 @@ class Store:
     # ---------- outbox ----------
     def queue_message(self, channel: str, recipient: str, body: str, agent: str, *, subject: str = "",
                       recipient_name: str = "", reply_to: str = "", reason: str = "", status: str = "pending",
-                      send_at: str | None = None) -> int:
+                      send_at: str | None = None, attachment: str = "") -> int:
         if channel == "whatsapp":
             recipient = normalize_phone(recipient)
         return self.execute(
             "INSERT INTO outbox (channel, recipient, recipient_name, subject, body, reply_to, agent, reason, status, "
-            "send_at, created) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (channel, recipient, recipient_name, subject, body, reply_to, agent, reason, status, send_at, now_iso()))
+            "send_at, created, attachment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (channel, recipient, recipient_name, subject, body, reply_to, agent, reason, status, send_at, now_iso(),
+             attachment))
 
     def get_message(self, msg_id: int) -> dict | None:
         rows = self.query("SELECT * FROM outbox WHERE id = ?", (msg_id,))

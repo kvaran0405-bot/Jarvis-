@@ -251,6 +251,33 @@ VERONICA reads your bank's **transaction alert e-mails** (turn on e-mail alerts 
 masked to the last 4 digits. OTP / PIN / password e-mails are never shown to any agent, and agents still can't
 open bank apps or sites or move money.
 
+## Lecture & meeting recorder (ATHENA)
+
+Say **"Jarvis, record this lecture"** (or tap **● Record on laptop** in the Autopilot tab), and **"stop recording"**
+at the end. The laptop transcribes it for free (nothing leaves the laptop), then ATHENA writes study notes:
+summary, key points with timestamps, exam hints, to-dos and self-test questions. To-dos become tasks, dates
+become calendar events, and the notes arrive on Telegram with the full transcript.
+
+Recorded on your phone instead? Send the audio file to your Telegram bot (up to 20 MB, caption it with the title),
+or upload any size in the app: Autopilot → Lectures → **Upload recording**. Ask later: *"Athena, what did the
+FIN302 lecture say about hedging?"*
+
+## Google Calendar sync
+
+Open the dashboard → Autopilot → Google Calendar → **set up**, and follow the 6 steps (about 5 minutes, once):
+you paste a small script into your own Google account and give JARVIS its link. No Google Cloud project and no
+passwords. After that JARVIS reads your real calendar every 10 minutes, and events the agents add appear on your
+phone's Google Calendar.
+
+## Business kit (PEPPER, for Shaabaz Weddings & Events)
+
+Copy `business.example.md` to `business.md` and fill in your packages and prices. Then:
+- *"Pepper, new enquiry: Priya, wedding 14 Feb, 300 pax at Raffles, budget 15k"* logs the client with a next step.
+- *"Pepper, quote Priya the gold package plus a photo booth"* makes a PDF quotation (sent to your phone); she
+  offers to e-mail it to the client, and you approve first.
+- *"Pepper, Priya confirmed"* builds the planning checklist as dated tasks and puts the event on your calendar.
+- Client enquiries in your inbox are passed to PEPPER automatically, with ready replies to tap.
+
 ## Setting up the extras
 
 **E-mail (Gmail).** Turn on 2-Step Verification on your Google account, then create an App Password at

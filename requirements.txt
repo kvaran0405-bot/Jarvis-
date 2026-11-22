@@ -7,3 +7,5 @@ pypdf>=4           # reading PDF files (lecture notes, documents)
 faster-whisper>=1.0   # understands your Telegram voice notes, offline on your laptop
 edge-tts>=7.0           # free natural voices for every agent
 tzdata>=2024.1          # world timezones (Windows doesn't ship them)
+sounddevice>=0.4.6     # lecture recorder: records the laptop microphone
+numpy>=1.26            # (needed by the recorder and the speech engine)

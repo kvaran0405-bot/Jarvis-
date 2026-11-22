@@ -22,6 +22,8 @@ from .engine import Engine
 from . import brain
 from . import channels as ch
 from . import devices
+from . import gcal
+from . import lectures
 from . import telegram as tg
 from . import voice
 from .notify import channels
@@ -33,6 +35,8 @@ store = Store(settings.db_path)
 bus = Bus(store)
 engine = Engine(store, bus, settings)
 scheduler = Scheduler(engine)
+gcal.attach(store)
+lectures.attach(engine)
 
 @asynccontextmanager
 async def lifespan(_app):
@@ -389,7 +393,8 @@ def connections():
     tg.attach(store)
     return {"telegram": {"ready": tg.ready(), "enabled": tg.enabled(), "pair_code": tg.pair_code()},
             "whatsapp": ch.whatsapp_status(), "email_send": ch.email_ready(), "email_read": ch.email_read_ready(),
-            "phone": devices.phone_ready(), "autonomy": settings.autonomy}
+            "phone": devices.phone_ready(), "autonomy": settings.autonomy, "google": gcal.status(),
+            "recorder": {"available": lectures.can_record()[0], "why": lectures.can_record()[1]}}
 
 
 @app.get("/api/state")
@@ -413,6 +418,9 @@ def state():
         "suggestions": store.list_suggestions("open", 20),
         "proposals": store.list_proposals("open", 20),
         "proposals_done": store.list_proposals("done", 5),
+        "lectures": store.list_lectures(8),
+        "recording": lectures.recording_status(store),
+        "gigs": store.list_gigs("active", 30),
     }
 
 
@@ -651,6 +659,85 @@ async def stream():
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
+
+
+# ---------------------------------------------------------------- Google Calendar
+class GoogleLink(BaseModel):
+    url: str
+
+
+@app.get("/api/google/script")
+def google_script():
+    return Response(gcal.script_text(), media_type="text/plain; charset=utf-8")
+
+
+@app.post("/api/google/connect")
+async def google_connect(link: GoogleLink):
+    try:
+        info = await asyncio.to_thread(gcal.connect, link.url)
+    except Exception as exc:  # noqa: BLE001 - shown to the owner on the setup page
+        return {"ok": False, "error": str(exc)}
+    bus.log("JARVIS", f"Google Calendar connected ({info.get('calendar', '')})", "system")
+    return {"ok": True, "calendar": info.get("calendar"), "timezone": info.get("timezone")}
+
+
+@app.post("/api/google/sync")
+async def google_sync():
+    out = await asyncio.to_thread(gcal.sync, True)
+    bus.publish({"type": "data", "what": "events"})
+    return out
+
+
+@app.post("/api/google/disconnect")
+def google_disconnect():
+    gcal.disconnect()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- lecture recorder
+class RecordStart(BaseModel):
+    title: str = ""
+    course: str = ""
+
+
+@app.post("/api/lectures/start")
+def lecture_start(req: RecordStart):
+    return lectures.start(store, bus, req.title, req.course)
+
+
+@app.post("/api/lectures/stop")
+def lecture_stop():
+    return lectures.stop(store, bus)
+
+
+@app.post("/api/lectures/upload")
+async def lecture_upload(request: Request, filename: str = "recording.m4a", title: str = "", course: str = ""):
+    """Raw file body (the app sends the file straight from the phone; no size limit like Telegram's 20 MB)."""
+    path = lectures.new_upload_path(filename)
+    size = 0
+    with path.open("wb") as f:
+        async for chunk in request.stream():
+            size += len(chunk)
+            f.write(chunk)
+    if size < 1000:
+        path.unlink(missing_ok=True)
+        raise HTTPException(400, "That file is empty")
+    lid = lectures.add_recording(store, bus, path, title or path.stem, course)
+    return {"ok": True, "lecture_id": lid, "mb": round(size / 1e6, 1)}
+
+
+@app.get("/api/lectures/{lid}")
+def lecture_get(lid: int):
+    lec = store.get_lecture(lid)
+    if not lec:
+        raise HTTPException(404, "No such lecture")
+    return lec
+
+
+@app.post("/api/lectures/{lid}/summarise")
+def lecture_summarise(lid: int):
+    threading.Thread(target=lectures.summarise, args=(store, bus, lid), daemon=True).start()
+    return {"ok": True}
 
 
 app.mount("/", StaticFiles(directory=ROOT / "web"), name="web")

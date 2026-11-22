@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
 import secrets
 import tempfile
 import threading
@@ -177,9 +178,21 @@ class Bot:
         msg = upd.get("message") or {}
         text = (msg.get("text") or "").strip()
         sender = str(msg.get("chat", {}).get("id", ""))
-        if msg.get("voice") and sender and sender == chat_id():
-            self.handle_voice(msg["voice"])
-            return
+        if sender and sender == chat_id():
+            caption = (msg.get("caption") or "").strip()
+            doc = msg.get("document") or {}
+            audio = msg.get("audio") or msg.get("video_note") or (
+                doc if (doc.get("mime_type") or "").startswith(("audio/", "video/")) else None)
+            voice_note = msg.get("voice")
+            # A long voice note, or one captioned "lecture"/"meeting", is a recording to take notes from.
+            if voice_note and (voice_note.get("duration", 0) > 180 or re.search(r"lecture|meeting|class|record", caption, re.I)):
+                audio = voice_note
+            if audio:
+                self.handle_recording(audio, caption)
+                return
+            if voice_note:
+                self.handle_voice(voice_note)
+                return
         if not text or not sender:
             return
         if not chat_id():  # not paired yet: only accept the pairing code
@@ -218,6 +231,30 @@ class Bot:
         send(reply)
         if settings.telegram_voice_replies == "always":
             self.voice_reply(reply)
+
+    def handle_recording(self, audio: dict, caption: str = "") -> None:
+        """An audio file / long voice note from the phone: transcribe it and write lecture notes."""
+        from . import lectures
+        from . import stt
+        if not stt.available():
+            send("🎙 I can't transcribe yet: the speech part isn't installed. Send /voicecheck for details.")
+            return
+        if audio.get("file_size", 0) > 20_000_000:
+            send("📼 That file is over Telegram's 20 MB limit for bots. Upload it in the JARVIS app instead "
+                 "(Autopilot tab → Lectures → Upload recording).")
+            return
+        name = audio.get("file_name") or "telegram-recording.ogg"
+        path = lectures.new_upload_path(name)
+        try:
+            download(audio["file_id"], path)
+        except Exception as exc:  # noqa: BLE001
+            send(f"📼 I couldn't download that recording: {exc}"[:600])
+            return
+        title = re.sub(r"(?i)^(lecture|meeting|class|record(ing)?)[:\s-]*", "", caption).strip() or Path(name).stem
+        lid = lectures.receive(path, title)
+        mins = round(audio.get("duration", 0) / 60)
+        send(f"📼 Got it{f' ({mins} min)' if mins else ''}. Transcribing on the laptop now; notes arrive here when "
+             f"ready (lecture #{lid}).")
 
     def handle_voice(self, voice_note: dict) -> None:
         """Voice note in -> transcribe on this laptop -> agent -> text + spoken reply."""

@@ -18,6 +18,7 @@ import android.speech.tts.UtteranceProgressListener;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -38,6 +39,8 @@ import java.util.Locale;
  */
 public class MainActivity extends Activity {
     private static final int REQ_MIC = 42;
+    private static final int REQ_FILE = 43;
+    private ValueCallback<Uri[]> fileCallback;
     private static final String PREFS = "jarvis";
 
     private WebView web;
@@ -97,6 +100,19 @@ public class MainActivity extends Activity {
                     else { pendingWebPermission = request; askMic(); }
                 });
             }
+
+            @Override   // <input type="file">: upload a lecture recording from the phone
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                try {
+                    startActivityForResult(params.createIntent(), REQ_FILE);
+                } catch (Exception e) {
+                    fileCallback = null;
+                    return false;
+                }
+                return true;
+            }
         });
 
         if (!hasMic()) askMic();
@@ -124,6 +140,14 @@ public class MainActivity extends Activity {
     public void onBackPressed() {
         if (web.canGoBack()) web.goBack();
         else super.onBackPressed();
+    }
+
+    @Override
+    protected void onActivityResult(int code, int result, Intent data) {
+        super.onActivityResult(code, result, data);
+        if (code != REQ_FILE || fileCallback == null) return;
+        fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result, data));
+        fileCallback = null;
     }
 
     @Override

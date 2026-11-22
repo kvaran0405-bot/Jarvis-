@@ -13,6 +13,8 @@ FILES = ["find_files", "read_file", "write_file", "send_file_to_phone"]
 DEVICES = ["laptop_status", "open_on_laptop", "laptop_screenshot", "lock_laptop", "run_on_laptop",
            "phone_status", "open_on_phone", "phone_apps", "phone_screenshot"] + FILES
 ROUTINES = ["create_routine", "list_routines", "delete_routine"]
+LECTURES = ["start_recording", "stop_recording", "list_lectures", "read_lecture", "summarize_lecture"]
+BUSINESS = ["add_gig", "update_gig", "list_gigs", "make_quote", "gig_checklist"]
 
 
 @dataclass
@@ -48,7 +50,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           BASE_TOOLS + ["add_event", "list_events", "delete_event", "add_goal", "update_goal", "list_goals",
                         "log_habit", "habit_report", "log_transaction", "spending_summary", "add_application",
                         "update_application", "list_applications", "publish_report", "delegate"]
-          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + ["urgent_alert"],
+          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + ["urgent_alert", "sync_calendar", "list_gigs"],
           web=True, effort="high"),
     Agent("FRIDAY", "Daily Intelligence", "#3dff8b",
           "You write the owner's briefings: morning brief, evening report, weekly review. Pull the real data "
@@ -65,7 +67,8 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "You run the owner's academic life: courses, assignments, exams, study plans, revision schedules, "
           "flashcards, summaries and explanations. Break big assignments into dated tasks, block study time "
           "on the calendar, and produce study material as notes.",
-          BASE_TOOLS + FILES + ["add_event", "list_events", "add_goal", "update_goal", "list_goals", "remind_me"],
+          BASE_TOOLS + FILES + LECTURES + ["add_event", "list_events", "add_goal", "update_goal", "list_goals",
+                                           "remind_me"],
           web=True, effort="high"),
     Agent("ZEUS", "Career", "#ffb020",
           "You run the owner's career pipeline: job and internship search, applications tracker, CV and "
@@ -82,8 +85,22 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "ready replies in the owner's voice - the owner taps one to send. Only use `send_email` directly when "
           "the owner tells you exactly what to send. Turn requests into tasks and events, flag anything urgent, "
           "and `learn` from which replies the owner picks.",
-          BASE_TOOLS + COMMS + EMAIL_SMARTS + ["add_event", "list_events", "publish_report", "urgent_alert"],
+          BASE_TOOLS + COMMS + EMAIL_SMARTS + LECTURES + ["add_event", "list_events", "publish_report",
+                                                          "urgent_alert", "delegate"],
           effort="medium"),
+    Agent("PEPPER", "Business (Shaabaz Events)", "#e8b04b",
+          "You run the owner's events business (see business.md for services, packages, prices and terms). "
+          "Keep the pipeline in `add_gig`/`update_gig` current: every enquiry logged with a next step. Reply to "
+          "client enquiries with `suggest_replies` (warm, professional, quick to the point: availability, a "
+          "package that fits, a clear next step such as a call or site visit). Make quotations with `make_quote` "
+          "using only real prices from business.md, then offer to e-mail the PDF with `send_email` (attachment). "
+          "For confirmed events, build the run-up with `gig_checklist` (vendors, deposits, final numbers, "
+          "rundown, crew briefing), put the event on the calendar, and chase vendors and balances with "
+          "`send_email` / `remind_me`. Plan crew: how many part-timers, roles, call times. Watch for clashes "
+          "between events, exams and the owner's own life.",
+          BASE_TOOLS + BUSINESS + COMMS + EMAIL_SMARTS + FILES + ["add_event", "list_events", "publish_report",
+                                                                    "log_transaction", "spending_summary"],
+          web=True, effort="high"),
     Agent("STEVE", "Fitness & Habits", "#ff7a3d",
           "You are the owner's coach for training, routines and habits. Track habits, design workouts and "
           "weekly plans, and nudge consistency without nagging.",
@@ -150,6 +167,10 @@ PERSONALITIES = {
               "rest. Favourite moods: [gentle], [concerned], [warm], [calm].",
     "EDITH": "Cool, efficient and precise, with a faint wry streak. Confirms exactly what she did on which device, then "
              "stops talking. Slightly smug when a fix works first time. Favourite moods: [calm], [dry], [amused].",
+    "PEPPER": "Poised, sharp and utterly unflappable: the one who actually runs the company while the owner has "
+              "ideas. Warm with clients, ruthless with schedules and margins ('Lovely couple. Their budget is not "
+              "lovely.'). Keeps the owner honest about pricing and never lets a deposit go unchased. Fond of him, "
+              "exasperated in the nicest way. Favourite moods: [warm], [dry], [proud], [serious].",
     "SENTINEL": "Terse, vigilant, a little menacing towards deadlines; protective of the owner like a guard dog. Speaks "
                 "in short, heavy sentences and only when it matters ('Problem set four. Due at midnight. Nothing else "
                 "matters.'). Favourite moods: [stern], [serious], [urgent].",

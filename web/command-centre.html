@@ -211,7 +211,7 @@ try { voiceOn = localStorage.getItem("jarvis-voice") !== "off"; } catch {}
 const VOICE = { // per-agent voice character
   JARVIS:{pitch:.85,rate:1.02}, FRIDAY:{pitch:1.25,rate:1.05}, ORACLE:{pitch:.95,rate:.98}, ATHENA:{pitch:1.2,rate:1},
   ZEUS:{pitch:.6,rate:.95}, HERALD:{pitch:1.05,rate:1.08}, STEVE:{pitch:.8,rate:1.05}, VERONICA:{pitch:1.3,rate:1.05},
-  BANNER:{pitch:.75,rate:.95}, SENTINEL:{pitch:.5,rate:.92}, EDITH:{pitch:1.1,rate:1}
+  BANNER:{pitch:.75,rate:.95}, SENTINEL:{pitch:.5,rate:.92}, EDITH:{pitch:1.1,rate:1}, PEPPER:{pitch:1.15,rate:1.02}
 };
 
 // ---------------------------------------------------------------- agents & focus
@@ -460,15 +460,48 @@ async function refresh(){
     (cx.telegram.ready ? row("Telegram", true, "") : row("Telegram", false, cx.telegram.enabled ? `send /start ${cx.telegram.pair_code} to your bot` : "not set up")) +
     row("WhatsApp", cx.whatsapp.ready, /off/.test(cx.whatsapp.reason || "") ? "off" : "bridge not running") + row("Email (send)", cx.email_send, "not set up") +
     row("Email (read)", cx.email_read, "not set up") + row("Android phone", cx.phone, "not set up") +
+    `<div class="conn"><b>Google Calendar</b>${cx.google.ready
+      ? `<span class="${cx.google.error ? "n" : "y"}" title="${esc(cx.google.error || "")}">${cx.google.error ? "sync problem" : "synced " + (cx.google.last_sync ? fmt(cx.google.last_sync) : "")} · <a href="#" id="gsync" style="color:inherit">sync now</a></span>`
+      : `<a class="n" href="/google-setup.html" target="_blank" style="color:var(--accent,#38d6ff)">set up →</a>`}</div>` +
+    `<div class="h">Lectures & meetings</div>` + lectureBlock(cx) +
+    `<div class="h">Business pipeline · PEPPER</div>` + (state.gigs.length ? state.gigs.map(g => `<div class="item"><div class="t">${esc(g.client)}${g.event_type ? " · " + esc(g.event_type) : ""}</div><div class="s"><span class="tag">${esc(g.status)}</span>${esc(g.event_date || "date tbc")}${g.quote_total ? " · $" + Number(g.quote_total).toLocaleString() : ""}${g.next_step ? " · next: " + esc(g.next_step) : ""}</div></div>`).join("")
+      : `<div class="empty">No clients yet. Try: “Pepper, new enquiry: Priya, wedding 14 Feb, 300 pax at Raffles, budget 15k”.</div>`) +
     `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">⬆ Update JARVIS</div><div class="s">Get the newest version and restart (settings kept)</div></div><button class="btn" id="updBtn">Update</button></div></div>` +
     `<div class="h">Your routines</div>` + (state.routines.length ? state.routines.map(r => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${esc(r.name)}</div><div class="s"><span class="tag" style="color:${AGENTS[r.agent]?.color}">${r.agent}</span>${esc(r.schedule)}${r.enabled ? "" : " · paused"}</div></div><button class="btn" data-rt="${r.id}">${r.enabled ? "Pause" : "Resume"}</button></div></div>`).join("")
       : `<div class="empty">None yet. Ask JARVIS, e.g. “every weekday at 6am send me a motivational quote and my schedule on WhatsApp”.</div>`) +
     `<div class="h">Built-in routines</div>` + state.jobs.map(j => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${j.label}</div><div class="s"><span class="tag" style="color:${AGENTS[j.agent]?.color}">${j.agent}</span>${j.running?"running…":j.last_run?"last "+fmt(j.last_run):"never run"}</div></div><button class="btn" data-job="${j.name}">Run now</button></div></div>`).join("") +
     `<div class="h">How the night shift works</div><div class="empty" style="line-height:1.6">Any task with an agent assignee (e.g. “ORACLE, research laptops under $1000 tonight”) is worked on autonomously overnight. Results land in Notes and in the morning brief.</div>`;
+  const gs = $("#gsync"); if(gs) gs.onclick = async e => { e.preventDefault(); gs.textContent = "syncing…"; await fetch("/api/google/sync", {method:"POST"}); refresh(); };
+  const rec = $("#recBtn"); if(rec) rec.onclick = async () => { rec.textContent = "…";
+    const r = await (await fetch(state.recording.recording ? "/api/lectures/stop" : "/api/lectures/start", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title: ($("#recTitle")||{}).value || ""})})).json();
+    logLine("ATHENA", r.error || (r.recording ? `Recording '${r.title}'` : `Stopped: ${r.minutes} min. Transcribing…`), r.error ? "error" : "job"); refresh(); };
+  const up = $("#recFile"); if(up) up.onchange = async () => { const f = up.files[0]; if(!f) return;
+    $("#upLabel").textContent = `Uploading ${(f.size/1e6).toFixed(1)} MB…`;
+    const r = await fetch(`/api/lectures/upload?filename=${encodeURIComponent(f.name)}&title=${encodeURIComponent(($("#recTitle")||{}).value || "")}`, {method:"POST", body:f});
+    const j = await r.json().catch(() => ({})); logLine("ATHENA", r.ok ? `Uploaded '${f.name}'. Transcribing…` : (j.detail || "Upload failed"), r.ok ? "job" : "error"); refresh(); };
+  document.querySelectorAll("[data-lec]").forEach(b => b.onclick = async () => { const l = await (await fetch(`/api/lectures/${b.dataset.lec}`)).json();
+    openNote(l.title, (l.summary || "_No summary yet._") + "\n\n---\n" + (l.transcript || "")); });
+  document.querySelectorAll("[data-lsum]").forEach(b => b.onclick = async () => { b.textContent = "…"; await fetch(`/api/lectures/${b.dataset.lsum}/summarise`, {method:"POST"}); refresh(); });
   const upd = $("#updBtn"); if(upd) upd.onclick = async () => { upd.textContent = "Updating…";
     const r = await (await fetch("/api/update", {method:"POST"})).json(); logLine("JARVIS", r.result, "system"); queueSpeech("JARVIS", r.result); };
   document.querySelectorAll("[data-rt]").forEach(b => b.onclick = async () => { await fetch(`/api/routines/${b.dataset.rt}/toggle`, {method:"POST"}); refresh(); });
   document.querySelectorAll("[data-job]").forEach(b => b.onclick = async () => { b.textContent = "Started"; await fetch(`/api/jobs/${b.dataset.job}/run`, {method:"POST"}); setTimeout(refresh, 800); });
+}
+function openNote(title, body){
+  $("#modalBody").innerHTML = `<h1>${esc(title)}</h1>${md(body)}`;
+  $("#modal").style.display = "flex";
+}
+function lectureBlock(cx){
+  const r = state.recording || {};
+  const head = r.recording
+    ? `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">🔴 Recording: ${esc(r.title)}</div><div class="s">${Math.floor(r.seconds/60)} min so far · or say “Jarvis, stop recording”</div></div><button class="btn" id="recBtn">Stop</button></div></div>`
+    : `<div class="item"><input id="recTitle" placeholder="Title, e.g. FIN302 Week 6" style="width:100%;margin-bottom:8px;padding:8px;background:#07090d;color:var(--text,#d3dbe6);border:1px solid var(--line);border-radius:6px;font:inherit">` +
+      `<div class="row" style="gap:6px;flex-wrap:wrap">${cx.recorder.available ? `<button class="btn" id="recBtn">● Record on laptop</button>` : `<span class="s">Laptop recording: ${esc(cx.recorder.why)}</span>`}` +
+      `<label class="btn" style="cursor:pointer"><span id="upLabel">⬆ Upload recording</span><input type="file" id="recFile" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.ogg,.opus" hidden></label></div>` +
+      `<div class="s" style="margin-top:6px">Or send the audio file to your Telegram bot. Notes (summary, key points, to-dos) arrive on Telegram.</div></div>`;
+  const rows = (state.lectures || []).map(l => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${esc(l.title)}</div><div class="s"><span class="tag">${esc(l.status)}</span>${l.duration_s ? Math.round(l.duration_s/60) + " min · " : ""}${esc(fmt(l.started))}${l.error ? " · " + esc(l.error.slice(0,80)) : ""}</div></div>` +
+    `<div class="row" style="gap:4px">${l.status === "transcribed" ? `<button class="btn" data-lsum="${l.id}">Summarise</button>` : ""}${["ready","transcribed"].includes(l.status) ? `<button class="btn" data-lec="${l.id}">Open</button>` : ""}</div></div></div>`).join("");
+  return head + rows;
 }
 function md(src){
   src = stripMoods(src);
@@ -504,6 +537,7 @@ const ACKS = {
   JARVIS: ["Right away Sir.", "One moment Sir.", "Certainly Sir.", "On it Sir.", "Very good Sir."],
   FRIDAY: ["On it, boss.", "Gimme a sec.", "Sure thing."], EDITH: ["Working on it.", "One moment."],
   SENTINEL: ["Checking."], STEVE: ["You got it."], ZEUS: ["Understood."], VERONICA: ["Let me look."],
+  PEPPER: ["On it.", "Leave it with me."], ATHENA: ["Let's see."],
 };
 function ackFor(agent){ const a = ACKS[agent] || ["One moment."]; return a[Math.floor(Math.random() * a.length)]; }
 function warmAcks(){   // pre-make the acknowledgement audio so it plays instantly

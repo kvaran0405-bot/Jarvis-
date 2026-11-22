@@ -46,7 +46,7 @@ def _resolve(ctx: ToolContext, channel: str, to: str) -> tuple[str, str]:
 
 
 def _queue(ctx: ToolContext, channel: str, to: str, body: str, *, subject: str = "", reason: str = "",
-           reply_to: str = "", send_at: str | None = None) -> dict:
+           reply_to: str = "", send_at: str | None = None, attachment: str = "") -> dict:
     if channel == "computer":
         address, name = "this laptop", "this laptop"
     elif channel == "telegram":
@@ -58,7 +58,8 @@ def _queue(ctx: ToolContext, channel: str, to: str, body: str, *, subject: str =
     if ctx.approved and channel != "computer":
         status = "approved"  # part of a plan the owner already said yes to
     msg_id = ctx.store.queue_message(channel, address, body, ctx.agent, subject=subject, recipient_name=name,
-                                     reply_to=reply_to, reason=reason, status=status, send_at=when)
+                                     reply_to=reply_to, reason=reason, status=status, send_at=when,
+                                     attachment=attachment)
     ctx.bus.publish({"type": "data", "what": "outbox"})
     msg = ctx.store.get_message(msg_id)
     if status == "approved" and not when:
@@ -72,6 +73,8 @@ def _queue(ctx: ToolContext, channel: str, to: str, body: str, *, subject: str =
         return {"id": msg_id, "status": "scheduled", "send_at": when}
     what = "run on your laptop" if channel == "computer" else f"{channel} to {name or address}"
     preview = body if channel == "computer" else (f"Subject: {subject}\n" if subject else "") + body
+    if attachment:
+        preview += f"\n📎 {attachment.replace(chr(92), '/').rsplit('/', 1)[-1]}"
     notify_owner(f"Approve #{msg_id}? ({what})",
                  f"{preview[:1200]}\n\nWhy: {reason or '-'}\n\nReply yes {msg_id} to send, no {msg_id} to cancel.",
                  short=True, approve_id=msg_id)
@@ -114,12 +117,20 @@ def send_whatsapp(ctx: ToolContext, to: str, message: str, reason: str, send_at:
 
 
 @tool("send_email", "Send an e-mail from the owner's account to a contact name or address. To reply to an e-mail, "
-      "pass its message_id as reply_to. Sent now or held for approval depending on the autonomy setting.",
-      {"to": S, "subject": S, "body": S, "reason": S, "reply_to": S, "send_at": S},
+      "pass its message_id as reply_to. Optional attachment = path of a file on the laptop (e.g. a quote made with "
+      "make_quote). Sent now or held for approval depending on the autonomy setting.",
+      {"to": S, "subject": S, "body": S, "reason": S, "reply_to": S, "send_at": S, "attachment": S},
       ["to", "subject", "body", "reason"])
 def send_email(ctx: ToolContext, to: str, subject: str, body: str, reason: str, reply_to: str = "",
-               send_at: str | None = None) -> dict:
-    return _queue(ctx, "email", to, body, subject=subject, reason=reason, reply_to=reply_to, send_at=send_at)
+               send_at: str | None = None, attachment: str = "") -> dict:
+    if attachment:
+        from pathlib import Path
+        if not Path(attachment).is_file():
+            return {"error": f"No file at {attachment}"}
+        if blocked(attachment):
+            return {"error": REFUSAL}
+    return _queue(ctx, "email", to, body, subject=subject, reason=reason, reply_to=reply_to, send_at=send_at,
+                  attachment=attachment)
 
 
 @tool("remind_me", "Send the owner a reminder at a given time (Telegram, WhatsApp or e-mail - whichever is set up).",

@@ -104,6 +104,9 @@ def status_snapshot(ctx: ToolContext) -> dict:
         "goals": s.list_goals(),
         "habits_last_7_days": s.habit_status(_days_ago(ctx, 6)),
         "applications": s.list_applications(),
+        "business_pipeline": [{k: g[k] for k in ("id", "client", "event_type", "event_date", "status", "next_step")}
+                              for g in s.list_gigs("active", 15)],
+        "recent_lectures": [{k: x[k] for k in ("id", "title", "status")} for x in s.list_lectures(3)],
         "money_this_month": s.spending_summary(ctx.now().date().replace(day=1).isoformat()),
         "completed_last_24h": [t for t in s.list_tasks("done", limit=50) if t["updated"] >= _days_ago(ctx, 1)],
         "recent_reports": [{k: r[k] for k in ("id", "kind", "agent", "title", "created")} for r in s.list_reports(5)],
@@ -152,22 +155,54 @@ def update_task(ctx: ToolContext, task_id: int, **fields) -> dict:
        "area": AREA, "notes": S}, ["title", "start"])
 def add_event(ctx: ToolContext, title: str, start: str, end: str | None = None, location: str = "",
               area: str = "personal", notes: str = "") -> dict:
+    from . import gcal
     eid = ctx.store.add_event(title, local_iso(ctx, start), local_iso(ctx, end), location, area, notes)
+    out: dict = {"created_event_id": eid}
+    if gcal.ready():
+        try:
+            gcal.push_event(ctx.store, ctx.store.get_event(eid))
+            out["google_calendar"] = "added"
+        except Exception as exc:  # noqa: BLE001 - it's still in JARVIS's calendar; the next sync retries
+            out["google_calendar"] = f"not added yet ({exc}); will retry on the next sync"
     ctx.bus.publish({"type": "data", "what": "events"})
-    return {"created_event_id": eid}
+    return out
 
 
 @tool("list_events", "List events between two ISO dates (end exclusive). Defaults to the next 7 days.",
       {"start": S, "end": S})
 def list_events(ctx: ToolContext, start: str | None = None, end: str | None = None) -> list:
+    from . import gcal
+    if gcal.ready():
+        gcal.sync()   # no-op if synced in the last few minutes
     start = start or ctx.today()
     end = end or (ctx.now().date() + timedelta(days=7)).isoformat()
     return ctx.store.list_events(start, end)
 
 
-@tool("delete_event", "Delete a calendar event by id.", {"event_id": I}, ["event_id"])
+@tool("delete_event", "Delete a calendar event by id (also from Google Calendar if it's synced).",
+      {"event_id": I}, ["event_id"])
 def delete_event(ctx: ToolContext, event_id: int) -> dict:
-    return {"deleted": ctx.store.delete_event(event_id)}
+    from . import gcal
+    ev = ctx.store.get_event(event_id)
+    out: dict = {"deleted": ctx.store.delete_event(event_id)}
+    if ev and ev.get("gid") and gcal.ready():
+        try:
+            gcal.delete_event(ev["gid"])
+        except Exception as exc:  # noqa: BLE001
+            out["google_calendar"] = f"couldn't delete it in Google: {exc}"
+    ctx.bus.publish({"type": "data", "what": "events"})
+    return out
+
+
+@tool("sync_calendar", "Sync with the owner's Google Calendar now (pull their events, push JARVIS's new ones).")
+def sync_calendar(ctx: ToolContext) -> dict:
+    from . import gcal
+    if not gcal.ready():
+        return {"error": "Google Calendar isn't connected. The owner sets it up once: dashboard → Autopilot → "
+                         "Google Calendar → Set up."}
+    out = gcal.sync(force=True)
+    ctx.bus.publish({"type": "data", "what": "events"})
+    return out
 
 
 # ------------------------------------------------------------------ notes & memory
@@ -303,3 +338,4 @@ def execute(name: str, ctx: ToolContext, args: dict) -> tuple[str, bool]:
 
 # Real-world tools (messaging, inboxes, routines, laptop and phone) register themselves on import.
 from . import actions as _actions  # noqa: E402,F401
+from . import extras as _extras  # noqa: E402,F401  (lecture recorder, business kit)

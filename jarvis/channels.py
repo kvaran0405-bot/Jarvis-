@@ -28,7 +28,7 @@ def email_read_ready() -> bool:
     return bool(settings.imap_host and settings.smtp_user and settings.smtp_password)
 
 
-def send_email(to: str, subject: str, body: str, reply_to_message_id: str = "") -> None:
+def send_email(to: str, subject: str, body: str, reply_to_message_id: str = "", attachment: str = "") -> None:
     msg = EmailMessage()
     msg["From"] = settings.smtp_user
     msg["To"] = to
@@ -40,6 +40,13 @@ def send_email(to: str, subject: str, body: str, reply_to_message_id: str = "") 
         msg["References"] = reply_to_message_id
     sig = f"\n\n{settings.email_signature}" if settings.email_signature else ""
     msg.set_content(body + sig)
+    if attachment:
+        import mimetypes
+        from pathlib import Path
+        path = Path(attachment)
+        ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        maintype, _, subtype = ctype.partition("/")
+        msg.add_attachment(path.read_bytes(), maintype=maintype, subtype=subtype, filename=path.name)
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
         smtp.starttls()
         smtp.login(settings.smtp_user, settings.smtp_password)
@@ -196,7 +203,8 @@ def deliver(store, bus, msg: dict) -> bool:
         if msg["channel"] == "email":
             if not email_ready():
                 raise RuntimeError("e-mail is not set up (JARVIS_SMTP_* in .env)")
-            send_email(msg["recipient"], msg["subject"] or "(no subject)", msg["body"], msg["reply_to"])
+            args = (msg["recipient"], msg["subject"] or "(no subject)", msg["body"], msg["reply_to"])
+            send_email(*args, attachment=msg["attachment"]) if msg.get("attachment") else send_email(*args)
         elif msg["channel"] == "computer":
             from . import devices
             output = devices.run_command(msg["body"])
