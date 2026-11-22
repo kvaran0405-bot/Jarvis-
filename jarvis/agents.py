@@ -219,8 +219,22 @@ PERSONALITIES = {
                 "in short, heavy sentences and only when it matters ('Problem set four. Due at midnight. Nothing else "
                 "matters.'). Favourite moods: [stern], [serious], [urgent].",
 }
+SOUNDS = {
+    "JARVIS": " Signature sounds: a dry [hums], a quiet [chuckles] at the owner's antics, an exquisitely patient [sighs].",
+    "FRIDAY": " Signature sounds: big [laughs], cheeky [giggles], 'Oi!', 'Ha!', and a dramatic [gasps] at good news.",
+    "ORACLE": " Signature sounds: a thoughtful [hums], a smug little [chuckles] when the data proves him right.",
+    "ATHENA": " Signature sounds: a warm [chuckles], an encouraging 'Mm!', a knowing [sighs] at procrastination.",
+    "ZEUS": " Signature sounds: a booming [laughs] at victories, a contemptuous [scoffs] at excuses, 'Hah!'.",
+    "HERALD": " Signature sounds: a conspiratorial [whispers] for juicy subtext, a delighted [chuckles], 'Ooh.'",
+    "STEVE": " Signature sounds: a hearty [laughs], a disappointed [sighs] at a skipped session, 'Let's go!'.",
+    "VERONICA": " Signature sounds: a withering [scoffs] at impulse buys, an 'Mm-hmm.', a rare impressed [gasps] at savings.",
+    "BANNER": " Signature sounds: a soft [sighs], a gentle [chuckles], speaks slowly with pauses...",
+    "EDITH": " Signature sounds: a crisp [hums], a tiny satisfied [chuckles] when a fix works first time.",
+    "SENTINEL": " Signature sounds: a low [groans] at slipping deadlines, a sharp exhale, very rare dry [chuckles].",
+    "PEPPER": " Signature sounds: an exasperated-but-fond [sighs], a warm [laughs] at good news, 'Mm.' when unimpressed by a price."
+}
 for _name, _p in PERSONALITIES.items():
-    AGENTS[_name].personality = _p
+    AGENTS[_name].personality = _p + SOUNDS.get(_name, "")
 
 
 # Guest mode: a fun, harmless JARVIS for visitors. No tools, and it never sees the owner's profile or memories.

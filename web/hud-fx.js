@@ -118,7 +118,10 @@ if(vb){ vb.insertAdjacentHTML("afterend", `<button class="pill hud" id="fxBtn" t
 let ampTimer = null, analyser = null, buf = null;
 function speakStart(clip, audio){
   const sub = $("#hudSub"), color = window.AGENTS?.[clip.agent]?.color || "#ffd23f";
-  if(sub){ sub.innerHTML = `<b style="color:${color}">${esc(clip.agent)}</b>${esc(String(clip.text).replace(/\[\w+\]\s*/g, "").slice(0, 220))}`; sub.classList.add("on"); }
+  const raw = String(clip.text), emo = (raw.match(/\[(laughs|chuckles|giggles|sighs|groans|gasps|scoffs|hums)\]/i) || [])[1];
+  const shown = raw.replace(/\[(laughs|chuckles|giggles|sighs|groans|gasps|scoffs|hums)\]\s*/gi, (m, e) => `(${e.toLowerCase()}) `).replace(/\[\w+\]\s*/g, "");
+  if(sub){ sub.innerHTML = `<b style="color:${color}">${esc(clip.agent)}</b>${esc(shown.slice(0, 220))}`; sub.classList.add("on"); }
+  if(emo) emote(emo.toLowerCase());
   cancelAnimationFrame(ampTimer); analyser = null;
   if(audio && AC && AC.state === "running"){   // never reroute audio through a context that isn't allowed to play
     try { const a = AC; const src = a.createMediaElementSource(audio); analyser = a.createAnalyser(); analyser.fftSize = 512;
@@ -131,6 +134,15 @@ function speakStart(clip, audio){
     setAmp(v); ampTimer = requestAnimationFrame(loop);
   };
   if(!reduce) loop();
+}
+// the reactor reacts to sounds: ripple on a laugh, dim on a sigh, flicker on a gasp
+function emote(e){
+  const orb = $("#orb"); if(!orb || reduce) return;
+  if(e === "laughs" || e === "chuckles" || e === "giggles"){ for(let i = 0; i < (e === "laughs" ? 3 : 1); i++) setTimeout(() => {
+    orb.insertAdjacentHTML("beforeend", `<span class="ripple"></span>`); setTimeout(() => orb.querySelector(".ripple")?.remove(), 750); }, i * 180); }
+  if(e === "sighs" || e === "groans"){ orb.animate([{filter: "brightness(1)"}, {filter: "brightness(.45)"}, {filter: "brightness(1)"}], {duration: 1400, easing: "ease-in-out"}); }
+  if(e === "gasps"){ orb.animate([{transform: "scale(1)"}, {transform: "scale(1.18)"}, {transform: "scale(1)"}], {duration: 380}); glitch(orb); }
+  if(e === "scoffs" || e === "hums"){ orb.animate([{transform: "translateX(0)"}, {transform: "translateX(-4px)"}, {transform: "translateX(3px)"}, {transform: "translateX(0)"}], {duration: 300}); }
 }
 function speakEnd(){
   cancelAnimationFrame(ampTimer); setAmp(0);

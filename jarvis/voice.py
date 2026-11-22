@@ -57,12 +57,24 @@ MOODS = {
     "serious": (-8, -5), "stern": (-6, -7), "concerned": (-9, -3), "worried": (-7, -2), "urgent": (+12, +3),
     "whisper": (-12, -4), "tired": (-12, -5), "triumphant": (+8, +7),
 }
-MOOD_RE = re.compile(r"\[(" + "|".join(MOODS) + r")\]\s*", re.I)
+# Emotes: sounds an agent makes, written as [laughs], [sighs]... (spoken text, speed change %, pitch change Hz,
+# VoiceStudio's real sound). Free voices say the sound in the agent's own voice; expressive voices act it out.
+EMOTES = {
+    "laughs": ("Ha ha ha!", +12, +7, "[laughter] "), "chuckles": ("Heh heh.", +2, +3, "[laughter] "),
+    "sighs": ("Haahh...", -28, -7, "[sigh] "), "groans": ("Ughhh.", -22, -9, "[dissatisfaction-hnn] "),
+    "gasps": ("Oh!", +18, +10, "[surprise-oh] "), "scoffs": ("Pfft.", +0, -3, "[dissatisfaction-hnn] "),
+    "hums": ("Hmm.", -12, -4, ""), "giggles": ("Hee hee!", +14, +9, "[laughter] "),
+}
+TAG_RE = re.compile(r"\[(" + "|".join(list(MOODS) + list(EMOTES) + ["whispers"]) + r")\]\s*", re.I)
+MOOD_RE = TAG_RE
+EMOTE_RE = re.compile(r"\[(" + "|".join(list(EMOTES) + ["whispers"]) + r")\]\s*", re.I)
 
 
 def strip_moods(text: str) -> str:
-    """Text for reading: mood tags removed."""
-    return re.sub(r"\s{2,}", " ", MOOD_RE.sub("", text or "")).strip()
+    """Text for reading: mood tags removed, sounds shown like film subtitles: (laughs)."""
+    t = EMOTE_RE.sub(lambda m: f"({m.group(1).lower()}) " if m.group(1).lower() != "whispers" else "", text or "")
+    t = TAG_RE.sub("", t)
+    return re.sub(r"\s{2,}", " ", t).strip()
 
 
 # Greetings and short replies said in one breath with the owner's name: "Good morning Sir", "Yes Sir", "Done Sir"
@@ -84,12 +96,17 @@ def speakable(text: str) -> str:
 
 
 def segments(text: str) -> list[tuple[str, str]]:
-    """[(mood, text), ...] - consecutive pieces of speech, each with its mood ('' = neutral)."""
+    """[(mood, text), ...] - consecutive pieces of speech, each with its mood ('' = neutral). A sound like [laughs]
+    becomes its own piece ("!laughs", "") and the mood carries on after it; [whispers] switches to a whisper."""
     parts, mood, pos = [], "", 0
-    for m in MOOD_RE.finditer(text):
+    for m in TAG_RE.finditer(text):
         if text[pos:m.start()].strip():
             parts.append((mood, text[pos:m.start()].strip()))
-        mood, pos = m.group(1).lower(), m.end()
+        tag, pos = m.group(1).lower(), m.end()
+        if tag in EMOTES:
+            parts.append(("!" + tag, ""))
+        else:
+            mood = "whisper" if tag == "whispers" else tag
     if text[pos:].strip():
         parts.append((mood, text[pos:].strip()))
     return parts or [("", text)]
@@ -173,6 +190,9 @@ def provider() -> str:
     choice = settings.tts
     if choice in ("elevenlabs", "auto") and settings.elevenlabs_key:
         return "elevenlabs"
+    from . import gemtts
+    if choice in ("gemini", "auto") and gemtts.enabled():
+        return "gemini"
     if choice in ("voicestudio", "auto") and voicestudio_up():
         return "voicestudio"
     if choice in ("edge", "auto"):
@@ -193,6 +213,9 @@ def voice_for(agent: str) -> str:
     prov = provider()
     if prov == "edge":
         return _edge_voice(agent)[0]
+    if prov == "gemini":
+        from .gemtts import VOICES
+        return "Gemini · " + VOICES.get(agent, VOICES["JARVIS"])[0]
     if prov == "voicestudio":
         return (os.environ.get(f"JARVIS_VS_VOICE_{agent}", "").strip()
                 or VS_VOICES.get(agent, VS_VOICES["JARVIS"])[0])
@@ -227,6 +250,10 @@ def _edge(text: str, agent: str, path: Path) -> None:
     async def go(v: str, base_rate: str, base_pitch: str) -> bytes:
         out = bytearray()
         for mood, words in segments(text):
+            if mood.startswith("!"):   # a sound: the agent says it in their own voice
+                said, dr, dp, _vs = EMOTES[mood[1:]]
+                out += await say(v, said, _shift(base_rate, dr, "%"), _shift(base_pitch, dp, "Hz"))
+                continue
             dr, dp = MOODS.get(mood, (0, 0))
             out += await say(v, words, _shift(base_rate, dr, "%"), _shift(base_pitch, dp, "Hz"))
         return bytes(out)
@@ -267,10 +294,16 @@ def _voicestudio(text: str, agent: str, path: Path) -> Path:
     MP3 when VoiceStudio has ffmpeg, otherwise raw PCM wrapped into a WAV."""
     import urllib.error
     import wave
-    pieces = []
+    pieces, pending = [], ""
     for mood, words in segments(text):
+        if mood.startswith("!"):   # real laughs and sighs from VoiceStudio, attached to the next words
+            pending += EMOTES[mood[1:]][3] or (EMOTES[mood[1:]][0] + " ")
+            continue
         sound, speed = VS_MOODS.get(mood, ("", 1.0))
-        pieces.append((sound + words, speed))
+        pieces.append((pending + sound + words, speed))
+        pending = ""
+    if pending:
+        pieces.append((pending.strip(), 1.0))
     try:
         audio = b"".join(_vs_request(agent, w, sp, "mp3") for w, sp in pieces)
         path.write_bytes(audio)
@@ -288,10 +321,20 @@ def _voicestudio(text: str, agent: str, path: Path) -> Path:
     return wav_path
 
 
+def _gemini_tune(agent: str) -> tuple:
+    from .gemtts import VOICES
+    return ("gemini",) + VOICES.get(agent.upper(), VOICES["JARVIS"])
+
+
 def synthesize(agent: str, text: str, live: bool = False) -> Path:
     """Return the path of an MP3 of `agent` saying `text` (cached).
     live=True: someone is waiting for this reply right now, so a slow VoiceStudio hands over to the quick voices."""
     prov = provider()
+    if prov == "gemini" and live:   # someone is waiting: only use Gemini if it's been quick enough
+        from . import gemtts
+        spc = gemtts.seconds_per_char()
+        if spc is not None and spc * len(speakable(text)) > LIVE_BUDGET_S:
+            prov = "edge"
     if prov == "voicestudio" and live and vs_too_slow_for(speakable(text)):
         try:
             import edge_tts  # noqa: F401
@@ -300,10 +343,11 @@ def synthesize(agent: str, text: str, live: bool = False) -> Path:
             pass
     voice_id = voice_for(agent)
     text = speakable(text)[:2500]
-    if prov not in ("edge", "voicestudio"):
+    if prov not in ("edge", "voicestudio", "gemini"):
         text = strip_moods(text)
     tune = (_edge_voice(agent) if prov == "edge" else
-            VS_VOICES.get(agent.upper()) if prov == "voicestudio" else voice_id)
+            VS_VOICES.get(agent.upper()) if prov == "voicestudio" else
+            _gemini_tune(agent) if prov == "gemini" else voice_id)
     key = hashlib.sha256(f"{prov}|{tune}|{settings.elevenlabs_model}|{text}".encode()).hexdigest()[:32]
     path = CACHE / f"{key}.mp3"
     if path.exists():
@@ -311,6 +355,15 @@ def synthesize(agent: str, text: str, live: bool = False) -> Path:
     if path.with_suffix(".wav").exists():
         return path.with_suffix(".wav")
     CACHE.mkdir(parents=True, exist_ok=True)
+    if prov == "gemini":
+        from . import gemtts
+        try:
+            return gemtts.synthesize(agent, text, path)
+        except Exception:  # noqa: BLE001 - Gemini refused or is slow: the free voices take over
+            prov = "edge"
+            path = CACHE / f"{hashlib.sha256(f'edge|{_edge_voice(agent)}|{text}'.encode()).hexdigest()[:32]}.mp3"
+            if path.exists():
+                return path
     if prov == "voicestudio":
         try:
             return _voicestudio(text, agent, path)

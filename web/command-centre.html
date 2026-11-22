@@ -211,7 +211,11 @@ footer{position:fixed;bottom:6px;left:0;right:380px;text-align:center;font-size:
 <script>
 const MOODS = {warm:[-4,-1],gentle:[-10,-2],calm:[-6,-2],proud:[2,4],cheerful:[6,4],excited:[12,6],playful:[6,5],amused:[3,3],dry:[-6,-4],sarcastic:[-5,3],serious:[-8,-5],stern:[-6,-7],concerned:[-9,-3],worried:[-7,-2],urgent:[12,3],whisper:[-12,-4],tired:[-12,-5],triumphant:[8,7]};
 const MOOD_RE = new RegExp("\\[(" + Object.keys(MOODS).join("|") + ")\\]\\s*", "gi");
-const stripMoods = t => String(t ?? "").replace(MOOD_RE, "");
+const EMOTES = {laughs:"Ha ha!", chuckles:"Heh heh.", giggles:"Hee hee!", sighs:"Haah...", groans:"Ughh.", gasps:"Oh!", scoffs:"Pfft.", hums:"Hmm.", whispers:""};
+const EMOTE_RE = new RegExp("\\[(" + Object.keys(EMOTES).join("|") + ")\\]\\s*", "gi");
+const showEmotes = t => String(t ?? "").replace(EMOTE_RE, (m, e) => e.toLowerCase() === "whispers" ? "" : `(${e.toLowerCase()}) `);
+const sayEmotes = t => String(t ?? "").replace(EMOTE_RE, (m, e) => (EMOTES[e.toLowerCase()] || "") + " ");
+const stripMoods = t => showEmotes(String(t ?? "").replace(MOOD_RE, ""));
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let AGENTS = {}, ORDER = [], voiceOn = true, state = null;
@@ -282,7 +286,7 @@ function voiceSettings(agent){
 function browserVoices(){ return "speechSynthesis" in window ? speechSynthesis.getVoices() : []; }
 function speakBrowser(agent, text, done){
   const mood = (String(text).match(/^\s*\[(\w+)\]/) || [])[1]?.toLowerCase();
-  const u = new SpeechSynthesisUtterance(plain(stripMoods(text)));
+  const u = new SpeechSynthesisUtterance(plain(sayEmotes(String(text).replace(MOOD_RE, ""))));
   const v = voiceSettings(agent), [dr, dp] = MOODS[mood] || [0, 0];
   u.pitch = Math.max(0.1, v.pitch + dp / 20); u.rate = Math.max(0.5, v.rate * (1 + dr / 100));
   const all = browserVoices(), en = all.filter(x => x.lang.startsWith("en"));
