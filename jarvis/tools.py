@@ -348,3 +348,4 @@ def execute(name: str, ctx: ToolContext, args: dict) -> tuple[str, bool]:
 from . import actions as _actions  # noqa: E402,F401
 from . import extras as _extras  # noqa: E402,F401  (lecture recorder, business kit)
 from . import life as _life  # noqa: E402,F401  (friend layer, study, crew, fitness, focus)
+from . import butler as _butler  # noqa: E402,F401  (deep memory, home manager, Stark Daily)

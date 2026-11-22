@@ -51,11 +51,15 @@ class Doc:
             self.new_page()
 
     def text(self, x: float, y: float, text: str, size: float = 10, bold: bool = False,
-             color: tuple = (0, 0, 0), align: str = "left") -> None:
+             color: tuple = (0, 0, 0), align: str = "left", serif: bool = False) -> None:
+        w = text_width(text, size, bold) * (.92 if serif else 1)
         if align == "right":
-            x -= text_width(text, size, bold)
+            x -= w
+        elif align == "center":
+            x -= w / 2
         r, g, b = color
-        self.ops.append(f"BT {r} {g} {b} rg /{'F2' if bold else 'F1'} {size} Tf {x:.1f} {y:.1f} Td ({_esc(text)}) Tj ET")
+        font = ("F4" if bold else "F3") if serif else ("F2" if bold else "F1")
+        self.ops.append(f"BT {r} {g} {b} rg /{font} {size} Tf {x:.1f} {y:.1f} Td ({_esc(text)}) Tj ET")
 
     def line(self, x1: float, y1: float, x2: float, y2: float, width: float = 0.5, color: tuple = (0.8, 0.8, 0.8)) -> None:
         r, g, b = color
@@ -80,25 +84,28 @@ class Doc:
         return lines
 
     def paragraph(self, text: str, size: float = 10, bold: bool = False, x: float = MARGIN,
-                  width: float = PAGE_W - 2 * MARGIN, color: tuple = (0, 0, 0), gap: float = 1.4) -> None:
-        for ln in self.wrap(text, width, size, bold):
+                  width: float = PAGE_W - 2 * MARGIN, color: tuple = (0, 0, 0), gap: float = 1.4,
+                  serif: bool = False) -> None:
+        for ln in self.wrap(text, width / (.92 if serif else 1), size, bold):
             self.need(size * gap)
             self.y -= size * gap
-            self.text(x, self.y, ln, size, bold, color)
+            self.text(x, self.y, ln, size, bold, color, serif=serif)
 
     def save(self, path: Path) -> Path:
         objs: list[bytes] = []
         n_pages = len(self.pages)
-        # 1 catalog, 2 pages, 3 font, 4 bold font, then (page, content) pairs
-        kids = " ".join(f"{5 + 2 * i} 0 R" for i in range(n_pages))
+        # 1 catalog, 2 pages, 3-6 fonts (Helvetica, bold, Times, bold), then (page, content) pairs
+        kids = " ".join(f"{7 + 2 * i} 0 R" for i in range(n_pages))
         objs.append(b"<< /Type /Catalog /Pages 2 0 R >>")
         objs.append(f"<< /Type /Pages /Kids [{kids}] /Count {n_pages} >>".encode())
         objs.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
         objs.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
+        objs.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>")
+        objs.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>")
         for i, ops in enumerate(self.pages):
             stream = "\n".join(ops).encode("latin-1", "replace")
             objs.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W} {PAGE_H}] "
-                        f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {6 + 2 * i} 0 R >>".encode())
+                        f"/Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents {8 + 2 * i} 0 R >>".encode())
             objs.append(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
         out = bytearray(b"%PDF-1.4\n")
         offsets = []

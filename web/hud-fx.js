@@ -61,10 +61,20 @@ body.birthday #hudBday{display:block}
 #hudExpo{position:fixed;inset:auto 0 18% 0;z-index:16;text-align:center;pointer-events:none;font:900 clamp(18px,3.2vw,36px) Orbitron,sans-serif;letter-spacing:.25em;color:var(--c);text-shadow:0 0 30px var(--c);opacity:0;transition:opacity .5s}
 #hudExpo.on{opacity:1}
 #fxBtn{cursor:pointer}
+#hudToast{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:90px;z-index:26;max-width:300px;background:rgba(7,9,13,.96);border:1px solid var(--tc,#2de0c0);border-left:3px solid var(--tc,#2de0c0);padding:10px 12px;font:12px/1.5 "JetBrains Mono",monospace;color:#dce7f2;transform:translateX(120%);transition:transform .45s cubic-bezier(.2,.9,.2,1)}
+#hudToast.on{transform:none}
+#hudToast b{display:block;font:700 9px Orbitron,sans-serif;letter-spacing:.2em;color:var(--tc,#2de0c0);margin-bottom:3px}
+#hudDossier{position:fixed;inset:0;z-index:38;background:rgba(2,4,7,.92);display:none;place-items:center;padding:16px}
+#hudDossier.on{display:grid}
+#hudDossier .file{width:min(640px,100%);background:#0b1118;border:1px solid #2a3646;padding:22px 24px;position:relative;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+#hudDossier .stamp{position:absolute;right:18px;top:14px;font:900 12px Orbitron,sans-serif;letter-spacing:.25em;color:#ff4d5e;border:2px solid #ff4d5e;padding:4px 8px;transform:rotate(6deg);opacity:.85}
+#hudDossier .k{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:#8a95a7}
+#hudDossier pre{white-space:pre-wrap;font:500 14px/1.7 "JetBrains Mono",monospace;color:#e6edf5;margin:12px 0 0;min-height:120px}
+#hudDossier button{margin-top:14px;background:none;border:1px solid #ffd23f;color:#ffd23f;font:700 11px Orbitron,sans-serif;letter-spacing:.25em;padding:10px 18px;cursor:pointer}
 @media (prefers-reduced-motion:reduce){.card.working,.glitch,#hudBoot .scanl{animation:none}}
 `;
 document.head.appendChild(css);
-document.body.insertAdjacentHTML("beforeend", `<div id="hudEdge"></div><div id="hudTip"></div><div id="hudBday">HAPPY BIRTHDAY SIR</div><div id="hudExpo"></div>`);
+document.body.insertAdjacentHTML("beforeend", `<div id="hudToast"></div><div id="hudDossier"><div class="file"><span class="stamp">CLASSIFIED</span><div class="k">FOR SIR'S EYES ONLY · MISSION DOSSIER</div><pre></pre><button>ACKNOWLEDGED</button></div></div><div id="hudEdge"></div><div id="hudTip"></div><div id="hudBday">HAPPY BIRTHDAY SIR</div><div id="hudExpo"></div>`);
 $("#core")?.insertAdjacentHTML("beforeend", `<div id="hudSub" aria-live="polite"></div>`);
 $("#log")?.insertAdjacentHTML("afterbegin", `<div id="hudAmbient"></div>`);
 const setAmp = v => document.documentElement.style.setProperty("--amp", Math.max(0, Math.min(1, v)).toFixed(3));
@@ -275,5 +285,25 @@ async function expo(){
   await banner("THANK YOU"); expoOn = false;
 }
 
-window.HUDFX = {speakStart, speakEnd, onEvent, boot, expo, sfx: SFX};
+// ------------------------------------------------------------------ toasts, mission dossier, presence
+function toast(agent, text, ms = 7000){
+  const t = $("#hudToast"); if(!t) return; t.style.setProperty("--tc", window.AGENTS?.[agent]?.color || "#2de0c0");
+  t.innerHTML = `<b>${esc(agent)}</b>${esc(text)}`; t.classList.add("on"); SFX.arrive(); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), ms);
+}
+async function dossier(text){
+  const d = $("#hudDossier"), pre = d.querySelector("pre"); pre.textContent = ""; d.classList.add("on"); SFX.boom();
+  d.querySelector("button").onclick = () => { d.classList.remove("on"); SFX.click(); };
+  const clean = String(text).replace(/\[\w+\]\s*/g, "").replace(/[#*_`]/g, "");
+  for(let i = 0; i < clean.length; i += 3){ pre.textContent = clean.slice(0, i + 3); if(i % 30 === 0) SFX.click(); await wait(reduce ? 0 : 14); }
+}
+let presenceAt = 0;
+["pointermove", "keydown"].forEach(e => addEventListener(e, () => { if(Date.now() - presenceAt > 60000){ presenceAt = Date.now(); fetch("/api/presence", {method: "POST"}).catch(() => {}); } }, {passive: true}));
+const _onEvent = onEvent;
+function onEvent2(ev){
+  _onEvent(ev);
+  if(ev.type === "nudge"){ toast(ev.agent || "BANNER", ev.text); }
+  if(ev.type === "mission"){ dossier(ev.text); }
+}
+
+window.HUDFX = {speakStart, speakEnd, onEvent: onEvent2, boot, expo, sfx: SFX, toast, dossier};
 })();

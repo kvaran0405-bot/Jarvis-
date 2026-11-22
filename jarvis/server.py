@@ -636,6 +636,8 @@ FOCUS_RE = re.compile(_J + r"(?:suit up|focus mode|start focus|deep work)(?:\s+(
 UNFOCUS_RE = re.compile(_J + r"(?:stand down focus|end focus|stop focus|focus off)\s*[.!]?\s*$", re.I)
 CLEAN_RE = re.compile(_J + r"(?:initiate\s+|activate\s+)?clean slate(?: protocol)?\s*[.!]?\s*$", re.I)
 PARTY_RE = re.compile(_J + r"(?:initiate\s+|activate\s+)?house party(?: protocol)?\s*[.!]?\s*$", re.I)
+DATE_RE = re.compile(_J + r"plan (?:a |me a |our )?date(?: night)?(.*)$", re.I)
+MISSION_RE = re.compile(_J + r"mission briefing(?: for (.+))?\s*[.!?]?\s*$", re.I)
 THEME_RE = re.compile(_J + r"(?:switch to |change to |activate |set )?(?:the )?(?:suit |hud )?(?:theme |mode )?"
                       r"(classic|mark ?42|stealth|arc ?blue|ironheart|wakanda|hulkbuster)(?: theme| mode| suit)?\s*[.!]?\s*$", re.I)
 GUEST_RE = re.compile(_J + r"guest mode(?:\s+(on|off))?\s*[.!]?\s*$|^\s*(?:jarvis[,\s]+)?(?:end|exit|stop) guest mode\s*[.!]?\s*$", re.I)
@@ -650,6 +652,10 @@ HOLO_VIEWS = {"week": "week", "calendar": "week", "schedule": "week", "business"
               "diagnostics": "diagnostics", "run diagnostics": "diagnostics", "trophies": "trophies",
               "achievements": "trophies", "trophy hall": "trophies", "holo lab": "week", "hololab": "week", "lab": "week"}
 WAR_RE = re.compile(_J + r"(?:war room|brief me(?: for (.+))?|full briefing)\s*[.!?]?\s*$", re.I)
+
+
+MISSION_PROMPT = ("Mission briefing, spoken, cinematic, under 100 words: OPERATION <name>, objective, plan with times, "
+                  "threats (weather, traffic, weak spots), one line of confidence. Check list_events and status_snapshot.")
 
 
 def special(text: str) -> tuple[str | None, str | None, str | None]:
@@ -679,6 +685,15 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         bus.publish({"type": "guest", "on": on})
         return ("Guest mode on. Your private things are hidden, Sir; I'll entertain your guests." if on
                 else "Guest mode off. Welcome back, Sir."), None, None
+    if m := DATE_RE.match(text):
+        return None, "ORACLE", ("Plan a date night for the owner" + (f" ({m.group(1).strip()})" if m.group(1).strip() else "")
+                                + ". Check list_events for a free evening this week or next, the weather, and recall "
+                                "for preferences (likes, budget, who). Give 3 options (dinner + something to do + the "
+                                "vibe, real Singapore places with rough prices), recommend one, then `propose` it: "
+                                "calendar block, a reminder 3 days before to book, and one on the day for flowers or "
+                                "an outfit. Never book or pay.")
+    if m := MISSION_RE.match(text):
+        return None, "JARVIS", (MISSION_PROMPT + (f" The mission: {m.group(1)}." if m.group(1) else ""))
     if FIRST_RE.match(text):
         return None, "JARVIS", ("First contact. Get to know the owner properly, like a new butler on day one: ask ONE "
                                 "warm, specific question at a time (their goals this year, what a perfect day looks "
@@ -859,6 +874,13 @@ def holo_data():
     from . import holo
     holo.check_trophies(store, bus)
     return holo.data(store)
+
+
+@app.post("/api/presence")
+def presence():
+    """The owner is at the dashboard (moving the mouse, typing). Used for nudges and the clap welcome."""
+    store.set("owner:last_seen", datetime.now(settings.tz).isoformat())
+    return {"ok": True}
 
 
 @app.get("/api/greet")

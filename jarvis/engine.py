@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable
 
 from . import brain, brains
@@ -57,7 +57,10 @@ Operating rules:
 - When the owner shares how they feel, how they slept or their day, log it with `log_mood` (and a good moment with
   `log_gratitude`). If they say "be real with me" or ask for honesty, drop the politeness and tell the truth kindly.
 - A voice note or message that rambles through several things: turn each into the right task, event or note.
-- When they're torn on a decision: options, pros/cons, risks, then your clear recommendation."""
+- When they're torn on a decision: options, pros/cons, risks, then your clear recommendation.
+- Memory like a person: when the owner uses slang or a nickname, `remember` it as "Glossary: <term> = <meaning>"; likes
+  and dislikes as "Likes: ..." / "Dislikes: ..."; things someone would love as "Gift idea for <name>: ...". For
+  "where is / when did / what did X say", use `find_anything`. People they meet go in with `log_meeting`."""
 
 
 class Engine:
@@ -112,15 +115,31 @@ class Engine:
         if agent is not None and agent.hidden:
             return ""
         now = datetime.now(self.settings.tz)
-        facts = [m["fact"] for m in self.store.memories(40)]
+        facts = [m["fact"] for m in self.store.memories(90)]
         mem = "\n".join(f"- {f}" for f in facts) if facts else "- (none yet)"
         own = ""
         if agent:
             notes = [n["note"] for n in self.store.agent_notes(agent.name, 30)]
             own = ("Your private notebook (what you've learned about doing your job for the owner):\n"
                    + ("\n".join(f"- {n}" for n in notes) if notes else "- (empty - use `learn` to add to it)") + "\n")
+        radar = ""
+        today = [r for r in self.store.query(
+            "SELECT agent, kind, message FROM activity WHERE kind IN ('command','reply') AND created >= ? "
+            "ORDER BY id DESC LIMIT 12",
+            ((datetime.now().astimezone() - timedelta(hours=16)).isoformat(timespec="seconds"),))][::-1]
+        if today:   # context radar: what the owner already told the team today, so nobody asks twice
+            radar = "Today's conversation so far (all agents):\n" + "\n".join(
+                f"- {'Owner' if r['agent'] == 'YOU' else r['agent']}: {r['message'][:160]}" for r in today) + "\n"
+        style = ""
+        if agent and agent.name in ("JARVIS", "HERALD", "PEPPER", "ZEUS"):
+            samples = [r["message"] for r in self.store.query(
+                "SELECT message FROM activity WHERE agent = 'YOU' AND kind = 'command' AND length(message) > 25 "
+                "ORDER BY id DESC LIMIT 12")]
+            if samples:   # digital twin: drafts should sound like the owner, not like an AI
+                style = ("How the owner writes (match this voice when drafting for them):\n"
+                         + "\n".join(f'- "{m[:140]}"' for m in samples) + "\n")
         return (f"[Context] Now: {now.strftime('%A %Y-%m-%d %H:%M')} ({self.settings.timezone}).\n"
-                f"Known facts about the owner:\n{mem}\n{own}[/Context]\n\n")
+                f"Known facts about the owner:\n{mem}\n{own}{radar}{style}[/Context]\n\n")
 
     def tools_for(self, agent: Agent) -> list[dict]:
         tools = [REGISTRY[name].schema() for name in self.tool_names_for(agent)]

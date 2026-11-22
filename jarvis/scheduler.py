@@ -79,7 +79,10 @@ MORNING = ("Compile today's morning brief for the owner: the weather (call `weat
            "business pipeline, exam countdowns (exams_upcoming), birthdays/anniversaries in the next 7 days "
            "(`upcoming_dates`, with a gift idea), and what the agents completed overnight (recent reports and tasks "
            "done in the last 24h). If today has a special occasion (wedding gig, interview, date, presentation), add "
-           "a one-line outfit and grooming reminder. Open with one line of team banter from another agent. Publish it as kind 'morning_brief'. "
+           "a one-line outfit and grooming reminder. Open with one line of team banter from another agent. "
+           "Finally, make today's Stark Daily with `publish_newspaper`: a headline and lead about their day, 3-5 stories "
+           "mixing their schedule with real news they'd care about (search: Singapore, finance/markets, events and "
+           "weddings industry), and a quote of the day. Publish it as kind 'morning_brief'. "
            "Then think ahead like a chief of staff: `propose` up to 3 concrete actions that would make today or "
            "this week go better (each a yes/no for the owner).")
 EVENING = ("Write the evening report: what got done today, what slipped (and reschedule it sensibly), habit "
@@ -150,6 +153,18 @@ MONTHLY = ("Monthly life report for last month: academics (grades, lectures, exa
            "mood trend (mood_report 31) and the owner's good moments (good_moments 31) as a short 'best of the "
            "month'. Grade each area A-F with one line why, and set 3 focus goals for this month. Publish as "
            "'monthly_report'. Remind them to take this month's progress photos (gym + hair).")
+ANTICIPATE = ("Before-you-ask sweep. Look 30 days ahead (status_snapshot, list_events, upcoming_dates, list_exams, "
+              "list_gigs, recall) for things the owner will need but hasn't asked for: documents to renew, gifts to "
+              "buy, prep for exams or big events, bookings to make early, people to reconnect with (network_radar). "
+              "`propose` at most 2 specific, ready-to-go actions. If nothing is worth it, reply 'Nothing to flag.'")
+TUNEUP = ("Weekly team tune-up. Read this week's conversations and replies the owner picked (recall, my_notebook, "
+          "mood_report 7). For each agent the owner talked to, write one `coach_agent` note on how to talk to the "
+          "owner better (tone, length, humour, what landed, what annoyed). Their personalities grow from this. "
+          "Reply with a one-line summary.")
+MISSION = ("Mission briefing. Today has a big event (exam, interview, wedding or presentation): list_events and "
+           "list_gigs for details. Write a short, cinematic spoken briefing like JARVIS before a mission: "
+           "OPERATION <name>, objective, the plan with times, threats (weather, traffic, weak spots), and one line "
+           "of confidence. Under 120 words. Your final answer is the briefing itself.")
 SUBS = ("Subscription check. search_email('receipt subscription renewal invoice', days=45). List recurring charges "
         "you can see (service, amount, renewal date). Flag ones that look unused or duplicated and `propose` "
         "cancelling them (the owner cancels; you never do). Reply in 2-3 lines.")
@@ -181,6 +196,10 @@ class Scheduler:
             Job("career_weekly", "ZEUS", "LinkedIn draft", daily_at("11:00", weekday=5), CAREER),
             Job("fitness_weekly", "STEVE", "Weekly gym & meal plan", daily_at("17:00", weekday=6), FITNESS, deliver=True),
             Job("monthly_report", "FRIDAY", "Monthly life report", monthly_at(1, "10:00"), MONTHLY),
+            Job("anticipate", "JARVIS", "Before-you-ask", daily_at("08:30"), ANTICIPATE),
+            Job("team_tuneup", "JARVIS", "Team tune-up", daily_at("22:00", weekday=6), TUNEUP),
+            Job("mission_briefing", "JARVIS", "Mission briefing", daily_at("07:20"), MISSION, deliver=True,
+                when=lambda sc: sc.big_day()),
         ]
         if _ch.email_read_ready():
             self.jobs.append(Job("subscriptions", "VERONICA", "Subscription check", monthly_at(15, "12:00"), SUBS))
@@ -229,11 +248,19 @@ class Scheduler:
                                                                                     background=True, chat=job.deliver)
             if job.deliver:
                 self.deliver(agent, result)
+                if name == "mission_briefing":
+                    self.bus.publish({"type": "mission", "agent": agent, "text": result})
             self.bus.log(job.agent, f"{job.label} complete: {result[:200]}", "job")
             return result
         finally:
             with self._lock:
                 self._running.discard(name)
+
+    def big_day(self) -> bool:
+        import re as _re
+        today = datetime.now(self.settings.tz).date().isoformat()
+        evs = self.store.list_events(today, (datetime.now(self.settings.tz).date() + timedelta(days=1)).isoformat())
+        return any(_re.search(r"exam|interview|wedding|presentation|pitch|final", e["title"], _re.I) for e in evs)
 
     def deliver(self, agent: str, text: str) -> None:
         """Send a job's message to the owner like a friend texting: Telegram text + voice note, and remember who
@@ -324,7 +351,8 @@ class Scheduler:
                 threading.Thread(target=self.run_routine, args=(routine,), daemon=True).start()
 
     MAINTENANCE = {"file_index": every_hours(6), "housekeeping": daily_at("03:00", weekday=6),
-                   "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6)}
+                   "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6), "leave_now": every_hours(1 / 12),
+                   "nudge": every_hours(2)}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -350,6 +378,12 @@ class Scheduler:
                 from .life import housekeeping
                 out = housekeeping()
                 self.bus.log("EDITH", f"Weekly tidy: {out['moved_to_old']} old download(s) filed away, backup made", "job")
+            elif name == "leave_now":
+                from .butler import leave_now_check
+                leave_now_check(self.store, self.bus)
+            elif name == "nudge":
+                from .butler import wellness_nudge
+                wellness_nudge(self.store, self.bus)
             elif name == "trophies":
                 from .holo import check_trophies
                 check_trophies(self.store, self.bus)

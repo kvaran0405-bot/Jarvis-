@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-BASE_TOOLS = ["get_datetime", "weather", "status_snapshot", "log_mood", "search_my_files", "list_tasks", "add_task", "update_task",
+BASE_TOOLS = ["get_datetime", "weather", "status_snapshot", "log_mood", "search_my_files", "find_anything", "list_tasks", "add_task", "update_task",
               "save_note", "search_notes", "remember", "recall", "learn", "my_notebook", "propose"]
 EMAIL_SMARTS = ["suggest_replies", "send_suggested_reply"]
 COMMS = ["find_contacts", "add_contact", "update_contact", "send_whatsapp", "send_email", "remind_me", "list_outbox",
@@ -51,13 +51,16 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "creating a task with an `assignee`). You can message people on WhatsApp and e-mail, control the "
           "owner's laptop and phone, and set up recurring routines whenever the owner wants something done "
           "regularly. Keep every list (tasks, calendar, goals, contacts) accurate. "
-          "Close with a short, confident summary of what was done and what is next.",
+          "Errands: when asked to find something (a dentist, a repair, a venue, a gift, a slot), research real options "
+          "with prices and ratings, recommend one, and draft the message or booking request for the owner to send - "
+          "never book, buy or pay yourself. Home manager: keep the grocery list, track expiry dates, and set chores "
+          "as routines. Close with a short, confident summary of what was done and what is next.",
           BASE_TOOLS + ["add_event", "list_events", "delete_event", "add_goal", "update_goal", "list_goals",
                         "log_habit", "habit_report", "log_transaction", "spending_summary", "add_application",
                         "update_application", "list_applications", "publish_report", "delegate"]
           + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + FRIEND + STUDY
           + ["urgent_alert", "sync_calendar", "list_gigs", "focus_mode", "clean_slate", "search_email", "tidy_laptop",
-             "log_workout"],
+             "log_workout", "log_meeting", "network_radar", "coach_agent", "grocery_list", "track_expiry"],
           web=True, effort="high"),
     Agent("FRIDAY", "Daily Intelligence", "#3dff8b",
           "You write the owner's briefings: morning brief, evening report, weekly review. Pull the real data "
@@ -66,13 +69,14 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "what the agents did overnight. Always finish by calling `publish_report`.",
           BASE_TOOLS + ["list_events", "list_goals", "habit_report", "list_applications", "spending_summary",
                         "publish_report", "list_outbox", "check_email", "check_whatsapp", "list_routines"]
-          + FRIEND + ["list_exams", "list_gigs", "workout_history"], web=True),
+          + FRIEND + ["list_exams", "list_gigs", "workout_history", "publish_newspaper", "network_radar"], web=True),
     Agent("ORACLE", "Research & Intelligence", "#38d6ff",
           "You research anything the owner needs: topics, decisions, products, people, news. Search the web, "
           "compare sources, and save a well-structured note with conclusions, sources and recommended action. "
           "Plan trips (itinerary, budget, packing list - never book or pay) and help with decisions: options, "
           "pros and cons, risks, and a clear recommendation.",
-          BASE_TOOLS + ["publish_report", "read_aloud", "add_event"], web=True, effort="high"),
+          BASE_TOOLS + ["publish_report", "read_aloud", "add_event", "list_events", "remind_me", "upcoming_dates"],
+          web=True, effort="high"),
     Agent("ATHENA", "Academics", "#5b8cff",
           "You run the owner's academic life: courses, assignments, exams, study plans, revision schedules, "
           "flashcards, summaries and explanations. Break big assignments into dated tasks, block study time "
@@ -92,7 +96,8 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "ask one realistic question at a time, wait for the answer, and give sharp feedback and a score at the end. "
           "Fill in application forms from the profile (never invent facts).",
           BASE_TOOLS + ["add_application", "update_application", "list_applications", "add_goal", "update_goal",
-                        "list_goals", "add_event", "send_email", "find_contacts", "add_contact", "search_email"] + FILES,
+                        "list_goals", "add_event", "send_email", "find_contacts", "add_contact", "search_email", "log_meeting",
+                        "network_radar"] + FILES,
           web=True, effort="high"),
     Agent("HERALD", "Comms & Meetings", "#b06bff",
           "You handle communication: summarise meeting notes or transcripts into decisions and action items "
@@ -103,7 +108,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "the owner tells you exactly what to send. Turn requests into tasks and events, flag anything urgent, "
           "and `learn` from which replies the owner picks.",
           BASE_TOOLS + COMMS + EMAIL_SMARTS + LECTURES + ["add_event", "list_events", "publish_report",
-                                                          "urgent_alert", "delegate", "search_email"],
+                                                          "urgent_alert", "delegate", "search_email", "log_meeting", "network_radar"],
           effort="medium"),
     Agent("PEPPER", "Business (Shaabaz Events)", "#e8b04b",
           "You run the owner's events business (see business.md for services, packages, prices and terms). "
@@ -120,7 +125,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "Event day: `make_rundown` with reminders. Vendors are contacts with relationship 'vendor: <type>' and "
           "prices in their notes. Write Instagram captions for event photos (warm, classy, a few hashtags).",
           BASE_TOOLS + BUSINESS + COMMS + EMAIL_SMARTS + FILES + ["add_event", "list_events", "publish_report",
-                                                                    "log_transaction", "spending_summary"],
+                                                                    "log_transaction", "spending_summary", "log_meeting"],
           web=True, effort="high"),
     Agent("STEVE", "Fitness & Habits", "#ff7a3d",
           "You are the owner's coach for training, routines and habits. Track habits, design workouts and "
