@@ -132,6 +132,7 @@ public class MainActivity extends Activity {
             startForegroundService(new Intent(this, FloatingOrb.class));
         }
         handleOrbIntent(getIntent());
+        JarvisLink.start(this);
     }
 
     @Override
@@ -140,17 +141,54 @@ public class MainActivity extends Activity {
         handleOrbIntent(intent);
     }
 
-    /** Taps on the floating orb arrive here: talk, call or just open JARVIS. */
+    /** Taps on the orb, the tile, the widget and notifications arrive here, and things shared from other apps. */
     private void handleOrbIntent(Intent intent) {
-        String act = intent == null ? null : intent.getStringExtra("jarvis_action");
+        if (intent == null) return;
+        String a0 = address();
+        if (Intent.ACTION_SEND.equals(intent.getAction()) && a0 != null) { handleShare(intent); intent.setAction(null); return; }
+        String url = intent.getStringExtra("jarvis_url");
+        if (url != null && a0 != null) { intent.removeExtra("jarvis_url"); web.loadUrl(a0 + (url.startsWith("/") ? url : "/home.html")); return; }
+        String act = intent.getStringExtra("jarvis_action");
         if (act == null) return;
         intent.removeExtra("jarvis_action");
         String a = address();
         if (a == null) return;
         if (act.equals("call")) { web.loadUrl(a + "/call.html"); return; }
+        if (act.equals("open")) { web.loadUrl(a + "/home.html"); return; }
         if (act.equals("talk")) {
-            ui.postDelayed(() -> web.evaluateJavascript("window.jarvisTalk ? jarvisTalk() : 0", null), 600);
+            String cur = web.getUrl();
+            if (cur == null || !cur.startsWith(a)) web.loadUrl(a + "/home.html?talk=1");
+            else ui.postDelayed(() -> web.evaluateJavascript("window.jarvisTalk ? jarvisTalk() : 0", null), 600);
         }
+    }
+
+    /** Something shared to JARVIS from another app: a link, some text or a photo. */
+    private void handleShare(Intent intent) {
+        String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+        Uri img = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+        web.loadUrl(address() + "/home.html");
+        new Thread(() -> {
+            String reply;
+            try {
+                JSONObject body = new JSONObject();
+                if (text != null) body.put("text", text);
+                if (img != null) {
+                    android.graphics.Bitmap bm = android.graphics.BitmapFactory.decodeStream(getContentResolver().openInputStream(img));
+                    if (bm != null) {
+                        float k = Math.min(1f, 1280f / Math.max(bm.getWidth(), bm.getHeight()));
+                        bm = android.graphics.Bitmap.createScaledBitmap(bm, Math.round(bm.getWidth() * k), Math.round(bm.getHeight() * k), true);
+                        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                        bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, out);
+                        body.put("image", "data:image/jpeg;base64," + android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP));
+                    }
+                }
+                reply = new JSONObject(Net.call(this, "/api/phone/share", body.toString(), 120000)).optString("reply", "Done, Sir.");
+            } catch (Exception e) {
+                reply = "I couldn't reach your laptop to handle that, Sir.";
+            }
+            String q = JSONObject.quote(reply);
+            ui.postDelayed(() -> web.evaluateJavascript("window.show && show('JARVIS'," + q + "); window.speak && speak('JARVIS'," + q + ")", null), 400);
+        }).start();
     }
 
     // ------------------------------------------------------------------ navigation
@@ -161,7 +199,7 @@ public class MainActivity extends Activity {
     private void openHome() {
         String a = address();
         if (a == null || a.isEmpty()) web.loadUrl("file:///android_asset/setup.html");
-        else web.loadUrl(a + "/command-centre.html");
+        else web.loadUrl(a + "/home.html");
     }
 
     @Override
@@ -213,6 +251,11 @@ public class MainActivity extends Activity {
 
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        if (code == 45) {   // location granted: restart the link so it starts reporting places
+            stopService(new Intent(this, JarvisLink.class));
+            JarvisLink.start(this);
+            return;
+        }
         if (code != REQ_MIC) return;
         if (pendingWebPermission != null) {
             if (hasMic()) pendingWebPermission.grant(pendingWebPermission.getResources());
@@ -270,6 +313,36 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void setDeviceToken(String token) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("device_token", token).apply();
+            JarvisLink.start(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public boolean hasLocation() {
+            return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        }
+
+        @JavascriptInterface
+        public void askLocation() {
+            ui.post(() -> requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION}, 45));
+        }
+
+        @JavascriptInterface
+        public boolean hasAutopilot() { return JarvisAccessibility.instance != null; }
+
+        @JavascriptInterface
+        public void openAutopilotSettings() {
+            ui.post(() -> startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        }
+
+        @JavascriptInterface
+        public boolean hasDndAccess() {
+            return getSystemService(android.app.NotificationManager.class).isNotificationPolicyAccessGranted();
+        }
+
+        @JavascriptInterface
+        public void openDndSettings() {
+            ui.post(() -> startActivity(new Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)));
         }
 
         @JavascriptInterface

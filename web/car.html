@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Car Mode</title>
+<meta name="theme-color" content="#03060a"><link rel="icon" href="/icon-192.png">
+<script src="/native-bridge.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:#03060a;color:#fff;font-family:"JetBrains Mono",monospace;-webkit-tap-highlight-color:transparent}
+body{display:flex;flex-direction:column;gap:12px;padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+header{display:flex;justify-content:space-between;align-items:center;font:900 13px Orbitron,sans-serif;letter-spacing:.3em;color:#ff7a3d}
+header a{font:500 12px "JetBrains Mono",monospace;letter-spacing:0;color:#7d8899;text-decoration:none;border:1px solid #1d2733;padding:6px 10px;border-radius:16px}
+#next{font:500 14px "JetBrains Mono",monospace;color:#5fd8ff}
+#said{flex:1;display:flex;align-items:center;font:700 clamp(20px,6vw,30px)/1.35 Orbitron,sans-serif;letter-spacing:.02em;min-height:120px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid button,.grid a{display:grid;place-items:center;gap:6px;min-height:min(22vh,150px);border:2px solid rgba(255,122,61,.45);background:rgba(255,122,61,.07);color:#ffb38f;
+  font:900 clamp(15px,4.5vw,22px) Orbitron,sans-serif;letter-spacing:.1em;text-decoration:none;border-radius:14px}
+.grid span{font-size:clamp(28px,9vw,44px)}
+.grid .talk{grid-column:1/-1;border-color:#ff7a3d;background:rgba(255,122,61,.16);color:#fff}
+.grid .talk.on{background:#ff7a3d;color:#000}
+</style></head><body>
+<header>CAR MODE<a href="/home.html">Exit</a></header>
+<div id="next">…</div>
+<div id="said" aria-live="polite">Drive safe, Sir. I'll keep it short.</div>
+<div class="grid">
+  <button id="brief"><span>📋</span>BRIEF ME</button>
+  <button id="msgs"><span>💬</span>MESSAGES</button>
+  <a id="nav" href="https://maps.google.com" target="_blank" rel="noopener"><span>🧭</span>NAVIGATE</a>
+  <a href="/call.html?agent=JARVIS&auto=1"><span>📞</span>CALL</a>
+  <button class="talk" id="talk"><span>🎙</span>TALK</button>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+try { window.JarvisNative?.keepAwake(true); navigator.wakeLock?.request("screen").catch(() => {}); } catch {}
+const DRIVE = " (The owner is driving: answer in at most two short spoken sentences. No lists, nothing to read.)";
+function show(t){ $("#said").textContent = String(t).replace(/\[\w+\]\s*/g, "").replace(/[*#_`]/g, "").slice(0, 260); }
+async function speak(text){
+  show(text);
+  try { const r = await fetch("/api/tts", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent: "JARVIS", text})});
+    if(!r.ok) throw 0; const a = new Audio(URL.createObjectURL(await r.blob())); await a.play(); }
+  catch { try { speechSynthesis.speak(new SpeechSynthesisUtterance(text.replace(/\[\w+\]\s*/g, ""))); } catch {} }
+}
+async function ask(text){
+  show("…");
+  try { const r = await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text: text + DRIVE, agent: "JARVIS", voice: true, rid: Math.random().toString(36).slice(2)})});
+    if(r.status === 401){ location.href = "/login.html?next=/car.html"; return; }
+    const d = await r.json(); speak(d.reply || "Done."); } catch { speak("I can't reach the laptop right now, Sir."); }
+}
+$("#brief").onclick = () => ask("Drive briefing: where I'm heading next and when, anything I must know before I arrive, weather on arrival.");
+$("#msgs").onclick = () => ask("Read me what I missed on my phone and inbox in the last few hours (phone_notifications), urgent first. Offer to reply by voice.");
+$("#talk").onclick = () => { if(!SR){ speak("Voice needs the JARVIS app or Chrome."); return; }
+  const rec = new SR(); rec.lang = "en-US"; $("#talk").classList.add("on"); show("Listening…");
+  rec.onresult = e => ask(e.results[0][0].transcript); rec.onend = () => $("#talk").classList.remove("on"); try { rec.start(); } catch {} };
+(async () => { try { const w = await (await fetch("/api/widget")).json(); $("#next").textContent = "NEXT · " + w.next;
+  const st = await (await fetch("/api/holo")).json(); const p = st.today_places?.[0];
+  if(p){ const ll = st.landmarks[p.place]; $("#nav").href = `https://www.google.com/maps/dir/?api=1&destination=${ll[0]},${ll[1]}`; $("#next").textContent += " · " + p.place; } } catch {} })();
+</script>
+</body></html>

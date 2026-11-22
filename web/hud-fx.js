@@ -303,6 +303,16 @@ function onEvent2(ev){
   _onEvent(ev);
   if(ev.type === "nudge"){ toast(ev.agent || "BANNER", ev.text); }
   if(ev.type === "mission"){ dossier(ev.text); }
+  if(ev.type === "home_arrival" && new URLSearchParams(location.search).get("kiosk") === "1") window.sendCommand?.("I'm home", "JARVIS", true);
+  if(ev.type === "remote"){
+    const V = ["week", "business", "body", "money", "singapore", "diagnostics", "trophies"], H = window.HOLO;
+    if(ev.action === "holo") H?.open(ev.view || "week");
+    if(ev.action === "holo_close") H?.close();
+    if(ev.action === "expo") expo();
+    if(ev.action === "stop") window.stopSpeaking?.();
+    if((ev.action === "holo_next" || ev.action === "holo_prev") && H){ const i = Math.max(0, V.indexOf(H.isOpen() ? H.view() : "week"));
+      H.open(V[(i + (ev.action === "holo_next" ? 1 : V.length - 1)) % V.length]); }
+  }
   if(ev.type === "screenshot"){
     const t = $("#hudToast"); if(!t) return; t.style.setProperty("--tc", "#5fd8ff");
     t.innerHTML = `<b>EDITH · NEW SCREENSHOT</b>${esc(ev.name)}<div style="display:flex;gap:6px;margin-top:8px"><button class="btn" id="shotGo">Read it</button><button class="btn no" id="shotNo">Ignore</button></div>`;

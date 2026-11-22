@@ -39,16 +39,18 @@ public class SmartReplies extends NotificationListenerService {
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         String pkg = sbn.getPackageName();
-        if (!"com.whatsapp".equals(pkg) && !"com.whatsapp.w4b".equals(pkg)) return;
+        if (pkg.equals(getPackageName()) || Net.isFinance(pkg) || sbn.isOngoing()) return;   // never bank apps
         Notification n = sbn.getNotification();
         if ((n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
+        boolean messaging = java.util.Arrays.asList(MESSAGING).contains(pkg);
+        if (!messaging) { forward(pkg, n); return; }
         Bundle ex = n.extras;
         if (ex.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)) return;
         CharSequence title = ex.getCharSequence(Notification.EXTRA_TITLE);
         CharSequence text = ex.getCharSequence(Notification.EXTRA_TEXT);
         if (title == null || text == null) return;
         String sender = title.toString(), body = text.toString();
-        if (body.matches("^\\d+ new messages?$") || sender.equals("WhatsApp")) return;
+        if (body.matches("^\\d+ new messages?$") || sender.equals("WhatsApp") || sender.toLowerCase().contains("jarvis")) return;
 
         Notification.Action reply = null;
         if (n.actions != null) {
@@ -67,10 +69,29 @@ public class SmartReplies extends NotificationListenerService {
             if (RECENT.size() > 200) RECENT.clear();
         }
         final Notification.Action action = reply;
-        new Thread(() -> suggest(sender, body, action)).start();
+        new Thread(() -> suggest(pkg, sender, body, action)).start();
     }
 
-    private void suggest(String sender, String body, Notification.Action action) {
+    static final String[] MESSAGING = {"com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "com.instagram.android",
+            "com.google.android.apps.messaging", "com.android.mms", "com.coloros.mms", "com.facebook.orca"};
+
+    /** Any other app's notification: sent to the notification brain (no replies). Bank apps never get here. */
+    private void forward(String pkg, Notification n) {
+        CharSequence t = n.extras.getCharSequence(Notification.EXTRA_TITLE), x = n.extras.getCharSequence(Notification.EXTRA_TEXT);
+        if (t == null || x == null || Net.isFinance(String.valueOf(t)) || Net.isFinance(String.valueOf(x))) return;
+        String key = pkg + t + x;
+        long now = System.currentTimeMillis();
+        synchronized (RECENT) { Long seen = RECENT.get(key); if (seen != null && now - seen < 10 * 60 * 1000) return; RECENT.put(key, now); }
+        new Thread(() -> {
+            try {
+                JSONObject req = new JSONObject();
+                req.put("app", pkg); req.put("sender", String.valueOf(t)); req.put("text", String.valueOf(x)); req.put("group", false);
+                Net.call(this, "/api/phone/notification", req.toString(), 20000);
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    private void suggest(String pkg, String sender, String body, Notification.Action action) {
         SharedPreferences p = getSharedPreferences("jarvis", MODE_PRIVATE);
         String base = p.getString("url", null), token = p.getString("device_token", null);
         if (base == null || token == null) return;
@@ -83,7 +104,7 @@ public class SmartReplies extends NotificationListenerService {
             c.setRequestProperty("Content-Type", "application/json");
             c.setRequestProperty("X-Jarvis-Device", token);
             JSONObject req = new JSONObject();
-            req.put("app", "whatsapp");
+            req.put("app", pkg);
             req.put("sender", sender);
             req.put("text", body);
             try (OutputStream o = c.getOutputStream()) { o.write(req.toString().getBytes(StandardCharsets.UTF_8)); }

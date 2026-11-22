@@ -527,6 +527,8 @@ async function refresh(){
       : `<a class="n" href="/google-setup.html" target="_blank" style="color:var(--accent,#38d6ff)">set up →</a>`}</div>` +
     (window.JarvisNative && JarvisNative.hasNotificationAccess ? `<div class="conn"><b>WhatsApp smart replies</b>${JarvisNative.hasNotificationAccess()
       ? `<span class="y">on</span>` : `<a href="#" id="waOn" style="color:var(--accent,#38d6ff)">turn on →</a>`}</div>` : "") +
+    (window.JarvisNative && JarvisNative.hasLocation ? [["Location magic", JarvisNative.hasLocation(), "askLocation"], ["Phone autopilot", JarvisNative.hasAutopilot(), "openAutopilotSettings"], ["Silent mode control", JarvisNative.hasDndAccess(), "openDndSettings"]]
+      .map(([n, on, fn]) => `<div class="conn"><b>${n}</b>${on ? `<span class="y">on</span>` : `<a href="#" data-native="${fn}" style="color:var(--c)">turn on →</a>`}</div>`).join("") : "") +
     (window.JarvisNative && JarvisNative.showOrb ? `<div class="conn"><b>Floating orb</b><a href="#" id="orbTog" style="color:var(--c)">${JarvisNative.orbOn() && JarvisNative.canFloat() ? "on · turn off" : "turn on →"}</a></div>` : "") +
     `<div class="h">Suit theme</div><div class="row" style="display:flex;gap:6px;flex-wrap:wrap">${["classic","mark 42","stealth","arc blue","ironheart","wakanda","hulkbuster"].map(t => `<button class="btn" data-theme="${t}" style="${(state.hud?.theme||"classic")===t?"border-color:var(--c)":""}">${t}</button>`).join("")}</div>` +
     `<div class="h">Show off</div><div class="row" style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" data-say="stark expo">▶ Stark Expo demo</button><button class="btn" data-say="${state.hud?.guest ? "guest mode off" : "guest mode on"}">${state.hud?.guest ? "End guest mode" : "Guest mode"}</button><button class="btn" data-say="first contact">First contact</button></div>` +
@@ -538,6 +540,7 @@ async function refresh(){
       : `<div class="empty">None yet. Ask JARVIS, e.g. “every weekday at 6am send me a motivational quote and my schedule on WhatsApp”.</div>`) +
     `<div class="h">Built-in routines</div>` + state.jobs.map(j => `<div class="item"><div class="row" style="justify-content:space-between;align-items:center"><div><div class="t">${j.label}</div><div class="s"><span class="tag" style="color:${AGENTS[j.agent]?.color}">${j.agent}</span>${j.running?"running…":j.last_run?"last "+fmt(j.last_run):"never run"}</div></div><button class="btn" data-job="${j.name}">Run now</button></div></div>`).join("") +
     `<div class="h">How the night shift works</div><div class="empty" style="line-height:1.6">Any task with an agent assignee (e.g. “ORACLE, research laptops under $1000 tonight”) is worked on autonomously overnight. Results land in Notes and in the morning brief.</div>`;
+  document.querySelectorAll("[data-native]").forEach(a => a.onclick = e => { e.preventDefault(); JarvisNative[a.dataset.native](); setTimeout(refresh, 1500); });
   const ot = $("#orbTog"); if(ot) ot.onclick = e => { e.preventDefault(); JarvisNative.showOrb(!(JarvisNative.orbOn() && JarvisNative.canFloat())); setTimeout(refresh, 800); };
   document.querySelectorAll("[data-theme]").forEach(b => b.onclick = () => sendCommand("theme " + b.dataset.theme, "JARVIS"));
   document.querySelectorAll("[data-say]").forEach(b => b.onclick = () => sendCommand(b.dataset.say, "JARVIS", true));

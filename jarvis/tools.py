@@ -350,3 +350,4 @@ from . import extras as _extras  # noqa: E402,F401  (lecture recorder, business 
 from . import life as _life  # noqa: E402,F401  (friend layer, study, crew, fitness, focus)
 from . import butler as _butler  # noqa: E402,F401  (deep memory, home manager, Stark Daily)
 from . import desktop as _desktop  # noqa: E402,F401  (laptop command: windows, media, Office files, screen)
+from . import phonelink as _phonelink  # noqa: E402,F401  (phone link: find my phone, silent, clipboard, autopilot)

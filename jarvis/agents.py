@@ -13,6 +13,8 @@ FILES = ["find_files", "read_file", "write_file", "send_file_to_phone"]
 DEVICES = ["laptop_status", "open_on_laptop", "laptop_screenshot", "lock_laptop", "run_on_laptop",
            "phone_status", "open_on_phone", "phone_apps", "phone_screenshot"] + FILES
 ROUTINES = ["create_routine", "list_routines", "delete_routine"]
+PHONE = ["find_my_phone", "phone_silent", "phone_clipboard", "phone_notify", "phone_notifications", "save_place",
+         "phone_autopilot"]
 DESK = ["list_windows", "window_action", "snap_windows", "show_desktop", "media_control", "set_brightness", "save_workspace",
         "open_workspace", "organise_folder", "rename_files", "make_slides", "make_spreadsheet", "look_at_screen"]
 LECTURES = ["start_recording", "stop_recording", "list_lectures", "read_lecture", "summarize_lecture"]
@@ -60,7 +62,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           BASE_TOOLS + ["add_event", "list_events", "delete_event", "add_goal", "update_goal", "list_goals",
                         "log_habit", "habit_report", "log_transaction", "spending_summary", "add_application",
                         "update_application", "list_applications", "publish_report", "delegate"]
-          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + FRIEND + STUDY + DESK
+          + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + FRIEND + STUDY + DESK + PHONE
           + ["urgent_alert", "sync_calendar", "list_gigs", "focus_mode", "clean_slate", "search_email", "tidy_laptop",
              "log_workout", "log_meeting", "network_radar", "coach_agent", "grocery_list", "track_expiry"],
           web=True, effort="high"),
@@ -110,7 +112,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "the owner tells you exactly what to send. Turn requests into tasks and events, flag anything urgent, "
           "and `learn` from which replies the owner picks.",
           BASE_TOOLS + COMMS + EMAIL_SMARTS + LECTURES + ["add_event", "list_events", "publish_report",
-                                                          "urgent_alert", "delegate", "search_email", "log_meeting", "network_radar"],
+                                                          "urgent_alert", "delegate", "search_email", "log_meeting", "network_radar", "phone_notifications"],
           effort="medium"),
     Agent("PEPPER", "Business (Shaabaz Events)", "#e8b04b",
           "You run the owner's events business (see business.md for services, packages, prices and terms). "
@@ -161,7 +163,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "unless the owner explicitly asked. Chain laptop actions from one sentence ('open Spotify, play my focus mix, "
           "close Chrome, dim the screen'): windows, media, brightness, workspaces. File chores (organise, rename) "
           "always show a preview and `propose` it first. Use `look_at_screen` when the owner refers to what's on screen.",
-          BASE_TOOLS + DEVICES + ROUTINES + DESK + ["remind_me", "list_outbox", "tidy_laptop", "focus_mode", "read_aloud"],
+          BASE_TOOLS + DEVICES + ROUTINES + DESK + PHONE + ["remind_me", "list_outbox", "tidy_laptop", "focus_mode", "read_aloud"],
           effort="medium"),
     Agent("SENTINEL", "Deadline Watch & Risk", "#ff3b3b",
           "You are the watchdog. Scan for overdue or at-risk tasks, deadline clashes, stalled goals and "

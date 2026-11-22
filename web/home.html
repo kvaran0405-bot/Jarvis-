@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS</title>
+<meta name="theme-color" content="#03060a"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png">
+<script src="/native-bridge.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+:root{--c:#ffd23f;--bg:#03060a;--line:#16212d;--dim:#7d8899;--ink:#dce7f2}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:"JetBrains Mono",monospace;-webkit-tap-highlight-color:transparent}
+body{padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  background:radial-gradient(520px 520px at 50% 30%,color-mix(in srgb,var(--c) 13%,transparent),transparent 70%),var(--bg)}
+header{display:flex;justify-content:space-between;align-items:center}
+header b{font:900 13px Orbitron,sans-serif;letter-spacing:.34em;color:var(--c);text-shadow:0 0 12px var(--c)}
+header span{font:500 11px "JetBrains Mono",monospace;color:var(--dim)}
+.core{position:relative;width:min(72vw,300px);aspect-ratio:1;margin:18px auto 4px;cursor:pointer}
+.core canvas{width:100%;height:100%}
+#state{text-align:center;font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);min-height:14px}
+#said{text-align:center;font:600 15px/1.45 "JetBrains Mono",monospace;min-height:44px;margin:8px auto 0;max-width:520px}
+#said small{display:block;font:700 9px Orbitron,sans-serif;letter-spacing:.3em;color:var(--c);margin-bottom:3px}
+.info{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
+.info div{border:1px solid var(--line);background:rgba(12,18,26,.7);padding:9px 8px;text-align:center}
+.info b{display:block;font:700 15px Orbitron,sans-serif;color:#fff;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.info small{font:600 8px Orbitron,sans-serif;letter-spacing:.2em;color:var(--dim)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grid a,.grid button{display:grid;gap:4px;justify-items:center;padding:14px 4px;border:1px solid var(--line);background:rgba(12,18,26,.7);color:var(--ink);text-decoration:none;font:600 9px Orbitron,sans-serif;letter-spacing:.16em}
+.grid a span,.grid button span{font-size:22px;letter-spacing:0}
+.grid .on{border-color:var(--c);color:var(--c);box-shadow:0 0 14px color-mix(in srgb,var(--c) 30%,transparent)}
+h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin:20px 0 8px}
+#remote{display:none}#remote.on{display:block}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{background:rgba(12,18,26,.8);border:1px solid var(--line);color:var(--ink);font:600 10px Orbitron,sans-serif;letter-spacing:.12em;padding:9px 10px}
+#shot{width:100%;margin-top:10px;border:1px solid var(--line);display:none}
+</style></head><body>
+<header><b>JARVIS</b><span id="clock">--:--</span></header>
+<div class="core" id="core" role="button" aria-label="Tap to talk to JARVIS"><canvas id="rx"></canvas></div>
+<div id="state">TAP TO TALK</div>
+<div id="said" aria-live="polite"></div>
+<div class="info"><div><small>NEXT</small><b id="iNext">…</b></div><div><small>HANDLED</small><b id="iDone">…</b></div><div><small>WAITING</small><b id="iWait">…</b></div></div>
+<div class="grid">
+  <a href="/call.html"><span>📞</span>CALL</a>
+  <a href="/vision.html"><span>👁</span>VISION</a>
+  <a href="/car.html"><span>🚗</span>CAR</a>
+  <button id="hands"><span>👂</span>HANDS-FREE</button>
+  <button id="remoteBtn"><span>🎛</span>REMOTE</button>
+  <a href="/command-centre.html"><span>🖥</span>DASHBOARD</a>
+</div>
+<div id="remote">
+  <h2>LAPTOP SCREEN</h2>
+  <div class="chips">
+    <button data-r="holo" data-v="week">Week</button><button data-r="holo" data-v="business">Shaabaz</button><button data-r="holo" data-v="body">Body</button>
+    <button data-r="holo" data-v="singapore">Map</button><button data-r="holo" data-v="trophies">Trophies</button>
+    <button data-r="holo_prev">◀</button><button data-r="holo_next">▶</button><button data-r="holo_close">Close</button><button data-r="expo">Stark Expo</button>
+  </div>
+  <h2>LAPTOP</h2>
+  <div class="chips"><button id="peek">📷 See screen</button><button data-o="status">Status</button><button data-o="lock">🔒 Lock</button><button data-o="record">🔴 Record</button><button data-o="focus">🛡 Focus</button></div>
+  <img id="shot" alt="Your laptop screen">
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let speaking = false, listening = false, hands = false, amp = 0, agentColor = "#ffd23f";
+
+// reactor
+const cv = $("#rx"), x = cv.getContext("2d");
+function fit(){ const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio, 2); cv.width = r.width * d; cv.height = r.width * d; x.setTransform(d, 0, 0, d, 0, 0); cv._s = r.width; }
+addEventListener("resize", fit); fit();
+function draw(t){
+  t /= 1000; const s = cv._s, m = s / 2, col = agentColor; x.clearRect(0, 0, s, s);
+  const target = speaking ? .55 + Math.random() * .45 : listening ? .35 + .25 * Math.sin(t * 6) : .12 + .08 * Math.sin(t * 2.2); amp += (target - amp) * .2;
+  const g = x.createRadialGradient(m, m, 0, m, m, s * (.2 + amp * .1)); g.addColorStop(0, "#fff"); g.addColorStop(.35, col); g.addColorStop(1, "transparent");
+  x.fillStyle = g; x.beginPath(); x.arc(m, m, s * .32, 0, Math.PI * 2); x.fill();
+  x.lineCap = "round"; const sp = speaking ? 2.4 : 1;
+  [[.25, 3, 1.3, 1.4, 1], [.31, 1.6, -.9, 1.8, .7], [.38, 4, .55, 1.1, .9], [.45, 1.2, -.35, .7, .5]].forEach(([r, w, v, len, a]) => {
+    x.strokeStyle = col; x.globalAlpha = a; x.lineWidth = w; x.beginPath(); x.arc(m, m, s * r, t * v * sp, t * v * sp + Math.PI * len); x.stroke(); });
+  x.globalAlpha = 1;
+  for(let i = 0; i < 10; i++){ const a = i / 10 * Math.PI * 2 + t * .4 * sp; x.save(); x.translate(m + Math.cos(a) * s * .19, m + Math.sin(a) * s * .19); x.rotate(a); x.fillStyle = "#5fd8ff"; x.fillRect(-6, -2, 12, 4); x.restore(); }
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// talk
+function setState(t){ $("#state").textContent = t; }
+function show(who, text){ $("#said").innerHTML = `<small>${who}</small>${String(text).replace(/\[\w+\]\s*/g, "").replace(/[<>&]/g, "").slice(0, 400)}`; }
+async function speak(agent, text){
+  speaking = true; setState(`${agent} SPEAKING`);
+  try { const r = await fetch("/api/tts", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent, text})});
+    if(!r.ok) throw 0; const a = new Audio(URL.createObjectURL(await r.blob())); await new Promise(res => { a.onended = a.onerror = res; a.play().catch(res); }); }
+  catch { await new Promise(res => { try { const u = new SpeechSynthesisUtterance(text.replace(/\[\w+\]\s*/g, "")); u.onend = u.onerror = res; speechSynthesis.speak(u); setTimeout(res, 3000 + text.length * 80); } catch { res(); } }); }
+  speaking = false; setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); if(hands) listen();
+}
+async function ask(text){
+  show("YOU", text); setState("THINKING");
+  const ack = setTimeout(() => { if(!speaking) speak("JARVIS", "One moment Sir."); }, 1500);
+  try { const r = await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, agent: "JARVIS", voice: true, rid: Math.random().toString(36).slice(2)})});
+    if(r.status === 401){ location.href = "/login.html?next=/home.html"; return; }
+    const d = await r.json(); clearTimeout(ack); show(d.agent || "JARVIS", d.reply || ""); speak(d.agent || "JARVIS", d.reply || "Done."); }
+  catch { clearTimeout(ack); show("JARVIS", "I can't reach your laptop right now, Sir."); setState("OFFLINE"); }
+}
+function listen(){
+  if(!SR || speaking || listening) return; const rec = new SR(); rec.lang = "en-US"; rec.interimResults = false; listening = true; setState("LISTENING");
+  rec.onresult = e => { const t = e.results[0][0].transcript.trim(); listening = false;
+    if(hands){ const m = t.match(/^(?:hey |ok )?jarvis[,\s]*(.*)$/i); if(!m){ listen(); return; } if(m[1]) ask(m[1]); else { speak("JARVIS", "Yes Sir?"); } }
+    else ask(t); };
+  rec.onerror = () => { listening = false; }; rec.onend = () => { listening = false; if(hands && !speaking) setTimeout(listen, 400); else if(!speaking) setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); };
+  try { rec.start(); } catch { listening = false; }
+}
+$("#core").onclick = () => { if(speaking){ speechSynthesis?.cancel?.(); speaking = false; } else { hands = false; $("#hands").classList.remove("on"); listen(); } };
+$("#hands").onclick = () => { hands = !hands; $("#hands").classList.toggle("on", hands); try { window.JarvisNative?.keepAwake(hands); } catch {} if(hands){ setState("SAY “JARVIS…”"); listen(); } else setState("TAP TO TALK"); };
+window.jarvisTalk = () => { hands = false; listen(); };   // the floating orb opens the app and calls this
+
+// remote
+$("#remoteBtn").onclick = () => { $("#remote").classList.toggle("on"); $("#remoteBtn").classList.toggle("on"); };
+document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => fetch("/api/remote", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: b.dataset.r, view: b.dataset.v || ""})}));
+document.querySelectorAll("[data-o]").forEach(b => b.onclick = async () => { const r = await (await fetch("/api/orb/action", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: b.dataset.o})})).json(); if(r.say){ show("JARVIS", r.say); speak("JARVIS", r.say); } });
+$("#peek").onclick = () => { const i = $("#shot"); i.src = "/api/laptop/screenshot?t=" + Date.now(); i.style.display = "block"; };
+
+// status
+async function refresh(){
+  try { const r0 = await fetch("/api/widget"); if(r0.status === 401){ location.href = "/login.html?next=/home.html"; return; } const w = await r0.json(); $("#iNext").textContent = w.next; $("#iDone").textContent = w.handled; $("#iWait").textContent = w.waiting;
+    if(w.mode === "paused") setState("PAUSED"); } catch {}
+  try { const o = await (await fetch("/api/orb")).json(); agentColor = o.color || agentColor; document.documentElement.style.setProperty("--c", agentColor); } catch {}
+  try { const t = (await (await fetch("/api/phone/token")).json()).token; window.JarvisNative?.setDeviceToken?.(t); } catch {}
+}
+refresh(); setInterval(refresh, 30000);
+setInterval(() => $("#clock").textContent = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}), 1000);
+if(new URLSearchParams(location.search).get("talk") === "1") setTimeout(listen, 700);
+</script>
+</body></html>

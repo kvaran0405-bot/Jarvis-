@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="autopilot_desc">JARVIS autopilot: carries out phone steps you approved (open an app, tap a button, type, scroll). It never touches bank or finance apps and only acts after your yes.</string>
+    <string name="widget_desc">Your next event and what JARVIS handled. Tap to talk.</string>
+    <string name="link_desc">Keeps JARVIS linked to your laptop</string>
+</resources>

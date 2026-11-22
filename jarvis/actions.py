@@ -533,4 +533,6 @@ def urgent_alert(ctx: ToolContext, message: str, level: str = "urgent") -> dict:
                       critical=(level == "critical"))
     ctx.bus.log(ctx.agent, f"🚨 {message}", "job")
     ctx.bus.publish({"type": "alert", "agent": ctx.agent, "text": message})
+    from . import phonelink
+    phonelink.queue(ctx.store, "notify", title=f"🚨 {ctx.agent}", text=message[:300], url="/home.html", urgent=True)
     return {"telegram": "sent" if sent else "not linked", "spoken": spoken}

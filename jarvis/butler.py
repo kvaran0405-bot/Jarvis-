@@ -296,6 +296,8 @@ def leave_now_check(store, bus) -> list[str]:
             except Exception:  # noqa: BLE001
                 pass
         announce(bus, "JARVIS", f"Sir, {msg}", phone=False)
+        from . import phonelink
+        phonelink.queue(store, "notify", title="🚗 Time to leave", text=msg, url="/car.html")
         sent.append(msg)
     return sent
 
