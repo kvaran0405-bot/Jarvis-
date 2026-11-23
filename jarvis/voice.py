@@ -65,6 +65,44 @@ EMOTES = {
     "gasps": ("Oh!", +18, +10, "[surprise-oh] "), "scoffs": ("Pfft.", +0, -3, "[dissatisfaction-hnn] "),
     "hums": ("Hmm.", -12, -4, ""), "giggles": ("Hee hee!", +14, +9, "[laughter] "),
 }
+# Everyone laughs differently: how each agent's sounds come out with the free voices (default: EMOTES above).
+EMOTE_STYLE = {
+    "JARVIS": {"laughs": "Heh. Heh heh.", "chuckles": "Hm-hm.", "sighs": "Hmm... ahh.", "scoffs": "Hm."},
+    "FRIDAY": {"laughs": "Ha! Ah, ha ha!", "giggles": "Hehe!", "gasps": "Oh my gosh!", "sighs": "Ugh, fine..."},
+    "ZEUS": {"laughs": "HA! Ha ha ha!", "chuckles": "Heh! Ha!", "groans": "Argh!"},
+    "STEVE": {"laughs": "Ha ha! Yeah!", "chuckles": "Heh heh!", "sighs": "Phew..."},
+    "VERONICA": {"laughs": "Ha! Oh, please.", "scoffs": "Psh.", "sighs": "Mm. Of course.", "chuckles": "Mm-hm-hm."},
+    "PEPPER": {"laughs": "Ha! Oh, you.", "sighs": "Okay... deep breath.", "chuckles": "Mm-hm."},
+    "BANNER": {"laughs": "Heh... ha ha.", "sighs": "Haaahh...", "chuckles": "Heh."},
+    "SENTINEL": {"laughs": "Hah.", "chuckles": "Hm.", "sighs": "Hmph.", "scoffs": "Tch."},
+    "HERALD": {"laughs": "Oh-ho-ho!", "gasps": "Darling, no!", "chuckles": "Ho ho."},
+    "ATHENA": {"laughs": "Ha, ha.", "sighs": "Hmm... alright.", "hums": "Mmm, let's see."},
+    "EDITH": {"laughs": "Ha. Okay.", "sighs": "Noted.", "scoffs": "Mm."},
+    "ORACLE": {"laughs": "Ha, interesting.", "hums": "Hmm. Running it."},
+}
+
+
+def emote_words(agent: str, emote: str) -> str:
+    return EMOTE_STYLE.get(agent.upper(), {}).get(emote) or EMOTES[emote][0]
+
+
+# Auditions: a short scene per agent that shows their range (attitude, a sound, a change of feeling).
+AUDITIONS = {
+    "JARVIS": "[dry] Good evening Sir. I see the gym bag is still by the door. [chuckles] Bold strategy. [warm] Still, today was good work.",
+    "FRIDAY": "[excited] Boss! You're back! [laughs] Okay okay, I'll calm down. [playful] No I won't.",
+    "PEPPER": "[warm] Morning. The Tan wedding is sorted, the crew's confirmed. [sighs] And yes, I chased the deposit. Again.",
+    "ZEUS": "[excited] Champion! Three interviews this week! [laughs] We are unstoppable! [serious] Now. Practise the answers.",
+    "STEVE": "[cheerful] Soldier! Leg day. No excuses. [laughs] I'm kidding. [proud] Okay, I'm not. Let's go.",
+    "VERONICA": "[sarcastic] Another bubble tea? Bold. [scoffs] Darling, that's eleven dollars a week. [dry] I'm just saying.",
+    "BANNER": "[gentle] Hey. It's late. [sighs] You did enough today. [warm] Breathe with me for a second.",
+    "SENTINEL": "[stern] Three deadlines. Two days. [scoffs] Zero excuses. [serious] Start with the report.",
+    "HERALD": "[amused] Darling, the gossip today is delicious. [gasps] You won't believe who emailed. [playful] Later.",
+    "ATHENA": "[calm] Twenty minutes now saves two hours of panic later. [hums] Topic three first. [warm] You've got this.",
+    "EDITH": "[dry] Downloads sorted. Four hundred and twelve files. [laughs] You're welcome. [calm] Backups done.",
+    "ORACLE": "[calm] I ran the numbers. [hums] Interesting. [serious] You'll want to sit down for this one.",
+}
+
+
 TAG_RE = re.compile(r"\[(" + "|".join(list(MOODS) + list(EMOTES) + ["whispers"]) + r")\]\s*", re.I)
 MOOD_RE = TAG_RE
 EMOTE_RE = re.compile(r"\[(" + "|".join(list(EMOTES) + ["whispers"]) + r")\]\s*", re.I)
@@ -374,8 +412,9 @@ def _edge(text: str, agent: str, path: Path) -> None:
         out = bytearray()
         for mood, words in segments(text):
             if mood.startswith("!"):   # a sound: the agent says it in their own voice
-                said, dr, dp, _vs = EMOTES[mood[1:]]
-                out += await say(v, said, _shift(base_rate, dr, "%"), _shift(base_pitch, dp, "Hz"))
+                _said, dr, dp, _vs = EMOTES[mood[1:]]
+                out += await say(v, emote_words(agent, mood[1:]), _shift(base_rate, dr, "%"), _shift(base_pitch, dp, "Hz"))
+                out += silence_mp3(140)
                 continue
             for sent, dr, dp, pause in delivery(words, mood, agent, hour):
                 out += await say(v, sent, _shift(base_rate, dr, "%"), _shift(base_pitch, dp, "Hz"))
@@ -536,8 +575,8 @@ def _local(text: str, agent: str, path: Path) -> Path:
     pieces = []
     for mood, words in segments(text):
         if mood.startswith("!"):
-            said, dr, dp, _vs = EMOTES[mood[1:]]
-            pieces.append((said, dr, dp, 120))
+            _said, dr, dp, _vs = EMOTES[mood[1:]]
+            pieces.append((emote_words(agent, mood[1:]), dr, dp, 140))
         else:
             pieces += delivery(words, mood, agent, hour)
     if path.with_suffix(".wav").exists():

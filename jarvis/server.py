@@ -432,7 +432,7 @@ def voices():
     return {"provider": voice.provider(), "voices": voice.voices(),
             "wake_words": [w.strip().lower() for w in settings.wake_words.split(",") if w.strip()],
             "speech_lang": os.environ.get("JARVIS_SPEECH_LANG", "en-SG"), "hear": stt.available(),
-            "pronounce": {k: v for k, v in voice.pronunciations().items() if k != v}}
+            "pronounce": {k: v for k, v in voice.pronunciations().items() if k != v}, "auditions": voice.AUDITIONS}
 
 
 @app.post("/api/tts")

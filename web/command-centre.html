@@ -284,7 +284,7 @@ function voiceSettings(agent){
   return {pitch: base.pitch, rate: base.rate, name: "", ...(CUSTOM[agent] || {})};
 }
 function browserVoices(){ return "speechSynthesis" in window ? speechSynthesis.getVoices() : []; }
-let PRONOUNCE = {};   // how to say Singapore names (from the laptop; the screen keeps the real spelling)
+let PRONOUNCE = {}, AUDITIONS = {};   // how to say Singapore names (from the laptop; the screen keeps the real spelling)
 function sayNames(t){ for(const [w, s] of Object.entries(PRONOUNCE).sort((a, b) => b[0].length - a[0].length))
   t = t.replace(new RegExp("(^|[^\\w-])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\w-])", "gi"), (m, pre) => pre + s); return t; }
 // Speakers and Bluetooth headphones sleep when quiet and swallow the first word: wake them with a moment of silence.
@@ -382,7 +382,9 @@ function finishStream(rid, agent, reply, speakFn, feedFn){
 function openVoiceSettings(){
   const opts = browserVoices();
   const msg = {
-    edge: "Natural neural voices are on (free) - JARVIS is British, FRIDAY Irish, every agent has their own. Change one with JARVIS_EDGE_VOICE_&lt;AGENT&gt; in .env. The settings below are only used if the voice service can't be reached.",
+    edge: "Natural neural voices are on (free) - JARVIS is British, FRIDAY Irish, every agent has their own attitude, laugh and rhythm. Press 🎭 Audition to hear each one act. Change a voice with JARVIS_EDGE_VOICE_&lt;AGENT&gt; in .env. The settings below are only used if the voice service can't be reached.",
+    gemini: "Gemini voices are on: every agent is acted with their own attitude, breaths and real laughs. Press 🎭 Audition to hear each one.",
+    local: "The natural offline voice is on. Press 🎭 Audition to hear each agent.",
     elevenlabs: "Premium ElevenLabs voices are on. Each agent's voice is set in .env (JARVIS_VOICE_&lt;AGENT&gt;). The settings below are only used if the voice service can't be reached.",
     browser: "Using your computer's built-in voices. Pick a voice, pitch and speed for each agent. For natural voices, run start.bat again (it installs them) or add an ELEVENLABS_API_KEY."}[VOICE_PROVIDER] || "";
   $("#modalBody").innerHTML = `<h2>Agent voices</h2>
@@ -394,7 +396,7 @@ function openVoiceSettings(){
           <option value="">Automatic</option>${opts.map(o => `<option ${o.name===v.name?"selected":""}>${esc(o.name)}</option>`).join("")}</select>
         <label style="font-size:10px;color:var(--muted)">pitch <input type="range" min="0.1" max="2" step="0.05" value="${v.pitch}" data-vp="${n}"></label>
         <label style="font-size:10px;color:var(--muted)">speed <input type="range" min="0.6" max="1.6" step="0.05" value="${v.rate}" data-vr="${n}"></label>
-        <button class="btn" data-vt="${n}">Test</button></div></div>`; }).join("")}</div>
+        <button class="btn" data-vt="${n}">Test</button><button class="btn" data-va="${n}" title="Hear ${n} act a short scene">🎭 Audition</button></div></div>`; }).join("")}</div>
     <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" id="vReset">Reset all</button><button class="btn" id="vClose">Done</button></div>`;
   $("#modal").style.display = "flex";
   const upd = (n, k, val) => { CUSTOM[n] = {...(CUSTOM[n] || {}), [k]: val}; saveCustomVoices(CUSTOM); };
@@ -403,6 +405,9 @@ function openVoiceSettings(){
   document.querySelectorAll("[data-vr]").forEach(e => e.oninput = () => upd(e.dataset.vr, "rate", +e.value));
   document.querySelectorAll("[data-vt]").forEach(e => e.onclick = () => { stopSpeaking(); const n = e.dataset.vt; focus(n);
     const was = voiceOn; voiceOn = true; speak(n, `${n} here. This is my voice, Sir.`).then(() => voiceOn = was); });
+  document.querySelectorAll("[data-va]").forEach(e => e.onclick = () => { stopSpeaking(); const n = e.dataset.va; focus(n);
+    const line = AUDITIONS[n] || `${n} here, Sir.`; logLine(n, "🎭 " + line.replace(/\[\w+\]\s*/g, ""), "reply");
+    const was = voiceOn; voiceOn = true; queueSpeech(n, line).then(() => voiceOn = was); });
   $("#vReset").onclick = () => { CUSTOM = {}; saveCustomVoices(CUSTOM); openVoiceSettings(); };
   $("#vClose").onclick = () => $("#modal").style.display = "none";
 }
@@ -875,7 +880,7 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
   const info = await infoResp.json();
   info.agents.forEach(a => AGENTS[a.name] = a); ORDER = info.agents.map(a => a.name);
   if(info.brand && info.brand.name && info.brand.name !== "JARVIS"){ document.querySelector("header .brand b").textContent = info.brand.name.toUpperCase() + " OS"; document.title = info.brand.name; }
-  try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; PRONOUNCE = vi.pronounce || {};
+  try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; PRONOUNCE = vi.pronounce || {}; AUDITIONS = vi.auditions || {};
     HEAR = !!vi.hear && !window.JarvisNative && !!(window.MediaRecorder && navigator.mediaDevices?.getUserMedia); if(vi.speech_lang && rec) rec.lang = vi.speech_lang; warmAcks(); } catch {}
   try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
   $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";

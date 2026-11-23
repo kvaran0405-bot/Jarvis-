@@ -44,8 +44,15 @@ def test_offline_voice_takes_over_when_online_voice_fails(tmp_path, monkeypatch)
     monkeypatch.setattr(localvoice, "synthesize", fake)
     out = voice.synthesize("FRIDAY", "[excited] You got the gig! [laughs] I knew it.")
     assert out.suffix == ".wav" and got["agent"] == "FRIDAY"
-    assert any(p[0].startswith("Ha ha") for p in got["pieces"]) and any("gig" in p[0] for p in got["pieces"])
+    assert any(p[0] == voice.emote_words("FRIDAY", "laughs") == "Ha! Ah, ha ha!" for p in got["pieces"]) and any("gig" in p[0] for p in got["pieces"])
     monkeypatch.setattr(localvoice, "ready", lambda: False)
     import pytest
     with pytest.raises(OSError):
         voice.synthesize("JARVIS", "No voice at all this time.")
+
+
+def test_everyone_has_their_own_laugh_and_audition():
+    assert voice.emote_words("JARVIS", "laughs") != voice.emote_words("ZEUS", "laughs")
+    assert voice.emote_words("NOBODY", "sighs") == voice.EMOTES["sighs"][0]
+    for agent, line in voice.AUDITIONS.items():
+        assert voice.EMOTE_RE.search(line) and voice.TAG_RE.search(line), agent   # each scene shows a sound + a mood
