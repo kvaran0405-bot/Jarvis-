@@ -31,6 +31,7 @@ const MISSIONS = [
   {id: "email", title: "Your inbox", what: "JARVIS reads your Gmail: briefings, an inbox sweep for what matters, smart reply drafts (you send).", todo: "Send /email to your JARVIS bot on Telegram and follow the 3 steps, then say: “anything important in my email?”", say: /e-?mail|inbox|gmail/i},
   {id: "route", title: "Your map & route", what: "Every place your phone has been lights up on the Singapore holo map; your day's stops become a route with directions on the phone.", todo: "Say: “plan my route” (or “plan a route to Orchard, then Tampines Mall”).", say: /\broute\b/i},
   {id: "explorer", title: "Explorer map & side quests", what: "A dark street map: places you've been glow, the rest is in shadow. 40 side quests (food, nature, heritage, views, night) unlock when you visit them.", todo: "Say: “show me my map”, tap a ? for a hint, then + ADD TO ROUTE. (On the phone, setup → “Location: all the time” keeps your trail recording.)", say: /\b(map|explorer|side ?quests?)\b/i},
+  {id: "installapp", title: "Phone app in one tap", what: "Send /installapp to your JARVIS bot on Telegram: it sends the newest phone app with the 3 install steps.", todo: "Nothing to do here: tap ✓ Got it (use /installapp when the phone app updates).", manual: true},
   {id: "update", title: "One-word updates", what: "JARVIS updates itself every night. To update now, text “update” to your bot on Telegram.", todo: "Nothing to do here: tap ✓ Got it.", manual: true},
 ];
 let done = store.get("done", {}), cur = null;

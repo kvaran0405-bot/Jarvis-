@@ -13,7 +13,7 @@ def test_after_boot_reports(monkeypatch):
     monkeypatch.setattr(updater, "latest_change", lambda: "Remove edge glow")
     monkeypatch.setattr(updater, "app_version", lambda: "app2")
     msgs = updater.after_boot(s, sent.append)
-    assert "Updated" in msgs[0] and "Remove edge glow" in msgs[0] and "releases/latest" in msgs[1]
+    assert "Updated" in msgs[0] and "Remove edge glow" in msgs[0] and "/installapp" in msgs[1]
     assert updater.after_boot(s, sent.append) == [] and len(sent) == 3
 
 
@@ -58,3 +58,16 @@ def test_telegram_email_setup(monkeypatch):
     bot.handle(msg("Me@Gmail.com  abcd efgh ijkl mnop", 8))
     assert got == [("Me@Gmail.com", "abcdefghijklmnop")] and out[-1] == "connected"
     assert ("deleteMessage", {"chat_id": "42", "message_id": 8}) in calls
+
+
+def test_installapp_command(monkeypatch):
+    from jarvis import telegram
+    out = []
+    bot = telegram.Bot(on_text=lambda t, voice=False: "AI", on_decision=lambda *a: "", log=lambda m: None)
+    monkeypatch.setattr(telegram, "chat_id", lambda: "42")
+    monkeypatch.setattr(telegram, "send", lambda text, *a, **k: out.append(text))
+    monkeypatch.setattr(telegram.urllib.request, "urlopen", lambda *a, **k: (_ for _ in ()).throw(OSError("offline")))
+    monkeypatch.setattr(telegram.threading, "Thread", lambda target, daemon=True: type("T", (), {"start": lambda self: target()})())
+    for t in ("/installapp", "install the app", "/InstallApp@MyBot"):
+        bot.handle({"update_id": 1, "message": {"message_id": 1, "text": t, "chat": {"id": 42}}})
+    assert len(out) == 3 and all("releases/latest/download/JARVIS.apk" in x and "Play Protect" in x for x in out)

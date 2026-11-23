@@ -260,6 +260,8 @@ it stays silent unless the alert is critical.
 - **Voice typing anywhere (laptop):** hold **Right Alt** (or the **Copilot key** ✦, or Right Ctrl), talk, let go: JARVIS types it into whatever app has the
   cursor. Start with "Jarvis, ..." to give an order instead. Understood on the laptop itself; never types into
   banking windows. Change the key with `JARVIS_DICTATE_KEY` (auto, ralt, copilot, rctrl, f8, f9, capslock) or `JARVIS_DICTATE=off`.
+- **Phone app:** send **/installapp** to your bot on Telegram: you get a one-tap download of the newest app and the
+  3 install steps (Play Protect off for a minute, install, Play Protect back on).
 - **Fast mode:** send **/gemini** to your bot on Telegram to add a free Gemini key (your message is deleted at once,
   the key is tested, fast mode switches on). "Fast mode on/off" any time; the dashboard shows ⚡FAST. If Gemini
   stumbles, the main brain answers instead.

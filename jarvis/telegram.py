@@ -69,6 +69,30 @@ GEMINI_STEPS = ("⚡ Free Gemini key (fast mode, Gemini voices, photo sorter), 1
                 "(This works for the next 15 minutes.)")
 
 
+INSTALL_RE = re.compile(r"^\s*(?:jarvis[,\s]+)?(?:install|update|get|download|send me)(?: the| my)? (?:phone )?(?:app|apk)\s*[.!]?\s*$", re.I)
+APK_URL = "https://github.com/kvaran0405-bot/Jarvis-/releases/latest/download/JARVIS.apk"
+INSTALL_STEPS = ("📱 Newest JARVIS phone app\n\n"
+                 "1. Play Store → your profile → Play Protect → ⚙ → turn OFF “Scan apps with Play Protect”.\n"
+                 "2. Tap the app file below (or this link) → Install:\n" + APK_URL + "\n"
+                 "   (If it says “App not installed”: uninstall the old JARVIS first, then tap again.)\n"
+                 "3. Turn Play Protect scanning back ON. Open JARVIS → say “setup” → ALLOW NEXT.")
+
+
+def send_app() -> None:
+    """Steps + the newest APK. Attaches the file itself when the laptop can download it, else just the link."""
+    send(INSTALL_STEPS)
+    try:
+        path = Path(tempfile.gettempdir()) / "JARVIS.apk"
+        with urllib.request.urlopen(APK_URL, timeout=60) as r:
+            data = r.read()
+        if len(data) < 100_000 or data[:2] != b"PK":
+            return   # not an app file (e.g. a sign-in page): the link above still works
+        path.write_bytes(data)
+        api_file("sendDocument", "document", str(path), chat_id=chat_id(), caption="JARVIS.apk: tap to install")
+    except Exception:  # noqa: BLE001 - the link in the steps is enough
+        pass
+
+
 # ---------------------------------------------------------------- Telegram Bot API
 def api(method: str, http_timeout: int = 30, **params):
     url = f"https://api.telegram.org/bot{settings.telegram_token}/{method}"
@@ -277,6 +301,9 @@ class Bot:
             send("🔒 Got it and deleted your message. Testing the key…")
             send(self.on_gemini(key.group(1)))
             return
+        if text in ("/installapp", "/apk", "/phoneapp") or INSTALL_RE.match(text):
+            threading.Thread(target=send_app, daemon=True).start()
+            return
         if text == "/voicecheck":
             send(voice_check())
             return
@@ -295,7 +322,7 @@ class Bot:
                  "Save your Claude plan:\n• /pause  or  pause for 3 hours - I use no AI at all\n"
                  "• /saver - run on free Gemini only\n• /resume - back to normal\n• /status - which brain I'm using\n\n"
                  "📱 /app - open the JARVIS app   📞 /call - talk to me live\n"
-                 "📧 /email - connect your Gmail\n⚡ /gemini - free Gemini key (fast mode)\n🔎 /voicecheck - test voice notes   ⬆ update - get my newest version (laptop + phone)")
+                 "📱 /installapp - newest phone app\n📧 /email - connect your Gmail\n⚡ /gemini - free Gemini key (fast mode)\n🔎 /voicecheck - test voice notes   ⬆ update - get my newest version (laptop + phone)")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
         reply = self.on_text(text, voice=False)
