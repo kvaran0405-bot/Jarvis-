@@ -372,6 +372,7 @@ bcss.textContent = `.card .bond{position:absolute;top:4px;right:5px;font:700 8px
 #roomBox .un{opacity:.4}#roomBox .un.on{opacity:1}#roomBox .acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .heart{position:fixed;pointer-events:none;z-index:45;font-size:22px;animation:heartup 1.8s ease-out forwards}@keyframes heartup{to{transform:translateY(-160px) scale(1.4);opacity:0}}`;
 document.head.appendChild(bcss);
+const emit = (n, d) => { try { document.dispatchEvent(new CustomEvent("jarvis:" + n, {detail: d})); } catch {} };
 let BONDS = {};
 async function loadBonds(){
   try { (await (await fetch("/api/bonds")).json()).forEach(b => BONDS[b.agent] = b); } catch { return; }
@@ -384,6 +385,7 @@ async function loadBonds(){
       c.addEventListener("touchend", () => clearTimeout(lp)); } });
 }
 async function openRoom(agent){
+  emit("room", agent);
   let r; try { r = await (await fetch(`/api/bonds/${agent}`)).json(); } catch { return; }
   const col = window.AGENTS?.[agent]?.color || "#ffd23f", b = r.bond;
   const li = arr => arr.length ? arr.map(x => `<div>· ${esc(x)}</div>`).join("") : `<div style="color:var(--dim)">Nothing yet.</div>`;
@@ -455,6 +457,7 @@ function giftToast(ev){
   t.classList.add("on"); hearts(col, 12); SFX.done(); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 30000);
 }
 function teamPhoto(){
+  emit("photo");
   $("#modalBody").innerHTML = `<div style="text-align:center"><h2 style="margin:0 0 10px">THE TEAM</h2>
     <img src="/api/team/photo?t=${Date.now()}" style="max-width:100%;border:1px solid var(--line)" alt="Team photo">
     <div style="font-size:12px;color:var(--muted);margin:8px 0">Closer friends stand in front and glow brighter. It changes as your bonds grow.</div>
@@ -508,7 +511,7 @@ document.addEventListener("drop", async e => {
     SFX.lock(); hearts(col, 4);
     const lines = ["On it.", "Consider it handled.", "Leave it with me.", "Mine now.", "Tonight's night shift, sorted."];
     const line = lines[Math.floor(Math.random() * lines.length)];
-    window.logLine?.(agent, `📌 Took task #${tid}. ${line}`, "reply"); window.queueSpeech?.(agent, line); window.refresh?.(); return;
+    emit("taskdrop", agent); window.logLine?.(agent, `📌 Took task #${tid}. ${line}`, "reply"); window.queueSpeech?.(agent, line); window.refresh?.(); return;
   }
   for(const f of [...e.dataTransfer.files].slice(0, 3)){
     if(f.size > 20e6){ toast(agent, `${f.name} is over 20 MB.`); continue; }
@@ -516,7 +519,7 @@ document.addEventListener("drop", async e => {
     const data = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f); });
     try {
       const out = await (await fetch("/api/drop", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({name: f.name, data, agent})})).json();
-      window.logLine?.(out.agent || agent, out.reply || out.detail || "Done.", "reply"); window.queueSpeech?.(out.agent || agent, out.reply || "Done.");
+      emit("drop", f.name); window.logLine?.(out.agent || agent, out.reply || out.detail || "Done.", "reply"); window.queueSpeech?.(out.agent || agent, out.reply || "Done.");
     } catch { toast(agent, "That file didn't make it through. Try again?"); }
   }
 });

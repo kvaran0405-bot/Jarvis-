@@ -232,6 +232,44 @@ final class Powers {
         } catch (Exception e) { return "couldn't: " + e.getMessage(); }
     }
 
+    // ------------------------------------------------------------ photo sorter: new photos -> laptop albums
+    static String uploadPhotos(Context c, long sinceSec, int limit) {
+        String perm = Build.VERSION.SDK_INT >= 33 ? "android.permission.READ_MEDIA_IMAGES" : Manifest.permission.READ_EXTERNAL_STORAGE;
+        if (!has(c, perm)) return "needs photos permission";
+        String[] cols = {MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.DATE_ADDED};
+        int sent = 0;
+        try (Cursor cur = c.getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cols,
+                MediaStore.Images.Media.DATE_ADDED + " > ?", new String[]{String.valueOf(sinceSec)},
+                MediaStore.Images.Media.DATE_ADDED + " ASC")) {
+            while (cur != null && cur.moveToNext() && sent < limit) {
+                String name = cur.getString(1);
+                long added = cur.getLong(2);
+                if (name == null || Net.isFinance(name)) continue;
+                Uri uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cur.getLong(0));
+                String data = jpeg(c, uri, 1280);
+                if (data == null) continue;
+                JSONObject body = new JSONObject();
+                body.put("name", name); body.put("image", data); body.put("sort", true); body.put("taken", added);
+                Net.call(c, "/api/phone/photo", body.toString(), 30000);
+                sent++;
+            }
+        } catch (Exception e) { return "sent " + sent + ", then: " + e.getMessage(); }
+        return "sent " + sent;
+    }
+
+    private static String jpeg(Context c, Uri uri, int max) {
+        try {
+            Bitmap bmp;
+            try (InputStream in = c.getContentResolver().openInputStream(uri)) { bmp = BitmapFactory.decodeStream(in); }
+            if (bmp == null) return null;
+            float scale = Math.min(1f, (float) max / Math.max(bmp.getWidth(), bmp.getHeight()));
+            if (scale < 1f) bmp = Bitmap.createScaledBitmap(bmp, Math.round(bmp.getWidth() * scale), Math.round(bmp.getHeight() * scale), true);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            bmp.compress(Bitmap.CompressFormat.JPEG, 80, out);
+            return "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+        } catch (Exception e) { return null; }
+    }
+
     // ------------------------------------------------------------ latest photo -> laptop
     static String latestPhoto(Context c) {
         String perm = Build.VERSION.SDK_INT >= 33 ? "android.permission.READ_MEDIA_IMAGES" : Manifest.permission.READ_EXTERNAL_STORAGE;

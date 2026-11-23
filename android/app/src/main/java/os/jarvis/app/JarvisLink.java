@@ -211,6 +211,7 @@ public class JarvisLink extends Service implements LocationListener {
                 break;
             }
             case "photo": new Thread(() -> done(id, Powers.latestPhoto(this))).start(); break;
+            case "photos": new Thread(() -> done(id, Powers.uploadPhotos(this, c.optLong("since"), c.optInt("limit", 40)))).start(); break;
             default: done(id, "unknown command");
         }
     }

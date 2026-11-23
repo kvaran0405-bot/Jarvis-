@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Setup</title>
+<meta name="theme-color" content="#03060a"><link rel="icon" href="/icon-192.png">
+<script src="/native-bridge.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#03060a;--panel:#0a1119;--line:#1b2735;--txt:#dce7f2;--muted:#8a95a7;--ac:#ffd23f;--ok:#3dff9a}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font-family:"JetBrains Mono",monospace}
+body{min-height:100vh;background:radial-gradient(circle at 50% -10%,#10263a,var(--bg) 60%)}
+.wrap{max-width:640px;margin:0 auto;padding:max(18px,env(safe-area-inset-top)) 16px 120px}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:6px}.top a{margin-left:auto;color:var(--muted);text-decoration:none;font-size:12px;border:1px solid var(--line);padding:6px 10px;border-radius:16px}
+h1{font:700 16px Orbitron,sans-serif;letter-spacing:.3em;color:var(--ac);margin:0;text-shadow:0 0 14px #ffd23f66}
+.sub{color:var(--muted);font-size:12px;line-height:1.6;margin:6px 0 16px}
+.meter{height:6px;background:#141d28;border-radius:3px;overflow:hidden;margin:10px 0 4px}.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--ac),var(--ok));box-shadow:0 0 12px var(--ok);transition:width .6s}
+.count{font:700 10px Orbitron,sans-serif;letter-spacing:.2em;color:var(--muted)}
+h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--muted);margin:22px 0 8px}
+.item{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;transition:.3s}
+.item.on{border-color:#1f4a35}.item.next{border-color:var(--ac);box-shadow:0 0 16px #ffd23f33}
+.dot{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:13px;border:1px solid var(--line);color:var(--muted)}
+.item.on .dot{background:var(--ok);color:#03060a;border-color:var(--ok);box-shadow:0 0 10px #3dff9a88}
+.t{flex:1;min-width:0}.t b{display:block;font-size:13px;font-weight:600}.t small{display:block;color:var(--muted);font-size:11px;line-height:1.5;margin-top:2px}
+.t small.warn{color:#ffb347}
+button.go{flex:none;background:transparent;color:var(--ac);border:1px solid var(--ac);font:700 10px Orbitron,sans-serif;letter-spacing:.15em;padding:9px 12px;border-radius:16px;cursor:pointer}
+.item.on button.go{display:none}
+input{width:100%;margin-top:6px;background:#060b12;border:1px solid var(--line);color:var(--txt);padding:8px;border-radius:6px;font:12px "JetBrains Mono",monospace}
+.big{position:fixed;left:0;right:0;bottom:0;padding:14px 16px max(16px,env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 35%)}
+.big button{display:block;width:100%;max-width:608px;margin:0 auto;padding:16px;border:0;border-radius:28px;background:var(--ac);color:#03060a;
+  font:700 13px Orbitron,sans-serif;letter-spacing:.25em;box-shadow:0 0 28px #ffd23f66;cursor:pointer}
+.big button.done{background:var(--ok);box-shadow:0 0 28px #3dff9a66}
+</style></head><body>
+<div class="wrap">
+  <div class="top"><h1>SETUP</h1><a href="/command-centre.html">← JARVIS</a></div>
+  <div class="sub" id="intro">Give JARVIS everything it can use. Tap <b>Allow next</b> and say yes on each screen; it moves on by itself.
+    Bank and finance apps stay off limits whatever you allow.</div>
+  <div class="meter"><i id="bar" style="width:0"></i></div><div class="count" id="count"></div>
+  <div id="phone"></div><div id="laptop"></div>
+</div>
+<div class="big"><button id="next">ALLOW NEXT</button></div>
+<script>
+const $ = s => document.querySelector(s), N = window.JarvisNative, esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const call = (f, ...a) => { try { return N && typeof N[f] === "function" ? N[f](...a) : undefined; } catch { return undefined; } };
+const RESTRICTED = "Greyed out? Tap “App settings”, then ⋮ (top right) → “Allow restricted settings”, then come back.";
+let asked = {};
+// phone: each step = [label, why, isOn, ask]
+const PHONE = [
+  ["Notifications", "Messages, reminders and alerts from your agents", () => call("hasNotifyPermission") !== false, () => call("askNotifyPermission")],
+  ["Microphone & camera", "Talk to JARVIS, video calls, Vision", () => call("hasMicCam"), () => call("askMicCam")],
+  ["Calls, contacts & photos", "“Call Mum”, “what's in my last photo?”", () => call("hasPowers"), id => asked[id] ? call("openAppSettings") : call("askPowers")],
+  ["Location", "Location magic: home, gym, class, leave-now alerts", () => call("hasLocation"), id => asked[id] ? call("openAppSettings") : call("askLocation")],
+  ["Floating ball", "JARVIS on top of every app", () => call("canFloat"), () => call("showOrb", true)],
+  ["Autopilot", "Taps through apps for you, reads your screen (after your OK)", () => call("hasAutopilot"), () => call("openAutopilotSettings"), RESTRICTED],
+  ["Smart replies & notifications", "Reply buttons for WhatsApp, Telegram, Instagram…; “what did I miss?”", () => call("hasNotificationAccess"), () => call("openNotificationAccess"), RESTRICTED],
+  ["Silent mode control", "Do Not Disturb in class, focus and at night", () => call("hasDndAccess"), () => call("openDndSettings")],
+  ["Screen time", "“How long was I on TikTok today?”, phone wind-down", () => call("hasUsageAccess"), () => call("openUsageSettings")],
+  ["Always on in the background", "Stops the phone killing JARVIS to save battery", () => call("hasBatteryFree"), () => call("askBatteryFree")],
+];
+let LAP = [], local = false;
+async function laptopItems(){
+  try { const r = await (await fetch("/api/setup")).json(); local = r.local; LAP = r.items; } catch { LAP = []; }
+  if(!N){   // in the laptop browser: also the browser's own permissions
+    let mic = false; try { mic = (await navigator.permissions.query({name: "microphone"})).state === "granted"; } catch {}
+    LAP.unshift({id: "notify", label: "Desktop notifications", on: "Notification" in window && Notification.permission === "granted", action: "notify"},
+                {id: "mic", label: "Microphone (talk to JARVIS on the laptop)", on: mic, action: "mic"});
+  }
+}
+function render(){
+  const ph = N ? PHONE.map((p, i) => ({id: "p" + i, label: p[0], how: p[1], on: !!p[2](), warn: p[4], ask: p[3]})) : [];
+  const lp = LAP.map(x => ({...x}));
+  const all = [...ph, ...(local || !N ? lp : [])], done = all.filter(x => x.on).length;
+  const next = all.find(x => !x.on && (x.ask || x.action));
+  const row = x => `<div class="item ${x.on ? "on" : ""} ${next === x ? "next" : ""}" data-id="${x.id}"><span class="dot">${x.on ? "✓" : "·"}</span>
+    <div class="t"><b>${esc(x.label)}</b>${x.how ? `<small>${esc(x.how)}</small>` : ""}${x.detail && x.on ? `<small>${esc(x.detail)}</small>` : ""}
+    ${!x.on && x.warn && asked[x.id] ? `<small class="warn">${esc(x.warn)}</small>` : ""}
+    ${!x.on && x.action === "key" ? `<input placeholder="${x.key === "GEMINI_API_KEY" ? "paste the key here" : "MM-DD"}" data-key="${x.key}" ${local ? "" : "disabled"}>` : ""}</div>
+    ${x.ask || x.action || x.link ? `<button class="go">${x.action === "key" ? "SAVE" : x.link ? "OPEN" : "ALLOW"}</button>` : ""}
+    ${!x.on && x.warn && asked[x.id] ? `<button class="go" data-appset>APP SETTINGS</button>` : ""}</div>`;
+  $("#phone").innerHTML = ph.length ? `<h2>THIS PHONE</h2>` + ph.map(row).join("") : "";
+  $("#laptop").innerHTML = lp.length ? `<h2>LAPTOP${N && !local ? " (do these on the laptop)" : ""}</h2>` + lp.map(row).join("") : "";
+  $("#bar").style.width = (all.length ? Math.round(done / all.length * 100) : 0) + "%";
+  $("#count").textContent = `${done} / ${all.length} ALLOWED`;
+  $("#next").textContent = next ? "ALLOW NEXT · " + next.label.toUpperCase() : "ALL SET ✓";
+  $("#next").classList.toggle("done", !next);
+  $("#next").onclick = () => next ? act(next) : location.href = "/command-centre.html?setup=done";
+  document.querySelectorAll(".item").forEach(el => { const x = all.find(y => y.id === el.dataset.id); if(!x) return;
+    el.querySelector(".go:not([data-appset])")?.addEventListener("click", () => act(x));
+    el.querySelector("[data-appset]")?.addEventListener("click", () => call("openAppSettings")); });
+}
+async function act(x){
+  if(x.ask){ x.ask(x.id); asked[x.id] = true; setTimeout(refresh, 1500); return; }
+  if(x.link){ location.href = x.link; return; }
+  const post = (u, b) => fetch(u, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(b || {})}).then(r => r.json());
+  if(x.action === "mic"){ try { (await navigator.mediaDevices.getUserMedia({audio: true})).getTracks().forEach(t => t.stop()); } catch { if(local) post("/api/setup/windows", {which: "microphone"}); } }
+  if(x.action === "notify" && "Notification" in window) await Notification.requestPermission();
+  if(x.action === "autostart") await post("/api/setup/autostart");
+  if(x.action === "key"){ const inp = document.querySelector(`[data-key="${x.key}"]`); if(!inp?.value.trim()){ inp?.focus(); return; }
+    const r = await post("/api/setup/key", {name: x.key, value: inp.value}); if(r.detail){ alert(r.detail); return; } }
+  if(!x.action && x.how) alert(x.how);
+  refresh();
+}
+async function refresh(){ await laptopItems(); render(); }
+window.onNativeResume = () => setTimeout(refresh, 400);   // back from a settings screen: tick it off, move to the next
+document.addEventListener("visibilitychange", () => { if(!document.hidden) setTimeout(refresh, 400); });
+refresh(); setInterval(refresh, 15000);
+</script>
+</body></html>

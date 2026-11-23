@@ -1,6 +1,7 @@
 """Autopilot: runs the daily routines and the night shift while the owner rests."""
 from __future__ import annotations
 
+import os
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -406,7 +407,8 @@ class Scheduler:
 
     MAINTENANCE = {"file_index": every_hours(6), "housekeeping": daily_at("03:00", weekday=6),
                    "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6), "leave_now": every_hours(1 / 12), "screenshots": every_hours(1 / 60),
-                   "nudge": every_hours(2), "auto_update": daily_at("04:10")}
+                   "nudge": every_hours(2), "auto_update": daily_at("04:10"),
+                   "photo_pull": daily_at("01:30"), "photo_sort": every_hours(1)}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -439,6 +441,13 @@ class Scheduler:
                 from .desktop import new_screenshots
                 for path in new_screenshots(self.store):
                     self.bus.publish({"type": "screenshot", "path": path, "name": path.replace("\\", "/").rsplit("/", 1)[-1]})
+            elif name == "photo_pull":   # ask the phone for tonight's new photos
+                from . import phonelink, photosort
+                if phonelink.state(self.store) and os.environ.get("JARVIS_PHOTO_SORT", "on").lower() != "off":
+                    photosort.request_new(self.store)
+            elif name == "photo_sort":
+                from . import photosort
+                photosort.sort_inbox(self.store, self.bus)
             elif name == "auto_update":   # quietly get the newest version at night, if there is one
                 import os
                 from . import updater

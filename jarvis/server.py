@@ -668,6 +668,8 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"\s*[.!]?\s*$", re.I)
 FAST_RE = re.compile(_J + r"(?:fast|quick|speed|turbo) (?:voice |reply |replies |response )?mode (on|off)\s*[.!]?\s*$|"
                      r"^\s*(?:jarvis[,\s]+)?(?:turn (on|off) fast (?:voice|mode|replies))\s*[.!]?\s*$", re.I)
+TUTORIAL_RE = re.compile(_J + r"(?:show me |start |open |run |replay )?(?:the )?(?:tutorial|training(?: mode)?|walkthrough|tour)\s*[.!?]?\s*$", re.I)
+SETUP_RE = re.compile(_J + r"(?:setup|set up|set me up|allow everything|give (?:jarvis |you )?(?:all|full) access|permissions)\s*[.!?]?\s*$", re.I)
 CINEMA_RE = re.compile(_J + r"(?:show me |play |run |start )?(?:the |all the |all )?(?:cinematics?|cinematic mode|movie mode|"
                        r"the full show|the whole show|showreel|show reel)\s*[.!?]?\s*$", re.I)
 AR_RE = re.compile(_J + r"(?:open |launch |start |show me )?(?:the )?(?:desk ar|ar desk|spatial desk|ar mode|augmented reality)\s*[.!]?\s*$", re.I)
@@ -779,6 +781,14 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         store.set("voice:fast", "on" if on else "off")
         return ("Fast mode on, Sir. Spoken questions get the quickest brain; typed ones still get the full one." if on
                 else "Fast mode off. Every reply gets the full brain again, Sir."), None, None
+    if TUTORIAL_RE.match(text):
+        bus.publish({"type": "tutorial"})
+        return "Training mode, Sir. Each mission ticks off when it works.", None, None
+    if SETUP_RE.match(text):
+        from . import phonelink
+        phonelink.queue(store, "open", url="/access.html")
+        return (f"Setup is open on your phone, Sir: just keep tapping Allow. On the laptop: {settings.app_url or 'http://localhost:7334'}/access.html"
+                if phonelink.online(store) else f"Open {settings.app_url or 'http://localhost:7334'}/access.html, Sir, and keep tapping Allow next."), None, None
     if CINEMA_RE.match(text):
         bus.publish({"type": "cinema"})
         return "Lights down, Sir. Roll film.", None, None
@@ -1077,6 +1087,8 @@ def phone_done(d: PhoneDone):
 class PhonePhoto(BaseModel):
     name: str = "photo.jpg"
     image: str            # data URL (JPEG)
+    sort: bool = False    # part of the nightly photo sort: goes to the sorter's inbox
+    taken: int | None = None
 
 
 @app.post("/api/phone/photo")
@@ -1088,10 +1100,13 @@ def phone_photo(ph: PhonePhoto):
     data = base64.b64decode(ph.image.partition(",")[2] or ph.image)
     if len(data) > 8_000_000:
         raise HTTPException(413, "too large")
-    folder = _ROOT / "data" / "phone_photos"
+    folder = _ROOT / "data" / "phone_photos" / ("inbox" if ph.sort else "")
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{datetime.now(settings.tz):%Y%m%d-%H%M%S}-{safe_name(Path(ph.name).stem)}.jpg"
     path.write_bytes(data)
+    if ph.sort:
+        from . import photosort
+        photosort.received(store, path, ph.taken)
     return {"path": str(path)}
 
 
@@ -1258,6 +1273,51 @@ async def drop_file(d: Drop):
 def season_api():
     from . import hud
     return {"season": hud.season(store=store), "choice": store.get("hud:season") or "auto"}
+
+
+# ---------------------------------------------------------------- one-tap setup (laptop half; the phone asks Android itself)
+@app.get("/api/setup")
+def setup_status(request: Request):
+    from . import access
+    return {"items": access.status(store), "local": _is_local(request)}
+
+
+class SetupKey(BaseModel):
+    name: str
+    value: str
+
+
+def _local_only(request: Request) -> None:
+    if not _is_local(request):
+        raise HTTPException(403, "Do this on the laptop itself.")
+
+
+@app.post("/api/setup/key")
+def setup_key(k: SetupKey, request: Request):
+    from . import access
+    _local_only(request)
+    try:
+        return {"result": access.save_key(k.name, k.value)}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@app.post("/api/setup/autostart")
+def setup_autostart(request: Request):
+    from . import access
+    _local_only(request)
+    return {"result": access.install_autostart()}
+
+
+class WinSetting(BaseModel):
+    which: str
+
+
+@app.post("/api/setup/windows")
+def setup_windows(w: WinSetting, request: Request):
+    from . import access
+    _local_only(request)
+    return {"result": access.open_windows_setting(w.which)}
 
 
 # ---------------------------------------------------------------- studio: floor plans, portfolio, backups

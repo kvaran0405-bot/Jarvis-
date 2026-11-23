@@ -219,6 +219,12 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        js("window.onNativeResume && window.onNativeResume()");   // the setup page re-checks what's allowed
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         CookieManager.getInstance().flush();
@@ -370,6 +376,62 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openDndSettings() {
             ui.post(() -> startActivity(new Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)));
+        }
+
+        // ---- one-tap setup page (/access.html): check and ask for everything
+        @JavascriptInterface
+        public boolean hasMicCam() { return hasMic() && hasCamera(); }
+
+        @JavascriptInterface
+        public void askMicCam() { ui.post(MainActivity.this::askMic); }
+
+        @JavascriptInterface
+        public boolean hasPowers() {
+            String photos = android.os.Build.VERSION.SDK_INT >= 33 ? "android.permission.READ_MEDIA_IMAGES" : Manifest.permission.READ_EXTERNAL_STORAGE;
+            for (String p : new String[]{Manifest.permission.READ_CONTACTS, Manifest.permission.CALL_PHONE, photos})
+                if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) return false;
+            return true;
+        }
+
+        @JavascriptInterface
+        public boolean hasNotifyPermission() {
+            return android.os.Build.VERSION.SDK_INT < 33
+                    || checkSelfPermission("android.permission.POST_NOTIFICATIONS") == PackageManager.PERMISSION_GRANTED;
+        }
+
+        @JavascriptInterface
+        public void askNotifyPermission() {
+            if (android.os.Build.VERSION.SDK_INT >= 33)
+                ui.post(() -> requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 47));
+        }
+
+        @JavascriptInterface
+        public boolean hasBatteryFree() {
+            return getSystemService(android.os.PowerManager.class).isIgnoringBatteryOptimizations(getPackageName());
+        }
+
+        @JavascriptInterface
+        public void askBatteryFree() {
+            ui.post(() -> {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
+                    startActivity(new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void openAppSettings() {
+            ui.post(() -> startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName()))));
+        }
+
+        @JavascriptInterface
+        public int appVersion() {
+            try { return (int) getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode(); }
+            catch (Exception e) { return 0; }
         }
 
         @JavascriptInterface
