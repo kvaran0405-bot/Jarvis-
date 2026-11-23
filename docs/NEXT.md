@@ -39,6 +39,7 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 - **Interruptible conversation:** cut in mid-sentence, it stops and listens.
 - **Parallel tasks with a live HUD:** several jobs at once with progress bars.
 - **Blueprint mode:** any plan as an interactive glowing blueprint.
+- **Meal plan -> body simulation (owner picked):** a week of meals -> protein, energy, gym recovery; STEVE comments.
 - **RULE: every simulation is a live, interactive 3D hologram** (spin/zoom, sliders change it live, scrub time; film mode and video export are extras). 3D preview at /simulate3d.html.
 - **Simulations (owner loves this; preview with demo data at /simulate.html: life, gig pricing, exam, tomorrow played, money future, wedding day run; each plays as a film or interactive with sliders):** "run it" -> simulate outcomes (life sim, gig pricing, exam score predictions,
   "what if" scenarios) shown as holo charts.

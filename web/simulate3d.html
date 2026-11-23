@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Holo Simulations</title>
+<meta name="theme-color" content="#03060a"><link rel="icon" href="/icon-192.png">
+<script src="/vendor/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Live 3D holographic simulations: spin (drag), zoom (scroll / pinch), change the "what if" with sliders, scrub time.
+   Preview with demo numbers; the real ones run on the owner's own data. Laptop and phone. */
+:root{--bg:#03060a;--line:#1b2735;--txt:#dce7f2;--muted:#8a95a7;--ac:#ffd23f}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:"JetBrains Mono",monospace;overflow:hidden}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.top{position:fixed;top:0;left:0;right:0;z-index:5;padding:max(10px,env(safe-area-inset-top)) 14px 8px;background:linear-gradient(#03060ad9,transparent);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.top b{font:700 12px Orbitron,sans-serif;letter-spacing:.3em;color:var(--ac);text-shadow:0 0 12px #ffd23f66}
+.tabs{display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;padding:7px 12px;border-radius:16px;border:1px solid var(--line);background:rgba(8,13,20,.85);font:700 9px Orbitron,sans-serif;letter-spacing:.14em;color:var(--txt);cursor:pointer}
+.tab.on{border-color:var(--c);color:var(--c);box-shadow:0 0 12px color-mix(in srgb,var(--c) 40%,transparent)}
+.cap{position:fixed;left:0;right:0;top:calc(58px + env(safe-area-inset-top));z-index:4;text-align:center;pointer-events:none;padding:0 16px}
+.cap b{font:700 15px Orbitron,sans-serif;letter-spacing:.25em;color:var(--c);text-shadow:0 0 14px var(--c)}.cap div{font-size:12px;color:#c9d6e3;margin-top:5px}
+.say{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom));width:min(620px,92vw);text-align:center;font-size:13px;color:#fff;text-shadow:0 2px 6px #000;z-index:4;pointer-events:none}
+#labels{position:fixed;inset:0;pointer-events:none;z-index:3}
+.lb{position:absolute;transform:translate(-50%,-100%);font:700 10px "JetBrains Mono",monospace;color:var(--c,#fff);text-shadow:0 0 6px #000,0 0 10px var(--c,#000);white-space:nowrap}
+.lb small{display:block;font-weight:400;color:#c9d6e3;text-align:center}
+.panel{position:fixed;left:0;right:0;bottom:0;z-index:5;padding:10px 14px max(12px,env(safe-area-inset-bottom));background:linear-gradient(transparent,#03060af2 30%)}
+.sl{display:flex;gap:14px;flex-wrap:wrap}.sl label{flex:1;min-width:140px;font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.sl output{color:var(--txt);font-weight:600}input[type=range]{accent-color:var(--c)}
+.time{display:flex;align-items:center;gap:10px;margin-top:8px}.time button{background:var(--c);color:#03060a;border:0;border-radius:16px;padding:7px 14px;font:700 10px Orbitron,sans-serif;letter-spacing:.14em;cursor:pointer}
+.time input{flex:1}.time span{font:700 11px Orbitron,sans-serif;color:var(--c);min-width:84px;text-align:right}
+@media(max-width:700px){.hint{display:none}.sl label{min-width:42%;font-size:10px}.cap div{font-size:11px}.say{font-size:12px}}
+.hint{position:fixed;right:12px;top:calc(110px + env(safe-area-inset-top));z-index:4;font-size:10px;color:var(--muted);text-align:right;line-height:1.5}
+</style></head><body>
+<canvas id="gl"></canvas><div id="labels"></div>
+<div class="top"><b>HOLO SIMS</b><div class="tabs" id="tabs"></div></div>
+<div class="cap" id="cap"></div><div class="hint">drag to spin · scroll / pinch to zoom<br>demo data</div>
+<div class="say" id="say"></div>
+<div class="panel" id="panel"><div class="sl" id="sl"></div><div class="time"><button id="play">❚❚ PAUSE</button><input type="range" id="tm" min="0" max="1" step=".001" value="0"><span id="tl"></span></div></div>
+<script>
+const $ = s => document.querySelector(s);
+const R = new THREE.WebGLRenderer({canvas: $("#gl"), antialias: true, alpha: false});
+R.setPixelRatio(Math.min(2, devicePixelRatio || 1)); R.setClearColor(0x03060a);
+const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x03060a, .018);
+const cam = new THREE.PerspectiveCamera(50, 1, .1, 400);
+let yaw = .7, pitch = .55, dist = 30, target = new THREE.Vector3(0, 2, 0);
+function resize(){ R.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); }
+addEventListener("resize", resize); resize();
+// orbit: drag to spin, wheel / pinch to zoom (works with mouse and touch)
+let drag = null, pinch = null;
+$("#gl").addEventListener("pointerdown", e => { drag = {x: e.clientX, y: e.clientY}; });
+addEventListener("pointermove", e => { if(!drag || pinch) return; yaw -= (e.clientX - drag.x) * .006; pitch = Math.max(.08, Math.min(1.35, pitch + (e.clientY - drag.y) * .004)); drag = {x: e.clientX, y: e.clientY}; });
+addEventListener("pointerup", () => drag = null);
+$("#gl").addEventListener("wheel", e => { dist = Math.max(10, Math.min(70, dist * (1 + Math.sign(e.deltaY) * .08))); e.preventDefault(); }, {passive: false});
+$("#gl").addEventListener("touchmove", e => { if(e.touches.length !== 2) return; const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  if(pinch) dist = Math.max(10, Math.min(70, dist * pinch / d)); pinch = d; }, {passive: true});
+$("#gl").addEventListener("touchend", () => pinch = null);
+
+const C = c => new THREE.Color(c);
+const glowMat = (c, op = .9) => new THREE.MeshBasicMaterial({color: C(c), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false});
+const lineMat = (c, op = .9) => new THREE.LineBasicMaterial({color: C(c), transparent: true, opacity: op, blending: THREE.AdditiveBlending});
+let spriteTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.3, "rgba(255,255,255,.6)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const glow = (c, s = 1.4, op = .9) => { const m = new THREE.Sprite(new THREE.SpriteMaterial({map: spriteTex, color: C(c), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false})); m.scale.set(s, s, 1); return m; };
+function floor(w = 30, d = 30, c = "#5fd8ff"){ const gh = new THREE.GridHelper(Math.max(w, d), 30, C(c), C(c)); gh.material.transparent = true; gh.material.opacity = .08; return gh; }
+
+let group = new THREE.Group(); scene.add(group);
+let labels = [], anim = [], P = {}, T = 0, playing = true;
+function label(pos, html, c){ const el = document.createElement("div"); el.className = "lb"; el.style.setProperty("--c", c); el.innerHTML = html; $("#labels").appendChild(el); const l = {pos, el}; labels.push(l); return l; }
+function clear(){ scene.remove(group); group = new THREE.Group(); scene.add(group); labels.forEach(l => l.el.remove()); labels = []; anim = []; }
+const tube = (pts, c, r = .09, op = .95) => new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), Math.max(20, pts.length * 4), r, 6, false), glowMat(c, op));
+
+// ------------------------------------------------------------ the simulations
+const SIMS = [
+ {id: "life", name: "LIFE SIMULATOR", c: "#ffd23f", what: "Next 4 weeks if you take more gigs, gym less and sleep less. Each glowing ribbon is one part of your life.",
+  ctl: [["gigs", "Extra gigs / week", 0, 4, 2, 1], ["gym", "Gym days / week", 0, 6, 1, 1], ["sleep", "Sleep (h)", 5, 9, 6.5, .5]],
+  time: t => `DAY ${Math.round(t * 28)}`, cam: [.7, .45, 34],
+  say: t => t < .3 ? "Money climbs fastest with extra gigs…" : t < .65 ? "Energy and grades start sliding by week 2." : "Exam week: stress peaks. Faint threads are the other possible futures.",
+  build(p){
+   group.add(floor(32, 20, "#ffd23f"));
+   const lanes = [["MONEY", "#3dff9a", d => .35 + d / 28 * (.15 + p.gigs * .1)], ["ENERGY", "#5fd8ff", d => .75 - d / 28 * (p.gigs * .09 + (7 - p.sleep) * .05) + p.gym * .03],
+     ["GRADES", "#b06bff", d => .8 - d / 28 * (p.gigs * .05 + (7 - p.sleep) * .04) + p.gym * .01], ["STRESS", "#ff4d5e", d => .25 + d / 28 * (p.gigs * .1 + (7 - p.sleep) * .06) - p.gym * .02 + (d > 18 && d < 23 ? .12 : 0)]];
+   const X = d => -14 + d, H = 9;
+   lanes.forEach(([n, c, f], li) => { const z = -6 + li * 4;
+     for(let r = 0; r < 7; r++){ const pts = []; let drift = 0; for(let d = 0; d <= 28; d++){ drift += (Math.sin(d * .7 + r * 9.1 + li) * .012); pts.push(new THREE.Vector3(X(d), H * Math.max(0, Math.min(1, f(d) + drift)), z + (r - 3) * .12)); }
+       group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat(c, .18))); }
+     const pts = []; for(let d = 0; d <= 28; d++) pts.push(new THREE.Vector3(X(d), H * Math.max(0, Math.min(1, f(d))), z));
+     const m = tube(pts, c, .12); group.add(m);
+     const head = glow(c, 1.6); group.add(head);
+     const base = new THREE.Mesh(new THREE.PlaneGeometry(29, .02), glowMat(c, .3)); base.position.set(-.5, 0, z); group.add(base);
+     label(new THREE.Vector3(X(0) - 1.5, H * f(0), z), n, c);
+     const end = label(new THREE.Vector3(), "", c);
+     anim.push(t => { const d = Math.max(0, Math.min(28, (t || 0) * 28)), i = Math.max(0, Math.min(pts.length - 2, Math.floor(d))), a = pts[i], b = pts[i + 1], k = d - i; head.position.lerpVectors(a, b, k);
+       m.geometry.setDrawRange(0, Math.floor(m.geometry.index.count * Math.max(.02, t))); end.pos.copy(head.position).add(new THREE.Vector3(0, .9, 0));
+       end.el.innerHTML = `${Math.round(head.position.y / H * 100)}%`; }); });
+   const ex = new THREE.Mesh(new THREE.PlaneGeometry(.06, 11), glowMat("#ff4d5e", .5)); ex.position.set(X(20), 5.5, 0); ex.rotation.y = Math.PI / 2; group.add(ex);
+   label(new THREE.Vector3(X(20), 11.5, 0), "EXAM WEEK", "#ff4d5e");
+   const cursor = new THREE.Mesh(new THREE.PlaneGeometry(16, 10), glowMat("#ffffff", .04)); cursor.rotation.y = Math.PI / 2; group.add(cursor);
+   anim.push(t => cursor.position.set(X(t * 28), 5, 0));
+  }},
+ {id: "price", name: "GIG PRICING", c: "#ffb347", what: "Shaabaz: expected profit for every price and guest count. Peaks are your sweet spots. The beam is your quote.",
+  ctl: [["guests", "Guests", 80, 400, 180, 10], ["price", "Your quote ($)", 4000, 20000, 9800, 200]],
+  time: t => `${Math.round(t * 500)} CLIENTS`, cam: [.9, .6, 32],
+  say: t => t < .4 ? "Simulating 500 clients like this one…" : t < .75 ? "Green rain said yes, red walked away." : "The ridge is the sweet spot: it moves up as guests grow.",
+  build(p){
+   group.add(floor(26, 26, "#ffb347"));
+   const fair = g => 4200 + g * 32, win = (v, g) => 1 / (1 + Math.exp((v - fair(g) * 1.15) / 1100)), prof = (v, g) => Math.max(0, win(v, g) * (v - fair(g) * .55));
+   const N = 48, geo = new THREE.PlaneGeometry(22, 22, N, N); geo.rotateX(-Math.PI / 2);
+   const pos = geo.attributes.position, cols = [];
+   for(let i = 0; i < pos.count; i++){ const x = pos.getX(i), z = pos.getZ(i), v = 4000 + (x + 11) / 22 * 16000, g = 80 + (z + 11) / 22 * 320, h = prof(v, g) / 900;
+     pos.setY(i, h); const c = new THREE.Color().setHSL(.6 - Math.min(1, h / 9) * .55, 1, .35 + Math.min(1, h / 9) * .25); cols.push(c.r, c.g, c.b); }
+   geo.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3)); geo.computeVertexNormals();
+   const surf = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false}));
+   const wire = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: C("#ffb347"), wireframe: true, transparent: true, opacity: .12})); group.add(surf, wire);
+   const bx = (p.price - 4000) / 16000 * 22 - 11, bz = (p.guests - 80) / 320 * 22 - 11, bh = prof(p.price, p.guests) / 900;
+   const beam = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, bh + 6, 8), glowMat("#ffffff", .8)); beam.position.set(bx, (bh + 6) / 2, bz); group.add(beam);
+   const top = glow("#ffffff", 2.2); top.position.set(bx, bh, bz); group.add(top);
+   label(new THREE.Vector3(bx, bh + 6.6, bz), `$${p.price.toLocaleString()} · ${p.guests} guests<small>${Math.round(win(p.price, p.guests) * 100)}% win · ~$${Math.round(prof(p.price, p.guests)).toLocaleString()} expected</small>`, "#ffffff");
+   label(new THREE.Vector3(-11, 0, 12.5), "$4k", "#8a95a7"); label(new THREE.Vector3(11, 0, 12.5), "$20k", "#8a95a7"); label(new THREE.Vector3(-12.5, 0, -11), "80 guests", "#8a95a7"); label(new THREE.Vector3(-12.5, 0, 11), "400 guests", "#8a95a7");
+   const drops = new THREE.Group(); group.add(drops); const ds = [];
+   for(let i = 0; i < 90; i++){ const v = 4000 + ((i * 97) % 90) / 90 * 16000, yes = ((i * 37) % 100) / 100 < win(v, p.guests), s = glow(yes ? "#3dff9a" : "#ff4d5e", .45, .9);
+     s.userData = {x: (v - 4000) / 16000 * 22 - 11, z: bz + ((i * 13) % 7 - 3) * .5, d: (i % 30) / 30}; drops.add(s); ds.push(s); }
+   anim.push(t => ds.forEach(s => { const k = (t * 3 + s.userData.d) % 1; s.position.set(s.userData.x, 14 * (1 - k), s.userData.z); s.material.opacity = k < .9 ? .9 : (1 - k) * 9; }));
+   anim.push((t, now) => top.scale.setScalar(2.2 * (1 + Math.sin(now / 200) * .15)));
+  }},
+ {id: "guests", name: "WEDDING GUEST FLOW", c: "#ff5c9a", what: "Guests arrive, find their tables, then queue at the buffet. Watch where it jams.",
+  ctl: [["guests", "Guests", 80, 400, 240, 10], ["lines", "Buffet lines", 1, 3, 1, 1], ["crew", "Crew", 3, 14, 7, 1]],
+  time: t => { const m = 17 * 60 + Math.round(t * 240); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`; }, cam: [.5, .75, 37],
+  say: t => t < .3 ? "Doors open: guests stream in from the entrance…" : t < .6 ? "Seated. Crew (green) circulate between tables." : "Buffet opens: watch the queue. Add a line to clear it.",
+  build(p){
+   const W = 24, D = 16;
+   const fl = new THREE.Mesh(new THREE.PlaneGeometry(W, D), glowMat("#ff5c9a", .05)); fl.rotation.x = -Math.PI / 2; group.add(fl);
+   const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(W, 3, D)), lineMat("#ff5c9a", .5)); edge.position.y = 1.5; group.add(edge);
+   const stage = new THREE.Mesh(new THREE.BoxGeometry(7, .6, 2.4), glowMat("#ff5c9a", .35)); stage.position.set(0, .3, -D / 2 + 1.6); group.add(stage); label(new THREE.Vector3(0, 1.4, -D / 2 + 1.6), "STAGE", "#ff5c9a");
+   const tables = []; for(let r = 0; r < 4; r++) for(let c = 0; c < 6; c++){ const x = -9 + c * 3.6, z = -3 + r * 3.2; tables.push([x, z]);
+     const tb = new THREE.Mesh(new THREE.CylinderGeometry(.8, .8, .5, 20), glowMat("#ffffff", .12)); tb.position.set(x, .25, z); group.add(tb);
+     const rim = new THREE.Mesh(new THREE.TorusGeometry(.8, .03, 6, 30), glowMat("#ffd6e6", .6)); rim.rotation.x = Math.PI / 2; rim.position.set(x, .5, z); group.add(rim); }
+   const buffets = []; for(let i = 0; i < p.lines; i++){ const bxp = W / 2 - 1.2, bzp = D / 2 - 2 - i * 2.4; buffets.push([bxp, bzp]);
+     const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, .8, 1.8), glowMat("#ffb347", .45)); b.position.set(bxp, .4, bzp); group.add(b); }
+   label(new THREE.Vector3(W / 2 - 1.2, 1.8, D / 2 - 2), "BUFFET", "#ffb347"); label(new THREE.Vector3(-W / 2, 1.5, D / 2), "ENTRANCE", "#5fd8ff");
+   const n = Math.round(p.guests / 4), geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 3); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+   const pts = new THREE.Points(geo, new THREE.PointsMaterial({color: C("#ffd6e6"), size: .32, map: spriteTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false})); group.add(pts);
+   const qLabel = label(new THREE.Vector3(W / 2 - 1.2, 2.8, D / 2 - 2), "", "#ff4d5e");
+   const queueMin = Math.round(p.guests / 18 / p.lines);
+   anim.push(t => { for(let i = 0; i < n; i++){ const [tx, tz] = tables[i % tables.length], a = i * 2.4, sx = tx + Math.cos(a) * 1.1, sz = tz + Math.sin(a) * 1.1;
+       const arrive = Math.min(1, Math.max(0, (t - i / n * .25) / .2)), ex = -W / 2 + .5, ez = D / 2 - .5;
+       let x = ex + (sx - ex) * arrive, z = ez + (sz - ez) * arrive;
+       const qStart = .55 + (i % 40) / 40 * .3;
+       if(t > qStart && (i % 3 === 0)){ const li = i % p.lines, [bxp, bzp] = buffets[li], slot = Math.floor(i / 3 / p.lines) % 40, k = Math.min(1, (t - qStart) / .08);
+         x = sx + (bxp - 1.2 - slot * .45 - sx) * k; z = sz + (bzp - sz) * k; }
+       pos[i * 3] = x; pos[i * 3 + 1] = .35; pos[i * 3 + 2] = z; }
+     geo.attributes.position.needsUpdate = true; qLabel.el.innerHTML = t > .55 ? `QUEUE ~${queueMin} MIN${queueMin > 8 ? " ⚠" : " ✓"}` : ""; qLabel.el.style.setProperty("--c", queueMin > 8 ? "#ff4d5e" : "#3dff9a"); });
+   const crew = []; for(let i = 0; i < p.crew; i++){ const g = glow("#3dff9a", .9); group.add(g); crew.push(g); }
+   anim.push((t, now) => crew.forEach((g, i) => { const a = now / 1600 + i * 1.7; g.position.set(Math.cos(a) * 8.5, .7, Math.sin(a * 1.3) * 5); }));
+  }},
+ {id: "meal", name: "MEAL PLAN → BODY", c: "#3dff9a", what: "A week of meals as a glowing city: protein, carbs and fat per day vs. your target. The ribbon is your energy.",
+  ctl: [["shakes", "Protein shakes / day", 0, 3, 1, 1], ["fast", "Fast-food meals / week", 0, 10, 3, 1], ["gym", "Gym days", 0, 6, 4, 1]],
+  time: t => ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"][Math.min(6, Math.floor(t * 7))], cam: [.8, .45, 36],
+  say: t => t < .4 ? "Stacking up your week of meals…" : t < .75 ? "Bars above the glass plane hit STEVE's protein target." : "Energy (the ribbon) dips after fast-food days. STEVE: 'more chicken rice, less fries, soldier.'",
+  build(p){
+   group.add(floor(24, 16, "#3dff9a"));
+   const days = 7, target = 140, macros = [["PROTEIN", "#3dff9a"], ["CARBS", "#ffd23f"], ["FAT", "#ff7a3c"]];
+   const val = (d, m) => { const fastDay = (d * 3) % 7 < p.fast ? 1 : 0; return m === 0 ? 85 + p.shakes * 25 + (d % 2) * 10 - fastDay * 15 : m === 1 ? 220 + fastDay * 80 - p.gym * 4 : 60 + fastDay * 35; };
+   const X = d => -9 + d * 3, Z = m => -3 + m * 3, S = .028;
+   const bars = [];
+   for(let d = 0; d < days; d++) for(let m = 0; m < 3; m++){ const h = val(d, m) * S, mesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1, 1.4), glowMat(macros[m][1], .55));
+     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.4, 1, 1.4)), lineMat(macros[m][1], .9));
+     mesh.position.set(X(d), 0, Z(m)); edges.position.copy(mesh.position); group.add(mesh, edges); bars.push({mesh, edges, h, d}); }
+   const plane = new THREE.Mesh(new THREE.PlaneGeometry(22, 1.8), glowMat("#ffffff", .1)); plane.rotation.x = -Math.PI / 2; plane.position.set(0, target * S, Z(0)); group.add(plane);
+   label(new THREE.Vector3(X(7) - 1, target * S + .4, Z(0)), `TARGET ${target}g PROTEIN`, "#ffffff");
+   macros.forEach(([n, c], m) => label(new THREE.Vector3(X(-1), .5, Z(m)), n, c));
+   ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].forEach((n, d) => label(new THREE.Vector3(X(d), -.2, Z(2) + 2.4), n, "#8a95a7"));
+   const ep = []; for(let d = 0; d <= 60; d++){ const dd = d / 60 * 6, fastDay = (Math.round(dd) * 3) % 7 < p.fast ? 1 : 0;
+     ep.push(new THREE.Vector3(X(dd), 7.5 + (p.gym * .25 + p.shakes * .4 - fastDay * 1.4 + Math.sin(dd * 2) * .3), Z(1) - 4)); }
+   const er = tube(ep, "#5fd8ff", .1); group.add(er); label(new THREE.Vector3(X(0) - 1, ep[0].y + .6, Z(1) - 4), "ENERGY", "#5fd8ff");
+   anim.push(t => { bars.forEach(b => { const k = Math.min(1, Math.max(0, (t * 7 - b.d) * 1.5)), h = Math.max(.01, b.h * (k * k * (3 - 2 * k)));
+       b.mesh.scale.y = h; b.edges.scale.y = h; b.mesh.position.y = b.edges.position.y = h / 2; });
+     er.geometry.setDrawRange(0, Math.floor(er.geometry.index.count * Math.max(.02, t))); });
+  }},
+];
+
+// ------------------------------------------------------------ ui
+let cur = null;
+SIMS.forEach(s => { P[s.id] = Object.fromEntries(s.ctl.map(c => [c[0], c[4]])); $("#tabs").insertAdjacentHTML("beforeend", `<div class="tab" data-id="${s.id}" style="--c:${s.c}">${s.name}</div>`); });
+$("#tabs").onclick = e => { const t = e.target.closest(".tab"); if(t) open(t.dataset.id, true); };
+function open(id, reset){
+  cur = SIMS.find(s => s.id === id); clear(); cur.build(P[id]);
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.id === id));
+  document.documentElement.style.setProperty("--c", cur.c);
+  $("#cap").innerHTML = `<b>${cur.name}</b><div>${cur.what}</div>`;
+  if(reset){ [yaw, pitch, dist] = cur.cam; T = 0; playing = true; $("#play").textContent = "❚❚ PAUSE"; }
+  $("#sl").innerHTML = cur.ctl.map(([k, l, a, b, v, st]) => `<label>${l} <output id="o-${k}">${P[id][k]}</output><input type="range" min="${a}" max="${b}" step="${st}" value="${P[id][k]}" data-k="${k}"></label>`).join("");
+  $("#sl").querySelectorAll("input").forEach(inp => inp.oninput = () => { P[id][inp.dataset.k] = +inp.value; $("#o-" + inp.dataset.k).textContent = inp.value; open(id, false); });
+}
+$("#play").onclick = () => { playing = !playing; $("#play").textContent = playing ? "❚❚ PAUSE" : "▶ PLAY"; };
+$("#tm").oninput = () => { T = +$("#tm").value; playing = false; $("#play").textContent = "▶ PLAY"; };
+const v = new THREE.Vector3(); let last = performance.now();
+function loop(now){
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if(playing){ T += dt / 12; if(T > 1.15) T = 0; }
+  $("#say").style.bottom = ($("#panel").offsetHeight + 12) + "px";
+  const t = Math.min(1, T); $("#tm").value = t; $("#tl").textContent = cur.time(t); $("#say").textContent = cur.say(t);
+  anim.forEach(f => f(t, now));
+  if(!drag && !pinch) yaw += dt * .05;
+  const fit = dist * Math.max(1, .95 / cam.aspect);   // tall phone screens: pull back so the whole scene fits
+  scene.fog.density = .018 * 32 / fit;   // fog scales with distance, so pulling back never hides the scene
+  cam.position.set(target.x + fit * Math.cos(pitch) * Math.sin(yaw), target.y + fit * Math.sin(pitch), target.z + fit * Math.cos(pitch) * Math.cos(yaw)); cam.lookAt(target);
+  R.render(scene, cam);
+  labels.forEach(l => { v.copy(l.pos).project(cam); const vis = v.z < 1; l.el.style.display = vis ? "" : "none";
+    if(vis){ l.el.style.left = ((v.x + 1) / 2 * innerWidth) + "px"; l.el.style.top = ((1 - v.y) / 2 * innerHeight) + "px"; } });
+  requestAnimationFrame(loop);
+}
+open(new URLSearchParams(location.search).get("sim") || "life", true); requestAnimationFrame(loop);
+</script>
+</body></html>
