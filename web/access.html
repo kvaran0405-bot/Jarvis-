@@ -58,7 +58,12 @@ const PHONE = [
 ];
 let LAP = [], local = false;
 async function laptopItems(){
-  try { const r = await (await fetch("/api/setup")).json(); local = r.local; LAP = r.items; } catch { LAP = []; }
+  let ok = true;
+  try { const r = await (await fetch("/api/setup")).json(); local = !!r.local; LAP = Array.isArray(r.items) ? r.items : (ok = false, []); }
+  catch { LAP = []; ok = false; }
+  $("#intro").innerHTML = ok ? $("#intro").dataset.text || $("#intro").innerHTML
+    : `<b style="color:#ffb347">JARVIS on the laptop is still running the old version.</b> Restart the laptop (or close JARVIS and double-click <b>start</b>), then open this page again.`;
+  if(ok) $("#intro").dataset.text = $("#intro").innerHTML;
   if(!N){   // in the laptop browser: also the browser's own permissions
     let mic = false; try { mic = (await navigator.permissions.query({name: "microphone"})).state === "granted"; } catch {}
     LAP.unshift({id: "notify", label: "Desktop notifications", on: "Notification" in window && Notification.permission === "granted", action: "notify"},
