@@ -165,6 +165,10 @@ MISSION = ("Mission briefing. Today has a big event (exam, interview, wedding or
            "list_gigs for details. Write a short, cinematic spoken briefing like JARVIS before a mission: "
            "OPERATION <name>, objective, the plan with times, threats (weather, traffic, weak spots), and one line "
            "of confidence. Under 120 words. Your final answer is the briefing itself.")
+THANKS = ("Weekly thank-you. You're writing to the owner as their friend and teammate. Look at this week "
+          "(status_snapshot, recall, my_notebook, list_tasks done) and thank them for ONE specific thing they did "
+          "with you or for themselves this week, in your own voice, 2-3 sentences, with feeling (a sound tag is fine). "
+          "Your final answer is sent to them as it is.")
 SUBS = ("Subscription check. search_email('receipt subscription renewal invoice', days=45). List recurring charges "
         "you can see (service, amount, renewal date). Flag ones that look unused or duplicated and `propose` "
         "cancelling them (the owner cancels; you never do). Reply in 2-3 lines.")
@@ -197,6 +201,7 @@ class Scheduler:
             Job("fitness_weekly", "STEVE", "Weekly gym & meal plan", daily_at("17:00", weekday=6), FITNESS, deliver=True),
             Job("monthly_report", "FRIDAY", "Monthly life report", monthly_at(1, "10:00"), MONTHLY),
             Job("anticipate", "JARVIS", "Before-you-ask", daily_at("08:30"), ANTICIPATE),
+            Job("thank_you", "JARVIS", "Weekly thank-you", daily_at("18:30", weekday=5), THANKS, deliver=True),
             Job("team_tuneup", "JARVIS", "Team tune-up", daily_at("22:00", weekday=6), TUNEUP),
             Job("mission_briefing", "JARVIS", "Mission briefing", daily_at("07:20"), MISSION, deliver=True,
                 when=lambda sc: sc.big_day()),
@@ -242,6 +247,11 @@ class Scheduler:
             agent = job.agent
             if name == "evening_checkin":
                 agent = ("FRIDAY", "JARVIS", "BANNER")[datetime.now(self.settings.tz).weekday() % 3]
+            if name == "thank_you":   # the agent you worked with most this week says thanks
+                week = (datetime.now(self.settings.tz) - timedelta(days=7)).isoformat()
+                top = self.store.query("SELECT agent, COUNT(*) AS n FROM activity WHERE kind='reply' AND created >= ? "
+                                       "AND agent NOT IN ('YOU','GUEST') GROUP BY agent ORDER BY n DESC LIMIT 1", (week,))
+                agent = top[0]["agent"] if top else "JARVIS"
             if job.when is not None and not job.when(self):
                 return f"{job.label}: nothing to do"
             result = self.night_shift() if job.prompt is None else self.engine.run(agent, job.prompt,

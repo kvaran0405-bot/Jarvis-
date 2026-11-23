@@ -175,11 +175,13 @@ function wireCards(){
     if(c.dataset.fx) return; c.dataset.fx = 1; const n = c.dataset.a;
     c.addEventListener("mouseenter", async () => { SFX.hover(); const q = await quips(); if(c.matches(":hover")) showTip(c, `${n} · ${window.AGENTS?.[n]?.title || ""}`, q[n] || "Standing by.", window.AGENTS?.[n]?.color); });
     c.addEventListener("mouseleave", hideTip);
-    c.addEventListener("click", async () => {
+    c.addEventListener("click", () => {
       SFX.click(); hideTip(); c.insertAdjacentHTML("beforeend", `<span class="zap"></span>`); setTimeout(() => c.querySelector(".zap")?.remove(), 650);
-      const q = await quips(); const line = q[n] || "Standing by, Sir.";
-      window.logLine?.(n, line, "reply"); window.queueSpeech?.(n, line);
+      clearTimeout(c._qt); c._qt = setTimeout(async () => {   // wait: a double-click opens the agent's room instead
+        const q = await quips(); const line = q[n] || "Standing by, Sir.";
+        window.logLine?.(n, line, "reply"); window.queueSpeech?.(n, line); }, 280);
     });
+    c.addEventListener("dblclick", () => clearTimeout(c._qt));
   });
 }
 new MutationObserver(wireCards).observe(document.body, {childList: true, subtree: true});
@@ -332,6 +334,9 @@ const _onEvent = onEvent;
 function onEvent2(ev){
   _onEvent(ev);
   if(ev.type === "nudge"){ toast(ev.agent || "BANNER", ev.text); }
+  if(ev.type === "celebrate" && ev.ritual && RITUAL_FX[ev.ritual]) RITUAL_FX[ev.ritual]();
+  if(ev.type === "bond_up"){ const col = window.AGENTS?.[ev.agent]?.color || "#ffd23f"; hearts(col, 14);
+    toast(ev.agent, `♥ Bond level ${ev.level} · ${ev.title}${ev.unlocked ? " · unlocked: " + ev.unlocked : ""}`, 9000); loadBonds(); }
   if(ev.type === "mission"){ dossier(ev.text); }
   if(ev.type === "home_arrival" && new URLSearchParams(location.search).get("kiosk") === "1") window.sendCommand?.("I'm home", "JARVIS", true);
   if(ev.type === "remote"){
@@ -354,5 +359,60 @@ function onEvent2(ev){
   }
 }
 
-window.HUDFX = {speakStart, speakEnd, onEvent: onEvent2, boot, expo, sfx: SFX, toast, dossier};
+
+// ------------------------------------------------------------------ bonds: badges, agent rooms, level-ups, rituals
+const bcss = document.createElement("style");
+bcss.textContent = `.card .bond{position:absolute;top:4px;right:5px;font:700 8px Orbitron,sans-serif;letter-spacing:.06em;color:var(--ac);opacity:.9;cursor:pointer}
+.card .bbar{position:absolute;left:8px;right:8px;bottom:3px;height:2px;background:rgba(255,255,255,.06)}.card .bbar i{display:block;height:100%;background:var(--ac);box-shadow:0 0 6px var(--ac)}
+#roomBox{max-width:720px}#roomBox .rh{display:flex;align-items:center;gap:14px;margin-bottom:12px}#roomBox .rdot{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle,#fff,var(--rc) 45%,transparent 72%);box-shadow:0 0 22px var(--rc)}
+#roomBox h2{margin:0;color:var(--rc)!important}#roomBox .lvl{height:8px;background:#1a212c;border-radius:4px;overflow:hidden;margin:6px 0 2px}#roomBox .lvl i{display:block;height:100%;background:var(--rc);box-shadow:0 0 10px var(--rc)}
+#roomBox .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:640px){#roomBox .grid2{grid-template-columns:1fr}}
+#roomBox .sec{border:1px solid var(--line);padding:10px 12px;font-size:12px;line-height:1.6}#roomBox .sec b{display:block;font:700 9px Orbitron,sans-serif;letter-spacing:.2em;color:var(--muted);margin-bottom:6px}
+#roomBox .un{opacity:.4}#roomBox .un.on{opacity:1}#roomBox .acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.heart{position:fixed;pointer-events:none;z-index:45;font-size:22px;animation:heartup 1.8s ease-out forwards}@keyframes heartup{to{transform:translateY(-160px) scale(1.4);opacity:0}}`;
+document.head.appendChild(bcss);
+let BONDS = {};
+async function loadBonds(){
+  try { (await (await fetch("/api/bonds")).json()).forEach(b => BONDS[b.agent] = b); } catch { return; }
+  document.querySelectorAll(".card").forEach(c => { const b = BONDS[c.dataset.a]; if(!b) return;
+    c.querySelector(".bond")?.remove(); c.querySelector(".bbar")?.remove();
+    c.insertAdjacentHTML("beforeend", `<span class="bond" title="${esc(b.title)} · ${esc(b.mood)}">♥${b.level}</span><span class="bbar"><i style="width:${Math.round(b.progress * 100)}%"></i></span>`);
+    if(!c.dataset.room){ c.dataset.room = 1; c.addEventListener("dblclick", () => openRoom(c.dataset.a));
+      c.querySelector(".bond").addEventListener("click", e => { e.stopPropagation(); openRoom(c.dataset.a); });
+      let lp; c.addEventListener("touchstart", () => { lp = setTimeout(() => openRoom(c.dataset.a), 600); }, {passive: true});
+      c.addEventListener("touchend", () => clearTimeout(lp)); } });
+}
+async function openRoom(agent){
+  let r; try { r = await (await fetch(`/api/bonds/${agent}`)).json(); } catch { return; }
+  const col = window.AGENTS?.[agent]?.color || "#ffd23f", b = r.bond;
+  const li = arr => arr.length ? arr.map(x => `<div>· ${esc(x)}</div>`).join("") : `<div style="color:var(--dim)">Nothing yet.</div>`;
+  $("#modalBody").innerHTML = `<div id="roomBox" style="--rc:${col}">
+    <div class="rh"><span class="rdot"></span><div><h2>${esc(agent)}</h2><div style="font-size:12px;color:var(--muted)">${esc(window.AGENTS?.[agent]?.title || "")} · feeling <b style="color:${col}">${esc(r.mood)}</b>${r.mood_why ? " (" + esc(r.mood_why) + ")" : ""}</div></div></div>
+    <div style="font-size:12px">Bond <b style="color:${col}">level ${b.level} · ${esc(b.title)}</b> · ${b.xp} XP · ${b.thanks} thank-yous · calls you “${esc(r.nickname)}” · since ${esc(b.since || "")}</div>
+    <div class="lvl"><i style="width:${Math.round(b.progress * 100)}%"></i></div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="sec"><b>UNLOCKED TOGETHER</b>${r.unlocked.map(u => `<div class="un ${u.on ? "on" : ""}">${u.on ? "✓" : "🔒"} L${u.level} · ${esc(u.what)}</div>`).join("")}</div>
+      <div class="sec"><b>SHARED MEMORIES</b>${li(r.memories.map(m => `${m.day}: ${m.text}`))}</div>
+      <div class="sec"><b>DIARY</b>${li(r.diary.map(d => `${d.day}: ${d.text}`))}</div>
+      <div class="sec"><b>GIFTS FOR YOU</b>${r.gifts.length ? r.gifts.map(g => `<div>🎁 ${esc(g.title)}${g.file ? ` · <a href="/api/gifts/${g.id}" target="_blank" style="color:${col}">open</a>` : ""}</div>`).join("") : `<div style="color:var(--dim)">Gifts unlock at level 5.</div>`}</div>
+      <div class="sec"><b>ON THE TEAM</b>${li(Object.entries(r.opinions).map(([k, v]) => `${k}: “${v}”`))}</div>
+      <div class="sec"><b>FAVOURITES</b>${li(Object.entries(r.favourites).map(([k, v]) => `${k}: ${v}`))}</div>
+    </div>
+    <div class="acts"><button class="btn" id="rThank">♥ Thank ${esc(agent)}</button><button class="btn" id="rTalk">Talk</button><a class="btn" href="/call.html?agent=${agent}">Call</a><button class="btn no" id="rClose">Close</button></div></div>`;
+  $("#modal").style.display = "flex"; SFX.whoosh();
+  $("#rClose").onclick = () => $("#modal").style.display = "none";
+  $("#rTalk").onclick = () => { $("#modal").style.display = "none"; $("#target").value = agent; window.focus?.(agent); $("#cmd").focus(); };
+  $("#rThank").onclick = async () => { const t = await (await fetch(`/api/bonds/${agent}/thanks`, {method: "POST"})).json(); hearts(col, 6); $("#rThank").textContent = "♥ Thanked"; loadBonds(); };
+}
+function hearts(color, n = 10){ for(let i = 0; i < n; i++) setTimeout(() => { const h = document.createElement("div"); h.className = "heart"; h.textContent = "♥"; h.style.color = color;
+  h.style.left = (innerWidth / 2 + (Math.random() - .5) * 240) + "px"; h.style.top = (innerHeight * .55 + Math.random() * 60) + "px"; document.body.appendChild(h); setTimeout(() => h.remove(), 1900); }, i * 90); }
+const RITUAL_FX = {
+  champagne(){ noise(.12, 3000, 6000, .25); tone(1200, .5, "sine", .02, 2); }, thunder(){ SFX.boom(); setTimeout(() => SFX.boom(), 200); },
+  chant(){ [440, 440, 660].forEach((f, i) => tone(f, .18, "square", .03, 1, i * .2)); }, coins(){ [1800, 2400, 2000, 2600].forEach((f, i) => tone(f, .08, "square", .02, 1, i * .07)); },
+  party(){ SFX.done(); setTimeout(() => window.confetti?.(), 400); }, stars(){ [880, 1175, 1568].forEach((f, i) => tone(f, .4, "sine", .025, 1, i * .1)); },
+  glow(){ tone(330, 1.2, "sine", .03, 1.2); }, dry(){ tone(660, .15, "sine", .02); },
+};
+setTimeout(loadBonds, 1500); setInterval(loadBonds, 120000);
+
+window.HUDFX = {speakStart, speakEnd, onEvent: onEvent2, boot, expo, sfx: SFX, toast, dossier, openRoom, loadBonds};
 })();

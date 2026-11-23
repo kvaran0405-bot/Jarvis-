@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 import json
 import queue
 import re
@@ -506,6 +507,9 @@ async def command(cmd: Command):
     from . import hud as _hud
     if _hud.guest_on(store) and not sp_agent:
         agent = "GUEST"   # visitors talk to the guest persona: no tools, no private data
+    else:
+        from . import bonds as _bonds
+        _bonds.interact(store, bus, agent, cmd.text if not sp_agent else "")
     if (reply := control(cmd.text)) is not None or (reply := answer_naturally(cmd.text)) is not None:
         bus.publish({"type": "delta", "rid": cmd.rid, "agent": "JARVIS", "text": reply})
         bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": "JARVIS"})
@@ -639,6 +643,11 @@ CLEAN_RE = re.compile(_J + r"(?:initiate\s+|activate\s+)?clean slate(?: protocol
 PARTY_RE = re.compile(_J + r"(?:initiate\s+|activate\s+)?house party(?: protocol)?\s*[.!]?\s*$", re.I)
 DATE_RE = re.compile(_J + r"plan (?:a |me a |our )?date(?: night)?(.*)$", re.I)
 MISSION_RE = re.compile(_J + r"mission briefing(?: for (.+))?\s*[.!?]?\s*$", re.I)
+GOOD_RE = re.compile(r"^\s*(?:(?:hey|ok|yo)\s+)?(good\s*morning|morning|gm|good\s*night|goodnight|night night|gn)"
+                     r"(?:[,\s]+(team|everyone|all|guys|jarvis|friday|oracle|athena|zeus|herald|steve|veronica|banner|"
+                     r"edith|sentinel|pepper))?\s*[.!]*\s*$", re.I)
+CALLME_RE = re.compile(r"^\s*(jarvis|friday|oracle|athena|zeus|herald|steve|veronica|banner|edith|sentinel|pepper)"
+                       r"[,\s]+call me\s+(.{1,30}?)\s*[.!]*\s*$", re.I)
 THEME_RE = re.compile(_J + r"(?:switch to |change to |activate |set )?(?:the )?(?:suit |hud )?(?:theme |mode )?"
                       r"(classic|mark ?42|stealth|arc ?blue|ironheart|wakanda|hulkbuster)(?: theme| mode| suit)?\s*[.!]?\s*$", re.I)
 GUEST_RE = re.compile(_J + r"guest mode(?:\s+(on|off))?\s*[.!]?\s*$|^\s*(?:jarvis[,\s]+)?(?:end|exit|stop) guest mode\s*[.!]?\s*$", re.I)
@@ -686,6 +695,23 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         bus.publish({"type": "guest", "on": on})
         return ("Guest mode on. Your private things are hidden, Sir; I'll entertain your guests." if on
                 else "Guest mode off. Welcome back, Sir."), None, None
+    if m := GOOD_RE.match(text):
+        from . import bonds
+        night = bool(re.search(r"night|gn", m.group(1), re.I))
+        who = (m.group(2) or "").upper()
+        if who in ("TEAM", "EVERYONE", "ALL", "GUYS"):
+            from .speech import announce
+            team = random.sample([a for a in AGENTS if not AGENTS[a].hidden and a != "JARVIS"], 3)
+            for a in team:
+                announce(bus, a, bonds.greet(store, a, night), phone=False)
+            return bonds.greet(store, "JARVIS", night), None, None
+        agent = who if who in AGENTS else "JARVIS"
+        bus.publish({"type": "say", "agent": agent, "say": bonds.greet(store, agent, night), "text": ""}) if agent != "JARVIS" else None
+        return (bonds.greet(store, agent, night) if agent == "JARVIS" else "…"), None, None
+    if m := CALLME_RE.match(text):
+        from . import bonds
+        bonds.set_nickname(store, m.group(1), m.group(2))
+        return f"{m.group(1).title()} will call you “{m.group(2)}” from now on.", None, None
     if m := DATE_RE.match(text):
         return None, "ORACLE", ("Plan a date night for the owner" + (f" ({m.group(1).strip()})" if m.group(1).strip() else "")
                                 + ". Check list_events for a free evening this week or next, the weather, and recall "
@@ -788,6 +814,8 @@ def handle_owner_message(text: str, via: str = "WhatsApp", voice: bool = False) 
     first = text.strip().split(maxsplit=1)
     if first and first[0].strip(",:").upper() in AGENTS and len(first) > 1:
         target, text = first[0].strip(",:").upper(), first[1]
+    from . import bonds as _bonds
+    _bonds.interact(store, bus, sp_agent or target, text)
     if sp_agent:
         bus.log("YOU", f"({via}) {text}", "command")
         reply = engine.run(sp_agent, sp_prompt, chat=True, voice=voice)
@@ -861,6 +889,35 @@ async def stream():
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
+
+
+# ---------------------------------------------------------------- bonds and agent rooms
+@app.get("/api/bonds")
+def bonds_all():
+    from . import bonds
+    return bonds.all_bonds(store)
+
+
+@app.get("/api/bonds/{agent}")
+def bond_room(agent: str):
+    from . import bonds
+    if agent.upper() not in AGENTS or AGENTS[agent.upper()].hidden:
+        raise HTTPException(404, "no such agent")
+    return bonds.room(store, agent)
+
+
+@app.post("/api/bonds/{agent}/thanks")
+def bond_thanks(agent: str):
+    from . import bonds
+    from .speech import announce
+    a = agent.upper()
+    if a not in AGENTS or AGENTS[a].hidden:
+        raise HTTPException(404, "no such agent")
+    bonds.interact(store, bus, a, "thank you")
+    line = random.choice(["[warm] Anytime, {n}.", "[cheerful] Aw, thanks, {n}!", "[proud] That means a lot, {n}.",
+                          "[amused] Noted and treasured, {n}."]).format(n=bonds.nickname(store, a))
+    announce(bus, a, line, phone=False)
+    return {"say": line, "bond": bonds.get(store, a)}
 
 
 # ---------------------------------------------------------------- HUD: orb, greeting, quips, themes

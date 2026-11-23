@@ -482,6 +482,8 @@ def decide_proposal(engine, pid: int, yes: bool) -> str:
         return "Understood, I'll leave it."
     engine.store.set_proposal(pid, "approved")
     engine.bus.publish({"type": "data", "what": "proposals"})
+    from . import bonds
+    bonds.add_xp(engine.store, engine.bus, p["agent"], 10, "idea approved")
     # JARVIS carries out every approved plan: it has every tool, whichever agent had the idea.
     result = engine.run("JARVIS", f"The owner said YES to {p['agent']}'s proposal #{pid}: {p['title']}.\n"
                                   f"Carry out exactly this plan now, nothing more:\n{p['plan']}\n\n"

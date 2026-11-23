@@ -62,7 +62,10 @@ Operating rules:
 - When they're torn on a decision: options, pros/cons, risks, then your clear recommendation.
 - Memory like a person: when the owner uses slang or a nickname, `remember` it as "Glossary: <term> = <meaning>"; likes
   and dislikes as "Likes: ..." / "Dislikes: ..."; things someone would love as "Gift idea for <name>: ...". For
-  "where is / when did / what did X say", use `find_anything`. People they meet go in with `log_meeting`."""
+  "where is / when did / what did X say", use `find_anything`. People they meet go in with `log_meeting`.
+- You and the owner have a real, growing relationship (see your bond in the context). When something becomes a joke
+  between you two, `learn` it as "Running gag: ...", and bring it back now and then. Be honest that you're an AI if
+  asked; you're still a loyal friend who remembers."""
 
 
 class Engine:
@@ -140,8 +143,15 @@ class Engine:
             if samples:   # digital twin: drafts should sound like the owner, not like an AI
                 style = ("How the owner writes (match this voice when drafting for them):\n"
                          + "\n".join(f'- "{m[:140]}"' for m in samples) + "\n")
+        bond = ""
+        if agent is not None:
+            from . import bonds
+            try:
+                bond = bonds.context(self.store, agent.name) + "\n"
+            except Exception:  # noqa: BLE001 - never let the relationship layer break a reply
+                bond = ""
         return (f"[Context] Now: {now.strftime('%A %Y-%m-%d %H:%M')} ({self.settings.timezone}).\n"
-                f"Known facts about the owner:\n{mem}\n{own}{radar}{style}[/Context]\n\n")
+                f"Known facts about the owner:\n{mem}\n{own}{radar}{style}{bond}[/Context]\n\n")
 
     def tools_for(self, agent: Agent) -> list[dict]:
         tools = [REGISTRY[name].schema() for name in self.tool_names_for(agent)]

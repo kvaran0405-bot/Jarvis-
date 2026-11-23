@@ -27,11 +27,18 @@ CHEERS = {
 
 
 def celebrate(bus, agent: str, what: str) -> None:
-    """Confetti on the dashboard and a quick proud line. Uses no AI."""
-    import random
+    """Confetti on the dashboard and the agent's own celebration ritual. Uses no AI. Grows your bond too."""
+    from . import bonds
     from .speech import announce
-    line = random.choice(CHEERS.get(agent, CHEERS["JARVIS"]))
-    bus.publish({"type": "celebrate", "agent": agent, "text": what})
+    agent = agent.upper()
+    try:
+        kind, line = bonds.ritual(bus.store, agent)
+        bonds.add_xp(bus.store, bus, agent, 6, "celebrated")
+        bonds.moment(bus.store, agent, f"Celebrated together: {what}")
+    except Exception:  # noqa: BLE001
+        import random
+        kind, line = "dry", random.choice(CHEERS.get(agent, CHEERS["JARVIS"]))
+    bus.publish({"type": "celebrate", "agent": agent, "text": what, "ritual": kind})
     announce(bus, agent, line, phone=False)
 
 
