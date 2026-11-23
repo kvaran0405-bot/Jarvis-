@@ -211,6 +211,11 @@ class Bot:
             return
         if sender != chat_id():
             return  # strangers are ignored
+        if text.startswith("/"):   # "/Update@MyJarvisBot " -> "/update"
+            text = re.sub(r"@\w+", "", text.split()[0]).lower() + text[len(text.split()[0]):]
+        if re.match(r"^\s*(?:jarvis[,\s]+)?(?:update yourself|update jarvis|get (?:the )?(?:newest|latest) version)\s*[.!]?\s*$",
+                    text, re.I):
+            text = "/update"
         if text == "/voicecheck":
             send(voice_check())
             return
