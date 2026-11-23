@@ -273,6 +273,10 @@ it stays silent unless the alert is critical.
   where you've been today, hours at each place this week (worked out from GPS), your next event, phone battery,
   last night's screen time and any urgent messages. You never have to tell it. Ask "how many hours was I at the gym
   this week?". Guests never see any of it.
+- **Friends who notice (location chat):** when you've been somewhere for 5+ minutes, the agent who fits the area
+  texts you a tip, e.g. FRIDAY for food, STEVE for nature walks, ATHENA for heritage, HERALD for views and nights
+  out ("Hi Sir, I see you're at City Hall! Lau Pa Sat is 8 minutes away..."). Never at home, driving, in quiet hours
+  or focus; once per area a day, max 4 a day. "Location chat off/on".
 - **Explorer map** (`/map.html`, or say "show me my map"; works on the phone too): a dark street map where the places
   you've been glow and the rest stays in shadow, 40 Singapore side quests (food, nature, heritage, views, night) that
   unlock when you visit, and your route for the day. Tap a quest → + ADD TO ROUTE → ROUTE opens Google Maps.

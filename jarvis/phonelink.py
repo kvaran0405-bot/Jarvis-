@@ -70,6 +70,11 @@ def checkin(store, bus, report: dict) -> list[dict]:
             explore.record(store, float(report["lat"]), float(report["lon"]))
         except Exception:  # noqa: BLE001 - the map is a nicety
             pass
+        try:
+            from . import chatter
+            chatter.on_location(store, bus, float(report["lat"]), float(report["lon"]), float(report.get("speed") or 0))
+        except Exception:  # noqa: BLE001 - chatter is a nicety
+            pass
         location_magic(store, bus, float(report["lat"]), float(report["lon"]), float(report.get("speed") or 0), prev)
     continuity(store, st)
     cmds = store.query("SELECT id, kind, payload FROM phone_cmds WHERE status = 'queued' ORDER BY id LIMIT 10")

@@ -706,6 +706,7 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"\s*[.!]?\s*$", re.I)
 FAST_RE = re.compile(_J + r"(?:fast|quick|speed|turbo) (?:voice |reply |replies |response )?mode (on|off)\s*[.!]?\s*$|"
                      r"^\s*(?:jarvis[,\s]+)?(?:turn (on|off) fast (?:voice|mode|replies))\s*[.!]?\s*$", re.I)
+CHATTER_RE = re.compile(_J + r"(?:location|place|area) (?:chat|chatter|messages|comments)\s+(on|off)\s*[.!]?\s*$", re.I)
 MAP_RE = re.compile(_J + r"(?:show me |open |pull up |display )?(?:the |my )?(?:map|explorer(?: map)?|side ?quests?|places i'?ve been|where i'?ve been)\s*[.!?]?\s*$", re.I)
 ROUTE_RE = re.compile(_J + r"(?:plan|show|make|map)(?: me)? (?:my |a |the )?route(?: for (?:today|my day))?"
                       r"(?:\s+(?:to|via|for)\s+(.+?))?\s*[.!?]?\s*$", re.I)
@@ -809,6 +810,10 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
                                 "they want you to handle without asking). After each answer, `remember` the lasting "
                                 "facts, react in character, then ask the next question. Stop after about 8 questions "
                                 "with a short summary of what you'll do differently now. Start with the first question.")
+    if m := CHATTER_RE.match(text):
+        store.set("chatter:on", m.group(1).lower())
+        return ("Location chat on. When you're out and about, the team will drop you a line about where you are, Sir."
+                if m.group(1).lower() == "on" else "Location chat off. The team will keep their tips to themselves."), None, None
     if MAP_RE.match(text):
         from . import phonelink
         bus.publish({"type": "open_page", "url": "/map.html"})

@@ -34,6 +34,7 @@ const MISSIONS = [
   {id: "installapp", title: "Phone app in one tap", what: "Send /installapp to your JARVIS bot on Telegram: it sends the newest phone app with the 3 install steps.", todo: "Nothing to do here: tap ✓ Got it (use /installapp when the phone app updates).", manual: true},
   {id: "gps", title: "Live location & history", what: "Your phone's GPS reaches JARVIS over Wi-Fi or mobile data (keep Tailscale on). Live blue dot and today's path on the map; points saved offline catch up later.", todo: "Ask: “where was I yesterday at 3pm?” or “where did I go today?”", say: /where (was|did) i|where have i been|my (day|path)/i},
   {id: "aware", title: "JARVIS just knows", what: "Every agent automatically knows where you are, where you've been, your hours at each place, your next event and your screen time. No typing needed.", todo: "Ask: “how many hours was I at the gym this week?” or “where am I?”", say: /how (many|much) (hours|time)|where am i/i},
+  {id: "chatter", title: "Friends who notice", what: "When you've been somewhere a few minutes (not home), the agent who fits the area texts you a tip: “Hi Sir, I see you're at City Hall! Lau Pa Sat is 8 minutes away…”. Max 4 a day.", todo: "Just go out! (Say “location chat off” or “on” any time.)", say: /location chat (on|off)/i},
   {id: "update", title: "One-word updates", what: "JARVIS updates itself every night. To update now, text “update” to your bot on Telegram.", todo: "Nothing to do here: tap ✓ Got it.", manual: true},
 ];
 let done = store.get("done", {}), cur = null;
