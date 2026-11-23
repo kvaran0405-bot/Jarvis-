@@ -12,6 +12,12 @@ The owner (Kamal, "Sir") wants every feature easy to discover and to keep. When 
 4. Updates reach the owner by themselves (nightly self-update, or "update" on Telegram). Android changes build a new
    APK in GitHub Actions; `jarvis/updater.py` texts the owner the link.
 
+**Quality bar (from the owner):** the live 3D holo simulations (`web/simulate3d.html`) are the BARE MINIMUM for
+look and feel. Everything new must match or beat them: neon holographic style, smooth 60 fps motion, live and
+interactive (drag/pinch, sliders, scrub), works and looks right on laptop AND phone. Before shipping a screen,
+screenshot it at laptop and phone sizes and fix anything cramped, overlapping, blank or laggy. Voice and hearing
+must be just as polished (Singapore English, knows the owner's names, never goes silent when it misses something).
+
 House rules (from the owner): no access to bank or finance apps (bank notification alerts are fine, masked, never
 OTPs); WhatsApp automation stays off (smart replies only through buttons the owner taps); messages to other people,
 laptop shell commands and phone autopilot need the owner's yes; no paid services unless asked; never commit keys.
