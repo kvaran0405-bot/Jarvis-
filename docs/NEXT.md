@@ -30,6 +30,13 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 - **Routine detective:** learn usual arrival times (campus, gym, home); flag unusual days kindly; weekly insights.
 - **Venue scout mode:** at a hall/hotel, PEPPER pulls past events there, capacity, notes and crew contacts.
 
+## Aesthetics chosen (owner picked these; keep the neon techy look)
+- **Living map:** Explorer map tint follows time of day (golden sunset, neon night) and real rain.
+- **Cinematic transitions:** "suit-up" panel wipe + sound when opening Holo Lab, the map, agent rooms.
+- **Glass panels:** frosted-glass cards with subtle depth/parallax (mouse on laptop, tilt on phone).
+- **Theme designer:** pick any neon colour; HUD, map and phone app recolour to match.
+- **Sound design pack:** richer UI sounds, holo whooshes, per-agent message chimes.
+
 ## Ideas offered, not built yet
 1. Auto car mode when the phone connects to the car's Bluetooth (reads messages aloud).
 2. Deal watch: daily Shopee/Shein price checks, alert on a price drop.
