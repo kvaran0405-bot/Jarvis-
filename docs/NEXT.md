@@ -9,6 +9,20 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 4. `/gemini` (fast mode) and `/email` (Gmail).
 5. Try "show me my map" and Training Mode.
 
+## Standing rule from the owner: JARVIS and the agents repair and upgrade themselves EVERY NIGHT
+- **Nightly self-repair (fully automatic):** systems check of everything (version, phone link, location, Telegram,
+  Gemini, email, calendar, voice, mic, disk, jobs); fix what it can (restart the phone link, retry the update,
+  clear stuck jobs, re-index files); morning one-liner only if something still needs the owner.
+- **Nightly self-upgrade:** (a) automatic: pull the newest version, tune each agent from the day's feedback
+  (team_tuneup), learn new rules from corrections, refresh prompts and memories; (b) new abilities the agents write
+  for themselves are tested in a sandbox and switched on automatically when safe and low-risk; anything that touches
+  money, messages to people, shell access or security still waits for the owner's yes. Every change is logged and can
+  be undone ("Protocol Zero").
+- **Access control (owner said yes):** clearance levels L1-L5, voice ID for sensitive commands, face ID owner mode on
+  the laptop, per-agent autonomy dial, Protocol Zero kill switch, "what did you do without me" audit log, intruder
+  alert.
+- **Named protocols:** create by voice ("Create Exam Protocol: ...") and run ("Initiate Exam Protocol").
+
 ## Chosen for the next build (owner picked these)
 - **JARVIS learns new skills by itself:** "Jarvis, learn to track my parcels" -> writes the new tool, tests it in a
   sandbox, shows it, adds it after the owner's yes.
