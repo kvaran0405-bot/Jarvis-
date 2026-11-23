@@ -677,6 +677,8 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"^\s*(?:jarvis[,\s]+)?(?:try|preview|show me|switch to|put on)(?: the)? (chinese new year|lunar new year|cny|"
                        r"hari raya|raya|deepavali|diwali|national day|christmas|xmas|new year|birthday) (?:skin|mode|look|theme)"
                        r"\s*[.!]?\s*$", re.I)
+CINEMA_RE = re.compile(_J + r"(?:show me |play |run |start )?(?:the |all the |all )?(?:cinematics?|cinematic mode|movie mode|"
+                       r"the full show|the whole show|showreel|show reel)\s*[.!?]?\s*$", re.I)
 AR_RE = re.compile(_J + r"(?:open |launch |start |show me )?(?:the )?(?:desk ar|ar desk|spatial desk|ar mode|augmented reality)\s*[.!]?\s*$", re.I)
 WAR_RE = re.compile(_J + r"(?:war room|brief me(?: for (.+))?|full briefing)\s*[.!?]?\s*$", re.I)
 
@@ -779,6 +781,9 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         line = holo.narrate(view, holo.data(store))
         bus.publish({"type": "holo", "view": view})
         return line, None, None
+    if CINEMA_RE.match(text):
+        bus.publish({"type": "cinema"})
+        return "Lights down, Sir. Roll film.", None, None
     if EXPO_RE.match(text):
         bus.publish({"type": "expo"})
         return "Ladies and gentlemen, welcome to the Stark Expo.", None, None

@@ -548,8 +548,33 @@ function burst(){ if(!SEASON || reduce) return; const box = $("#seasonFx"); [...
   const p = document.createElement("span"); p.textContent = [...SEASON.fx][i % [...SEASON.fx].length]; p.style.left = (35 + Math.random() * 30) + "vw";
   p.style.fontSize = "22px"; p.style.setProperty("--r", "360deg"); p.style.animationDuration = "5s"; box?.appendChild(p); setTimeout(() => p.remove(), 5200); }, i * 60)); }
 (async () => { try { applySeason((await (await fetch("/api/season")).json()).season); } catch {} })();
+// ------------------------------------------------------------------ the showreel: every cinematic, back to back, with sound
+let cinemaOn = false;
+async function cinema(){
+  if(cinemaOn) return; cinemaOn = true; ctx();
+  const big = $("#hudExpo"), card = async (t, ms = 1800) => { big.textContent = t; big.classList.add("on"); SFX.boom(); await wait(ms); big.classList.remove("on"); await wait(400); };
+  try {
+    await card("ACT I · SYSTEMS ONLINE"); await boot();
+    await wait(800); await card("ACT II · THE STARK EXPO"); await expo();
+    if(window.HOLO){ await wait(600); await card("ACT III · HOLO LAB"); window.HOLO.open("body"); SFX.whoosh(); await wait(5500);
+      window.HOLO.open("week"); SFX.whoosh(); await wait(5000); window.HOLO.close(); }
+    await card("ACT IV · MISSION BRIEFING");
+    await dossier("OPERATION NIGHTFALL\nObjective: an untouchable week.\n\n07:30  Gym with Steve. Legs. No excuses.\n10:00  Deep work block, phone face down.\n" +
+      "15:00  Client call with Pepper on standby.\n21:30  Check-in with Friday.\n\nThreats: afternoon rain, procrastination.\nConfidence: absolute.");
+    await window.queueSpeech?.("JARVIS", "Operation Nightfall, Sir. The plan is set. All you have to do is show up.");
+    await wait(1200); $("#hudDossier")?.classList.remove("on");
+    await card("ACT V · THE TEAM");
+    showTeam({agents: ["JARVIS", "FRIDAY", "ZEUS", "STEVE"], lines: [{agent: "FRIDAY"}, {agent: "ZEUS"}, {agent: "STEVE"}, {agent: "JARVIS"}]});
+    const lines = [["FRIDAY", "[laughs] Boss! You actually watched the whole thing?"], ["ZEUS", "[excited] Of course he did. Champions study the tape."],
+      ["STEVE", "Great show, soldier. Now drop and give me twenty."], ["JARVIS", "[sighs] Ignore them, Sir. We're very proud of you."]];
+    for(const [a, t] of lines){ window.logLine?.(a, t, "reply"); await window.queueSpeech?.(a, t); }
+    hearts("#ff5c9a", 16); await wait(800);
+    const prev = SEASON; applySeason({name: "newyear", fx: "🎆🥂✨", accent: "#ffd23f", badge: "🎆 FIN", line: ""}); burst(); window.confetti?.();
+    await card("THE END", 2600); applySeason(prev);
+  } finally { cinemaOn = false; }
+}
 const _oe3 = onEvent3;
-function onEvent4(ev){ _oe3(ev); if(ev.type === "season"){ applySeason(ev.season); if(ev.season) burst(); SFX.boom(); } }
+function onEvent4(ev){ _oe3(ev); if(ev.type === "season"){ applySeason(ev.season); if(ev.season) burst(); SFX.boom(); } if(ev.type === "cinema") cinema(); }
 
-window.HUDFX = {speakStart: (c, a) => speakStart(c, a), speakEnd: c => speakEnd(c), onEvent: onEvent4, boot, expo, sfx: SFX, toast, dossier, openRoom, loadBonds, teamCall, teamPhoto};
+window.HUDFX = {speakStart: (c, a) => speakStart(c, a), speakEnd: c => speakEnd(c), onEvent: onEvent4, boot, expo, sfx: SFX, toast, dossier, openRoom, loadBonds, teamCall, teamPhoto, cinema};
 })();
