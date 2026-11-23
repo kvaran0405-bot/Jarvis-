@@ -578,6 +578,7 @@ async function cinema(){
 }
 const _oe3 = onEvent3;
 function onEvent4(ev){ _oe3(ev);
+  if(ev.type === "open_page" && /^\/[\w.-]+\.html$/.test(ev.url || "")) window.open(ev.url, "_blank");
   if(ev.type === "dictate"){ const t = $("#hudToast"); if(t){ if(ev.state === "listening"){ t.style.setProperty("--tc", "#ff5c5c");
       t.innerHTML = `<b>🎙 VOICE TYPING</b>Listening… let go to type it`; t.classList.add("on"); clearTimeout(t._h); }
     else if(ev.state === "thinking"){ t.innerHTML = `<b>🎙 VOICE TYPING</b>Writing it down…`; }

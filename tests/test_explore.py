@@ -38,3 +38,19 @@ def test_route_plan_and_phrase():
     assert "1. Kaplan City Campus (10:00)" in explore.describe(r)
     from jarvis import server
     assert "Orchard" in server.special("plan a route to Orchard, then Tampines Mall")[0]
+
+
+def test_quests_and_map_api():
+    from jarvis import quests
+    trail = [[1.2816, 103.8636, 3]]                                     # walked past Gardens by the Bay
+    st = {q["name"]: q for q in quests.status(trail, here=(1.2816, 103.8636))}
+    assert st["Gardens by the Bay"]["done"] and not st["Pulau Ubin"]["done"]
+    assert st["Pulau Ubin"]["km"] > 10 and len(quests.QUESTS) >= 40
+    from fastapi.testclient import TestClient
+    from jarvis import server
+    c = TestClient(server.app, base_url="http://127.0.0.1:7334", client=("127.0.0.1", 5))
+    d = c.get("/api/map").json()
+    assert d["total"] == len(quests.QUESTS) and set(d["kinds"]) == {"food", "nature", "heritage", "views", "night"}
+    r = c.post("/api/route", json={"stops": ["1.2816,103.8636", "Pulau Ubin"], "today": False}).json()
+    assert [s["lat"] for s in r["stops"]] == [1.2816, 1.4045] and "google.com/maps/dir" in r["link"]
+    assert c.get("/map.html").status_code == 200 and c.get("/vendor/leaflet/leaflet.js").status_code == 200

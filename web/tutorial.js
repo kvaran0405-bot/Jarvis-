@@ -30,7 +30,7 @@ const MISSIONS = [
   {id: "photos", title: "Photo sorter", what: "Every night your phone's new photos are filed into Pictures › JARVIS Albums (Receipts, Notes & Slides, Event Setups…).", todo: "Say: “find my latest receipt” (or “sort my photos now”).", say: /photo|receipt|album/i},
   {id: "email", title: "Your inbox", what: "JARVIS reads your Gmail: briefings, an inbox sweep for what matters, smart reply drafts (you send).", todo: "Send /email to your JARVIS bot on Telegram and follow the 3 steps, then say: “anything important in my email?”", say: /e-?mail|inbox|gmail/i},
   {id: "route", title: "Your map & route", what: "Every place your phone has been lights up on the Singapore holo map; your day's stops become a route with directions on the phone.", todo: "Say: “plan my route” (or “plan a route to Orchard, then Tampines Mall”).", say: /\broute\b/i},
-  {id: "faces", title: "Agent faces (preview)", what: "A sneak peek of holographic faces for your agents: they blink, look at you, wear their mood and talk.", todo: "Tap “Open faces”, then tap any face.", go: "/faces.html", dom: "faces", goLabel: "OPEN FACES"},
+  {id: "explorer", title: "Explorer map & side quests", what: "A dark street map: places you've been glow, the rest is in shadow. 40 side quests (food, nature, heritage, views, night) unlock when you visit them.", todo: "Say: “show me my map”, tap a ? for a hint, then + ADD TO ROUTE.", say: /\b(map|explorer|side ?quests?)\b/i},
   {id: "update", title: "One-word updates", what: "JARVIS updates itself every night. To update now, text “update” to your bot on Telegram.", todo: "Nothing to do here: tap ✓ Got it.", manual: true},
 ];
 let done = store.get("done", {}), cur = null;
@@ -67,7 +67,6 @@ function show(){
   box.classList.add("on"); bind();
 }
 function bind(){
-  $("#tut").querySelector("[data-go]")?.addEventListener("click", () => { if(cur?.dom === "faces") complete("faces"); });
   $("#tut").querySelectorAll("[data-a]").forEach(b => b.onclick = () => {
     const a = b.dataset.a; sfx()?.click?.();
     if(a === "skip" || a === "got"){ if(a === "got") return complete(cur.id); done[cur.id] = "skipped"; store.set("done", done); show(); }

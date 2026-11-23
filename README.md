@@ -267,10 +267,13 @@ it stays silent unless the alert is critical.
   address and the 16 letters, and it deletes your message, checks it with Gmail, saves it and restarts. Or, on the
   setup page, enter your Gmail address and a Gmail app password (the page links to Google's
   page for making one; it needs 2-Step Verification). JARVIS checks it works, saves it on the laptop, and restarts.
+- **Explorer map** (`/map.html`, or say "show me my map"; works on the phone too): a dark street map where the places
+  you've been glow and the rest stays in shadow, 40 Singapore side quests (food, nature, heritage, views, night) that
+  unlock when you visit, and your route for the day. Tap a quest → + ADD TO ROUTE → ROUTE opens Google Maps.
+  Map tiles: © OpenStreetMap contributors © CARTO.
 - **Your map and route:** every place your phone has been lights up on the Singapore holo map (stored on the laptop
   only). Say "plan my route" for today's stops in order, drawn on the map, with Google Maps directions sent to your
   phone, or "plan a route to Orchard, then Tampines Mall".
-- **Agent faces (preview):** `/faces.html`: holographic faces that blink, follow your mouse, show moods and talk.
 - **Photo sorter:** every night the phone sends new photos to the laptop and JARVIS files them into
   Pictures/JARVIS Albums (Receipts, Notes & Slides, Event Setups, Food, People, Places...). Ask "find my Uniqlo
   receipt". Photos of cards, IDs or passwords are thrown away. Turn off with `JARVIS_PHOTO_SORT=off`.

@@ -706,6 +706,7 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"\s*[.!]?\s*$", re.I)
 FAST_RE = re.compile(_J + r"(?:fast|quick|speed|turbo) (?:voice |reply |replies |response )?mode (on|off)\s*[.!]?\s*$|"
                      r"^\s*(?:jarvis[,\s]+)?(?:turn (on|off) fast (?:voice|mode|replies))\s*[.!]?\s*$", re.I)
+MAP_RE = re.compile(_J + r"(?:show me |open |pull up |display )?(?:the |my )?(?:map|explorer(?: map)?|side ?quests?|places i'?ve been|where i'?ve been)\s*[.!?]?\s*$", re.I)
 ROUTE_RE = re.compile(_J + r"(?:plan|show|make|map)(?: me)? (?:my |a |the )?route(?: for (?:today|my day))?"
                       r"(?:\s+(?:to|via|for)\s+(.+?))?\s*[.!?]?\s*$", re.I)
 TUTORIAL_RE = re.compile(_J + r"(?:show me |start |open |run |replay )?(?:the )?(?:tutorial|training(?: mode)?|walkthrough|tour)\s*[.!?]?\s*$", re.I)
@@ -808,6 +809,12 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
                                 "they want you to handle without asking). After each answer, `remember` the lasting "
                                 "facts, react in character, then ask the next question. Stop after about 8 questions "
                                 "with a short summary of what you'll do differently now. Start with the first question.")
+    if MAP_RE.match(text):
+        from . import phonelink
+        bus.publish({"type": "open_page", "url": "/map.html"})
+        if phonelink.online(store):
+            phonelink.queue(store, "open", url="/map.html")
+        return "Your explorer map, Sir. Gold is where you've been; the question marks are side quests.", None, None
     if m := SHOW_RE.match(text):
         from . import holo
         view = HOLO_VIEWS.get((m.group(1) or m.group(2) or "week").lower(), "week")
@@ -834,7 +841,7 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         route = explore.plan(store, extra=extra)
         if route["link"]:
             phonelink.queue(store, "link", url=route["link"])
-            bus.publish({"type": "holo", "view": "singapore"})
+            bus.publish({"type": "open_page", "url": "/map.html"})
         return explore.describe(route), None, None
     if TUTORIAL_RE.match(text):
         bus.publish({"type": "tutorial"})
@@ -1328,6 +1335,28 @@ async def drop_file(d: Drop):
 def season_api():
     from . import hud
     return {"season": hud.season(store=store), "choice": store.get("hud:season") or "auto"}
+
+
+# ---------------------------------------------------------------- explorer map (laptop and phone)
+@app.get("/api/map")
+def map_api():
+    from . import quests
+    return quests.map_data(store)
+
+
+class RouteIn(BaseModel):
+    stops: list[str] = []
+    today: bool = True
+
+
+@app.post("/api/route")
+def route_api(r: RouteIn):
+    """Plan a route: today's calendar stops (optional) plus the stops picked on the map; directions go to the phone."""
+    from . import explore, phonelink
+    route = explore.plan(store, extra=[x[:120] for x in r.stops[:10]], include_calendar=r.today)
+    if route["link"] and phonelink.online(store):
+        phonelink.queue(store, "link", url=route["link"])
+    return route
 
 
 # ---------------------------------------------------------------- one-tap setup (laptop half; the phone asks Android itself)

@@ -59,17 +59,22 @@ def stats(store) -> dict:
 def _coords(store, name: str):
     from .phonelink import places
     from .holo import place_of
+    from .quests import QUESTS
+    m = re.match(r"^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$", name or "")
+    if m:
+        return float(m.group(1)), float(m.group(2))
     known = places(store)
+    known.update({q[0]: (q[2], q[3]) for q in QUESTS})
     key = next((k for k in known if k.lower() == (name or "").lower().strip()), None) or place_of(name or "")
     return known.get(key) if key else None
 
 
-def plan(store, day: date | None = None, extra: list[str] | None = None) -> dict:
+def plan(store, day: date | None = None, extra: list[str] | None = None, include_calendar: bool = True) -> dict:
     """Today's stops in order, with coordinates where JARVIS knows them, and a multi-stop Google Maps link."""
     from .holo import place_of
     day = day or datetime.now(settings.tz).date()
     stops = []
-    for e in store.list_events(day.isoformat(), (day + timedelta(days=1)).isoformat()):
+    for e in (store.list_events(day.isoformat(), (day + timedelta(days=1)).isoformat()) if include_calendar else []):
         loc = (e.get("location") or "").strip()
         if len(e["start"]) <= 10 or not loc or re.search(r"zoom|teams|online|meet\.google", loc, re.I):
             continue

@@ -16,7 +16,6 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
   stress as a holo chart.
 - **Instant local brain:** small on-laptop model for sub-second replies (works offline); big brain for hard ones.
 - **Throw windows between devices:** swipe a laptop window to the phone, flick the phone at the laptop.
-- (Preview built: agent faces at /faces.html; owner to decide if they go on the HUD and phone.)
 
 ## Ideas offered, not built yet
 1. Auto car mode when the phone connects to the car's Bluetooth (reads messages aloud).

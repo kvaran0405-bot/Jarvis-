@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Explorer</title>
+<meta name="theme-color" content="#03060a"><link rel="icon" href="/icon-192.png">
+<script src="/native-bridge.js"></script>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<script src="/vendor/leaflet/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Explorer: a dark street map where the places you've been glow and the rest stays in shadow, with side quests to
+   discover and your route for the day. Phone-first. */
+:root{--bg:#03060a;--line:#1b2735;--txt:#dce7f2;--muted:#8a95a7;--ac:#ffd23f;--go:#3dff9a}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:"JetBrains Mono",monospace;overflow:hidden}
+#map{position:fixed;inset:0;background:#05080d}
+.leaflet-container{background:#05080d;font-family:inherit}
+.leaflet-tile-pane{filter:saturate(.6) brightness(.85) hue-rotate(-8deg)}
+.leaflet-control-attribution{background:rgba(3,6,10,.6)!important;color:#55606f!important;font-size:9px}.leaflet-control-attribution a{color:#7a8899!important}
+.leaflet-control-zoom{display:none}
+/* top: title + chips */
+.top{position:fixed;top:0;left:0;right:0;z-index:500;padding:max(10px,env(safe-area-inset-top)) 12px 10px;background:linear-gradient(#03060ae6,transparent);pointer-events:none}
+.title{display:flex;align-items:center;gap:8px;pointer-events:auto}.title b{font:700 12px Orbitron,sans-serif;letter-spacing:.3em;color:var(--ac);text-shadow:0 0 12px #ffd23f66}
+.title a{margin-left:auto;color:var(--muted);text-decoration:none;font-size:11px;border:1px solid var(--line);padding:5px 10px;border-radius:14px;background:rgba(3,6,10,.7)}
+.chips{display:flex;gap:6px;overflow-x:auto;margin-top:9px;pointer-events:auto;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:18px;border:1px solid var(--line);background:rgba(8,13,20,.85);color:var(--txt);font:600 11px "JetBrains Mono",monospace;cursor:pointer;backdrop-filter:blur(6px)}
+.chip.on{border-color:var(--c,var(--ac));color:var(--c,var(--ac));box-shadow:0 0 12px color-mix(in srgb,var(--c,var(--ac)) 40%,transparent)}
+/* markers */
+.q{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:16px;position:relative}
+.q.done{background:radial-gradient(circle,color-mix(in srgb,var(--c) 85%,#fff) 0,var(--c) 35%,transparent 70%);box-shadow:0 0 18px var(--c),0 0 40px color-mix(in srgb,var(--c) 50%,transparent)}
+.q.todo{color:#fff;font:700 18px Orbitron,sans-serif;text-shadow:0 0 10px var(--c)}
+.q.todo::before{content:"";position:absolute;inset:6px;border-radius:50%;border:1px dashed color-mix(in srgb,var(--c) 70%,transparent);animation:spin 9s linear infinite}
+.q.near::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--c);animation:ping 1.6s ease-out infinite}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes ping{from{opacity:.9;transform:scale(.6)}to{opacity:0;transform:scale(1.6)}}
+.qlbl{position:absolute;left:50%;top:36px;transform:translateX(-50%);white-space:nowrap;text-align:center;font:700 11px "JetBrains Mono",monospace;color:#fff;text-shadow:0 1px 4px #000,0 0 8px #000;pointer-events:none}
+.qlbl small{display:block;font-weight:400;font-size:10px;color:#b9c4d2}
+.me{width:22px;height:22px;border-radius:50%;background:#4f8dff;border:3px solid #dfe9ff;box-shadow:0 0 0 8px rgba(79,141,255,.25),0 0 26px #4f8dff}
+.stop{width:26px;height:26px;border-radius:50%;background:var(--go);color:#03060a;display:grid;place-items:center;font:700 12px Orbitron,sans-serif;box-shadow:0 0 16px var(--go)}
+.place{width:12px;height:12px;border-radius:50%;background:#5fd8ff;box-shadow:0 0 14px #5fd8ff}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#081019;color:var(--txt);border:1px solid var(--line);box-shadow:0 0 24px rgba(0,0,0,.6)}
+.leaflet-popup-content{margin:12px 14px;font:12px/1.5 "JetBrains Mono",monospace}.leaflet-popup-content b{font-size:13px}
+.leaflet-popup-content button{margin-top:8px;background:transparent;color:var(--go);border:1px solid var(--go);border-radius:14px;padding:6px 10px;font:700 10px Orbitron,sans-serif;letter-spacing:.1em;cursor:pointer}
+/* legend (like an atlas page) */
+.legend{position:fixed;left:12px;bottom:calc(86px + env(safe-area-inset-bottom));z-index:500;background:rgba(5,9,15,.88);border:1px solid var(--line);padding:10px 12px;border-radius:12px;backdrop-filter:blur(6px);font-size:11px;max-width:220px}
+.legend h4{margin:0 0 6px;font:700 9px Orbitron,sans-serif;letter-spacing:.25em;color:var(--muted)}
+.legend div{display:flex;align-items:center;gap:8px;margin:4px 0}.legend i{width:10px;height:10px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c);flex:none}
+.legend span{margin-left:auto;color:var(--muted)}.legend.min div,.legend.min .fog{display:none}
+.legend .fog{margin-top:6px;color:var(--muted);line-height:1.5}
+/* bottom bar */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:500;padding:10px 12px max(12px,env(safe-area-inset-bottom));background:linear-gradient(transparent,#03060af0 40%);display:flex;align-items:center;gap:8px}
+.stat{flex:1;min-width:0}.stat b{display:block;font:700 15px Orbitron,sans-serif;color:var(--ac);text-shadow:0 0 12px #ffd23f55}.stat small{color:var(--muted);font-size:11px}
+.btn{flex:none;height:44px;min-width:44px;padding:0 14px;border-radius:22px;border:1px solid var(--line);background:rgba(8,13,20,.9);color:var(--txt);font:700 10px Orbitron,sans-serif;letter-spacing:.12em;cursor:pointer;display:flex;align-items:center;gap:6px}
+.btn.go{background:var(--go);color:#03060a;border-color:var(--go);box-shadow:0 0 18px #3dff9a66}.btn:disabled{opacity:.4}
+.toast{position:fixed;left:50%;top:calc(100px + env(safe-area-inset-top));transform:translateX(-50%);z-index:600;background:#081019;border:1px solid var(--go);color:var(--txt);padding:9px 14px;border-radius:18px;font-size:12px;opacity:0;transition:.3s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{opacity:1}
+@media(min-width:900px){.legend{bottom:auto;top:110px}}
+.far .q:not(.near) .qlbl{display:none}   /* zoomed out: names only for nearby quests */
+</style></head><body>
+<div id="map"></div>
+<div class="top"><div class="title"><b>EXPLORER</b><a href="/command-centre.html">← JARVIS</a></div><div class="chips" id="chips"></div></div>
+<div class="legend" id="legend"></div>
+<div class="bar"><div class="stat"><b id="km">—</b><small id="sub">Loading your map…</small></div>
+  <button class="btn" id="meBtn" title="Where am I">◎</button><button class="btn" id="todayBtn">TODAY</button><button class="btn go" id="goBtn" disabled>ROUTE</button></div>
+<div class="toast" id="toast"></div>
+<script>
+const $ = s => document.querySelector(s), esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let D = null, filter = "all", picked = [], routeLine = null, stopLayer = L.layerGroup(), questLayer = L.layerGroup(), placeLayer = L.layerGroup(), meMarker = null;
+const toast = t => { const el = $("#toast"); el.textContent = t; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2600); };
+
+const map = L.map("map", {zoomControl: false, attributionControl: true, minZoom: 10, maxZoom: 18, worldCopyJump: false})
+  .setView([1.3521, 103.8198], 12);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {subdomains: "abcd", maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
+placeLayer.addTo(map); questLayer.addTo(map); stopLayer.addTo(map);
+
+// ---- fog of war: the city sits in shadow; everywhere your phone has been is cleared and glows
+map.createPane("fog"); map.getPane("fog").style.zIndex = 350; map.getPane("fog").style.pointerEvents = "none";
+const fog = L.DomUtil.create("canvas", "", map.getPane("fog"));
+function drawFog(){
+  const size = map.getSize(), dpr = Math.min(2, devicePixelRatio || 1);
+  fog.width = size.x * dpr; fog.height = size.y * dpr; fog.style.width = size.x + "px"; fog.style.height = size.y + "px";
+  L.DomUtil.setPosition(fog, map.containerPointToLayerPoint([0, 0]));
+  const g = fog.getContext("2d"); g.scale(dpr, dpr);
+  g.fillStyle = "rgba(2,5,10,.66)"; g.fillRect(0, 0, size.x, size.y);
+  if(!D) return;
+  const mpp = 40075016.686 * Math.cos(map.getCenter().lat * Math.PI / 180) / Math.pow(2, map.getZoom() + 8);   // metres per pixel
+  const r = Math.max(6, 280 / mpp);
+  g.globalCompositeOperation = "destination-out";
+  for(const [lat, lon] of D.trail){ const p = map.latLngToContainerPoint([lat, lon]);
+    if(p.x < -r || p.y < -r || p.x > size.x + r || p.y > size.y + r) continue;
+    const gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(.6, "rgba(0,0,0,.85)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill(); }
+  g.globalCompositeOperation = "lighter";
+  for(const [lat, lon, n] of D.trail){ const p = map.latLngToContainerPoint([lat, lon]);
+    if(p.x < -r || p.y < -r || p.x > size.x + r || p.y > size.y + r) continue;
+    const a = Math.min(.22, .07 + n * .02), gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * .9);
+    gr.addColorStop(0, `rgba(120,255,160,${a})`); gr.addColorStop(.5, `rgba(255,200,70,${a * .7})`); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, r * .9, 0, Math.PI * 2); g.fill(); }
+  g.globalCompositeOperation = "source-over";
+}
+map.on("move zoom resize zoomend moveend", drawFog);
+const zoomClass = () => $("#map").classList.toggle("far", map.getZoom() < 14);
+map.on("zoomend", zoomClass); zoomClass();
+
+// ---- side quests
+function questIcon(q){
+  const k = D.kinds[q.kind], c = k[1], near = !q.done && q.km != null && q.km <= 1.5;
+  const lbl = q.done ? `<div class="qlbl">${esc(q.name)}<small>${k[0]}</small></div>`
+    : near ? `<div class="qlbl">Side quest nearby<small>Get closer to see it</small></div>` : "";
+  return L.divIcon({className: "", iconSize: [34, 34], iconAnchor: [17, 17],
+    html: `<div class="q ${q.done ? "done" : "todo"} ${near ? "near" : ""}" style="--c:${c}">${q.done ? k[2] : "?"}${lbl}</div>`});
+}
+function drawQuests(){
+  questLayer.clearLayers();
+  D.quests.filter(q => filter === "all" || filter === q.kind).forEach(q => {
+    const k = D.kinds[q.kind];
+    const body = q.done ? `<b>${esc(q.name)}</b><br><span style="color:${k[1]}">${k[2]} ${k[0]} · discovered ✓</span><br>${esc(q.why)}`
+      : `<b>${k[2]} A ${k[0].toLowerCase()} side quest</b><br>${q.km != null ? q.km + " km away. " : ""}Go there to reveal it.<br><span style="color:#8a95a7">Hint: ${esc(q.why.split(/[,;(]/)[0])}</span>`;
+    L.marker([q.lat, q.lon], {icon: questIcon(q)}).addTo(questLayer)
+      .bindPopup(`${body}<br><button data-add="${q.lat},${q.lon}" data-name="${esc(q.done ? q.name : k[0] + " quest")}">+ ADD TO ROUTE</button>`);
+  });
+}
+map.on("popupopen", e => { const b = e.popup.getElement().querySelector("[data-add]"); if(!b) return;
+  b.onclick = () => { if(picked.some(p => p.ll === b.dataset.add)) return toast("Already on your route");
+    picked.push({ll: b.dataset.add, name: b.dataset.name}); map.closePopup(); drawRoute(); toast(`Added: ${b.dataset.name} (${picked.length} stop${picked.length > 1 ? "s" : ""})`); }; });
+
+// ---- route: today's calendar stops plus picked quests, drawn as a glowing line
+function drawRoute(){
+  stopLayer.clearLayers(); if(routeLine){ routeLine.forEach(l => map.removeLayer(l)); routeLine = null; }
+  const today = ((D.route || {}).stops || []).filter(s => s.lat != null).map(s => ({lat: s.lat, lon: s.lon, name: s.name, time: s.time}));
+  const pts = [...today, ...picked.map(p => { const [lat, lon] = p.ll.split(",").map(Number); return {lat, lon, name: p.name, time: ""}; })];
+  pts.forEach((s, i) => L.marker([s.lat, s.lon], {icon: L.divIcon({className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: `<div class="stop">${i + 1}</div>`})})
+    .addTo(stopLayer).bindPopup(`<b>${i + 1}. ${esc(s.name)}</b>${s.time ? "<br>" + s.time : ""}`));
+  if(pts.length > 1){ const ll = pts.map(s => [s.lat, s.lon]);
+    routeLine = [L.polyline(ll, {color: "#3dff9a", weight: 10, opacity: .18}).addTo(map), L.polyline(ll, {color: "#3dff9a", weight: 3, opacity: .95, dashArray: "8 10", className: "flow"}).addTo(map)]; }
+  $("#goBtn").disabled = !(picked.length || today.length);
+  $("#goBtn").textContent = pts.length ? `ROUTE · ${pts.length}` : "ROUTE";
+}
+const fcss = document.createElement("style"); fcss.textContent = `.flow{animation:flow 1.2s linear infinite}@keyframes flow{to{stroke-dashoffset:-36}}`; document.head.appendChild(fcss);
+
+// ---- chips + legend
+function ui(){
+  const chips = [["all", "✨ All", "#ffd23f"], ...Object.entries(D.kinds).map(([k, v]) => [k, `${v[2]} ${v[0]}`, v[1]])];
+  $("#chips").innerHTML = chips.map(([k, t, c]) => `<div class="chip ${filter === k ? "on" : ""}" data-k="${k}" style="--c:${c}">${t}</div>`).join("");
+  $("#chips").onclick = e => { const c = e.target.closest("[data-k]"); if(!c) return; filter = c.dataset.k; ui(); drawQuests(); };
+  const count = k => D.quests.filter(q => q.kind === k), lg = $("#legend");
+  lg.innerHTML = `<h4>SIDE QUESTS · ${D.done}/${D.total}</h4>` + Object.entries(D.kinds).map(([k, v]) =>
+    `<div style="--c:${v[1]}"><i></i>${v[2]} ${v[0]}<span>${count(k).filter(q => q.done).length}/${count(k).length}</span></div>`).join("") +
+    `<div class="fog">Lit areas = where your phone has been. Tap a ? to see a hint.</div>`;
+  lg.onclick = () => lg.classList.toggle("min");
+  if(!ui.done){ ui.done = true; if(innerWidth < 700) lg.classList.add("min"); }
+  const st = D.stats || {};
+  $("#km").textContent = st.squares ? `${st.km2} km² explored` : "Start exploring";
+  $("#sub").textContent = st.squares ? `${st.squares} spots lit · ${D.done}/${D.total} side quests` : "Your trail lights up as your phone moves (location allowed)";
+}
+
+async function load(first){
+  try { D = await (await fetch("/api/map", {cache: "no-store"})).json(); } catch { $("#sub").textContent = "Can't reach JARVIS on the laptop"; return; }
+  placeLayer.clearLayers();
+  D.places.filter(p => !D.quests.some(q => q.name === p.name)).forEach(p => L.marker([p.lat, p.lon], {icon: L.divIcon({className: "", iconSize: [12, 12], html: `<div class="place" title="${esc(p.name)}"></div>`})}).addTo(placeLayer).bindPopup(`<b>${esc(p.name)}</b>`));
+  if(D.here){ if(!meMarker) meMarker = L.marker(D.here, {icon: L.divIcon({className: "", iconSize: [22, 22], iconAnchor: [11, 11], html: `<div class="me"></div>`}), zIndexOffset: 1000}).addTo(map);
+    else meMarker.setLatLng(D.here);
+    if(first) map.setView(D.here, 14); }
+  ui(); drawQuests(); drawRoute(); drawFog();
+}
+$("#meBtn").onclick = () => D?.here ? map.flyTo(D.here, 15) : toast("No phone location yet: open the JARVIS app with location allowed");
+$("#todayBtn").onclick = async () => {
+  const r = await (await fetch("/api/route", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({stops: [], today: true})})).json();
+  D.route = r; drawRoute();
+  const known = r.stops.filter(s => s.lat != null);
+  if(known.length) map.fitBounds(known.map(s => [s.lat, s.lon]), {padding: [60, 60]});
+  toast(r.stops.length ? `Today: ${r.stops.map(s => s.name).join(" → ")}` : "Nothing with a place on today's calendar. Add side quests!");
+};
+$("#goBtn").onclick = async () => {
+  const r = await (await fetch("/api/route", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({stops: picked.map(p => p.ll), today: true})})).json();
+  if(!r.link) return toast("Add a stop first");
+  if(window.JarvisNative || matchMedia("(max-width: 700px)").matches) location.href = r.link;   // phone: straight into Google Maps
+  else { window.open(r.link, "_blank"); toast("Directions sent to your phone too"); }
+};
+load(true); setInterval(load, 60000);
+</script>
+</body></html>
