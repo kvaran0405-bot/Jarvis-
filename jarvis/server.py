@@ -66,6 +66,24 @@ async def lifespan(_app):
         threading.Timer(4, lambda: updater.start(store, bus, quiet=True)).start()
         return "✅ " + result + " Try: “anything important in my email?”"
     bot.on_email = _connect_email
+
+    def _connect_gemini(key: str) -> str:   # "/gemini" on Telegram
+        from . import access
+        old_key = settings.gemini_key
+        try:
+            access.save_key("GEMINI_API_KEY", key)
+        except ValueError as exc:
+            return f"⚠ {exc}\nSend /gemini to try again."
+        ok, secs, why = brain.gemini_check()
+        if not ok:
+            if old_key:
+                access.save_key("GEMINI_API_KEY", old_key)
+            return f"⚠ That key didn't work: {why}. Send /gemini to try again."
+        store.set("voice:fast", "on")
+        bus.publish({"type": "brain", **brain.describe(store)})
+        return (f"✅ Gemini connected (answered in {secs:.1f}s). Fast mode is ON, Gemini voices and the photo sorter "
+                "too. Say “fast mode off” any time.")
+    bot.on_gemini = _connect_gemini
     bot.start()
     from . import clap
     bus.log("JARVIS", clap.start(on_double_clap), "system")
@@ -796,11 +814,18 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         return line, None, None
     if m := FAST_RE.match(text):
         on = (m.group(1) or m.group(2)).lower() == "on"
-        if on and not brain.ready("gemini"):
-            return "Fast mode needs a free Gemini key in .env (GEMINI_API_KEY), Sir. Then say it again.", None, None
-        store.set("voice:fast", "on" if on else "off")
-        return ("Fast mode on, Sir. Spoken questions get the quickest brain; typed ones still get the full one." if on
-                else "Fast mode off. Every reply gets the full brain again, Sir."), None, None
+        if not on:
+            store.set("voice:fast", "off")
+            bus.publish({"type": "brain", **brain.describe(store)})
+            return "Fast mode off. Every reply gets the full brain again, Sir.", None, None
+        ok, secs, why = brain.gemini_check()
+        if not ok:
+            return (f"Fast mode can't switch on yet, Sir: {why}. Send /gemini to your JARVIS bot on Telegram and "
+                    "I'll walk you through the free key."), None, None
+        store.set("voice:fast", "on")
+        bus.publish({"type": "brain", **brain.describe(store)})
+        return (f"Fast mode on, Sir. Gemini answered in {secs:.1f} seconds. Everything you ask now gets the quickest "
+                "brain, and if it ever stumbles I quietly use the main one."), None, None
     if TUTORIAL_RE.match(text):
         bus.publish({"type": "tutorial"})
         return "Training mode, Sir. Each mission ticks off when it works.", None, None

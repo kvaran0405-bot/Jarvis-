@@ -60,6 +60,15 @@ EMAIL_STEPS = ("📧 Let's connect your Gmail (2 minutes):\n\n"
                "(This works for the next 15 minutes.)")
 
 
+GEMINI_SETUP_RE = re.compile(r"^\s*(?:jarvis[,\s]+)?(?:set ?up|connect|add|link) (?:my |the |a )?(?:free )?gemini(?: key| api key)?\s*[.!]?\s*$", re.I)
+GEMINI_STEPS = ("⚡ Free Gemini key (fast mode, Gemini voices, photo sorter), 1 minute:\n\n"
+                "1. Open https://aistudio.google.com/apikey and sign in.\n"
+                "2. Tap Create API key → pick any project → Create key → copy it.\n"
+                "3. Paste the key here as one message.\n\n"
+                "I'll delete your message straight away, test the key, and switch fast mode on. "
+                "(This works for the next 15 minutes.)")
+
+
 # ---------------------------------------------------------------- Telegram Bot API
 def api(method: str, http_timeout: int = 30, **params):
     url = f"https://api.telegram.org/bot{settings.telegram_token}/{method}"
@@ -139,6 +148,8 @@ class Bot:
         self.on_update: Callable[[], str] | None = None
         self.on_email: Callable[[str, str], str] | None = None   # (gmail address, app password) -> result
         self._email_until = 0.0
+        self.on_gemini: Callable[[str], str] | None = None       # (key) -> result
+        self._gemini_until = 0.0
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -252,6 +263,20 @@ class Bot:
             send("🔒 Got it and deleted your message. Checking with Gmail…")
             send(self.on_email(addr.group(0), "".join(pw.groups())))
             return
+        if self.on_gemini and (text in ("/gemini", "/key", "/fast") or GEMINI_SETUP_RE.match(text)):
+            self._gemini_until = time.time() + 900
+            send(GEMINI_STEPS)
+            return
+        key = re.search(r"\b(AIza[0-9A-Za-z_\-]{30,}|AQ\.[0-9A-Za-z_.\-]{20,})", text)
+        if self._gemini_until > time.time() and key and self.on_gemini:
+            try:
+                api("deleteMessage", chat_id=sender, message_id=msg.get("message_id"))
+            except Exception:  # noqa: BLE001
+                pass
+            self._gemini_until = 0
+            send("🔒 Got it and deleted your message. Testing the key…")
+            send(self.on_gemini(key.group(1)))
+            return
         if text == "/voicecheck":
             send(voice_check())
             return
@@ -270,7 +295,7 @@ class Bot:
                  "Save your Claude plan:\n• /pause  or  pause for 3 hours - I use no AI at all\n"
                  "• /saver - run on free Gemini only\n• /resume - back to normal\n• /status - which brain I'm using\n\n"
                  "📱 /app - open the JARVIS app   📞 /call - talk to me live\n"
-                 "📧 /email - connect your Gmail\n🔎 /voicecheck - test voice notes   ⬆ update - get my newest version (laptop + phone)")
+                 "📧 /email - connect your Gmail\n⚡ /gemini - free Gemini key (fast mode)\n🔎 /voicecheck - test voice notes   ⬆ update - get my newest version (laptop + phone)")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
         reply = self.on_text(text, voice=False)

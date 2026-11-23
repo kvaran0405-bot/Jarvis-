@@ -736,7 +736,7 @@ function showBrain(b){
   const paused = b.mode === "paused", saver = b.mode === "saver";
   document.body.classList.toggle("paused", paused);
   const until = b.until ? ` → ${b.until.slice(11,16)}` : "";
-  $("#model").textContent = paused ? `PAUSED${until}` : (b.now ? BRAIN_LABEL[b.now] : "NO BRAIN") + (saver ? until : "") + (b.pro_limited && !saver ? " · LIMIT" : "");
+  $("#model").textContent = paused ? `PAUSED${until}` : (b.now ? BRAIN_LABEL[b.now] : "NO BRAIN") + (saver ? until : "") + (b.pro_limited && !saver ? " · LIMIT" : "") + (b.fast && !paused ? " · ⚡FAST" : "");
   $("#model").style.color = paused || !b.now ? "#ffb020" : "";
   $("#pauseBtn").textContent = paused ? "▶ Resume" : "⏸ Pause";
   $("#pauseBtn").classList.toggle("hot", paused);

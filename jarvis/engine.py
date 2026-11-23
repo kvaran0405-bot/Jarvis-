@@ -180,8 +180,9 @@ class Engine:
         if agent is None:
             return f"No agent named {agent_name}. Available: {', '.join(AGENTS)}."
         chosen = brain.pick(self.store, background, agent.brain)
-        if voice and chosen and chosen != "gemini" and brain.fast_voice(self.store) and brain.ready("gemini"):
-            chosen = "gemini"   # fast voice: spoken questions go to the quickest brain
+        main = chosen
+        if not background and chosen and chosen != "gemini" and brain.fast_voice(self.store) and brain.ready("gemini"):
+            chosen = "gemini"   # fast mode: everything you ask goes to the quickest brain (main brain if it fails)
         if chosen is None:
             reply = self._unavailable_reply(agent)
             if on_text:
@@ -200,7 +201,12 @@ class Engine:
             try:
                 try:
                     return self._think(chosen, agent, prompt, chat, depth, on_text, effort, approved)
-                except brains.LimitReached as exc:
+                except Exception as exc:  # noqa: BLE001
+                    if main is not None and chosen != main:   # fast mode hiccup: answer with the main brain instead
+                        self.bus.log(agent.name, f"Fast mode: Gemini didn't answer ({str(exc)[:120]}), using {main}", "system")
+                        return self._think(main, agent, prompt, chat, depth, on_text, effort, approved)
+                    if not isinstance(exc, brains.LimitReached):
+                        raise
                     if chosen == "pro":
                         brain.mark_pro_limited(self.store, hours=1)
                     fallback = brain.pick(self.store, background, agent.brain)

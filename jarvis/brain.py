@@ -114,7 +114,27 @@ def describe(store) -> dict:
     state = get_mode(store)
     return {"mode": state["mode"], "until": state.get("until"), "primary": primary(),
             "automation": automation_brain(), "now": pick(store), "pro_limited": pro_limited(store),
-            "ready": {b: ready(b) for b in ("pro", "api", "gemini")}}
+            "ready": {b: ready(b) for b in ("pro", "api", "gemini")}, "fast": fast_voice(store) and ready("gemini")}
+
+
+def gemini_check() -> tuple[bool, float, str]:
+    """Ask Gemini for one word, to prove the key works. (ok, seconds, problem in plain words)."""
+    import time
+    from . import brains
+    if not settings.gemini_key:
+        return False, 0.0, "there's no Gemini key yet"
+    t0 = time.time()
+    try:
+        brains._gemini_call({"contents": [{"role": "user", "parts": [{"text": "Reply with just: OK"}]}],
+                             "generationConfig": {"maxOutputTokens": 5}})
+        return True, time.time() - t0, ""
+    except brains.LimitReached:
+        return False, 0.0, "Gemini's free limit is used up for now (it resets daily)"
+    except Exception as exc:  # noqa: BLE001
+        msg = str(exc)
+        if "API_KEY_INVALID" in msg or "API key not valid" in msg or " 400" in msg or " 403" in msg:
+            return False, 0.0, "Google says the key isn't valid (copy it again, all of it)"
+        return False, 0.0, f"Gemini didn't answer ({msg[:120]})"
 
 
 # ---------------------------------------------------------------- spoken / typed control phrases

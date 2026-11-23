@@ -260,6 +260,9 @@ it stays silent unless the alert is critical.
 - **Voice typing anywhere (laptop):** hold **Right Alt** (or the **Copilot key** ✦, or Right Ctrl), talk, let go: JARVIS types it into whatever app has the
   cursor. Start with "Jarvis, ..." to give an order instead. Understood on the laptop itself; never types into
   banking windows. Change the key with `JARVIS_DICTATE_KEY` (auto, ralt, copilot, rctrl, f8, f9, capslock) or `JARVIS_DICTATE=off`.
+- **Fast mode:** send **/gemini** to your bot on Telegram to add a free Gemini key (your message is deleted at once,
+  the key is tested, fast mode switches on). "Fast mode on/off" any time; the dashboard shows ⚡FAST. If Gemini
+  stumbles, the main brain answers instead.
 - **Email:** send **/email** to your bot on Telegram: it sends the link for a Gmail app password, you reply with your
   address and the 16 letters, and it deletes your message, checks it with Gmail, saves it and restarts. Or, on the
   setup page, enter your Gmail address and a Gmail app password (the page links to Google's
