@@ -84,3 +84,15 @@ def test_phrases_and_routes(monkeypatch):
     assert c.get("/api/bonds/pepper").json()["agent"] == "PEPPER"
     assert c.get("/api/bonds/guest").status_code == 404
     assert c.post("/api/bonds/zeus/thanks").json()["bond"]["thanks"] >= 1
+
+
+def test_named_greeting_comes_from_that_agent():
+    from fastapi.testclient import TestClient
+    from jarvis import server
+    direct = server.special("good night Friday")[0]
+    assert server.split_agent(direct)[0] == "FRIDAY" and "…" not in direct
+    c = TestClient(server.app, base_url="http://127.0.0.1:7334", client=("127.0.0.1", 5))
+    r = c.post("/api/command", json={"text": "good morning steve", "agent": "JARVIS"}).json()
+    assert r["agent"] == "STEVE" and not r["reply"].startswith("@")
+    assert server.handle_owner_message("good morning pepper", via="Telegram").startswith("Pepper: ")
+    assert server.split_agent(server.special("good morning")[0])[0] == "JARVIS"

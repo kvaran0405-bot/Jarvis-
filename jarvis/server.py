@@ -499,10 +499,11 @@ async def command(cmd: Command):
     store.set("owner:last_seen", datetime.now(settings.tz).isoformat())
     direct, sp_agent, sp_prompt = special(cmd.text)
     if direct is not None:
-        bus.publish({"type": "delta", "rid": cmd.rid, "agent": "JARVIS", "text": direct})
-        bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": "JARVIS"})
-        bus.log("JARVIS", direct, "reply")
-        return {"agent": "JARVIS", "reply": direct}
+        who, direct = split_agent(direct)
+        bus.publish({"type": "delta", "rid": cmd.rid, "agent": who, "text": direct})
+        bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": who})
+        bus.log(who, direct, "reply")
+        return {"agent": who, "reply": direct}
     if sp_agent:
         agent, cmd.text = sp_agent, sp_prompt
     from . import hud as _hud
@@ -674,6 +675,16 @@ MISSION_PROMPT = ("Mission briefing, spoken, cinematic, under 100 words: OPERATI
                   "threats (weather, traffic, weak spots), one line of confidence. Check list_events and status_snapshot.")
 
 
+def as_agent(agent: str, text: str) -> str:
+    """A direct reply spoken by another agent than JARVIS (see split_agent)."""
+    return text if agent == "JARVIS" else f"@{agent}|{text}"
+
+
+def split_agent(direct: str) -> tuple[str, str]:
+    m = re.match(r"^@([A-Z]+)\|", direct)
+    return (m.group(1), direct[m.end():]) if m and m.group(1) in AGENTS else ("JARVIS", direct)
+
+
 def special(text: str) -> tuple[str | None, str | None, str | None]:
     """(direct reply, agent, prompt) for phrases with a special meaning, else (None, None, None)."""
     from .tools import ToolContext as _TC, execute as _exec
@@ -712,8 +723,7 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
                 announce(bus, a, bonds.greet(store, a, night), phone=False)
             return bonds.greet(store, "JARVIS", night), None, None
         agent = who if who in AGENTS else "JARVIS"
-        bus.publish({"type": "say", "agent": agent, "say": bonds.greet(store, agent, night), "text": ""}) if agent != "JARVIS" else None
-        return (bonds.greet(store, agent, night) if agent == "JARVIS" else "…"), None, None
+        return as_agent(agent, bonds.greet(store, agent, night)), None, None
     if AR_RE.match(text):
         from . import phonelink
         phonelink.queue(store, "open", url="/ar.html")
@@ -837,7 +847,8 @@ def handle_owner_message(text: str, via: str = "WhatsApp", voice: bool = False) 
     direct, sp_agent, sp_prompt = special(text)
     if direct is not None:
         bus.log("YOU", f"({via}) {text}", "command")
-        return direct
+        who, direct = split_agent(direct)
+        return direct if who == "JARVIS" else f"{who.title()}: {direct}"
     target = "JARVIS"
     last = (store.get("telegram:last_agent") or "").split("|")
     if len(last) == 2 and last[0] in AGENTS and datetime.fromisoformat(last[1]) > datetime.now(settings.tz) - \
