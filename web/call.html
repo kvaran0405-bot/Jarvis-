@@ -156,15 +156,18 @@ function finishStream(rid, agent, reply, speakFn, feedFn){
 function stopListening(){ if(rec){ try { rec.abort(); } catch {} } }
 function listen(){
   if(!inCall || muted || speaking || pendingRid || !SR) { if(inCall && muted) setState("idle", "Microphone muted"); return; }
-  rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false;
-  let got = false;
+  rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
+  let got = false, said = "", t = null;
+  // wait for a short pause after you finish, so a breath mid-sentence doesn't cut you off
+  const send = () => { clearTimeout(t); if(got || !said.trim()) return; got = true; try { rec.stop(); } catch {} handle(said.trim()); };
   rec.onresult = e => {
-    const r = e.results[e.results.length - 1], text = r[0].transcript.trim();
-    $("#heard").textContent = text;
-    if(r.isFinal && text){ got = true; rec.stop(); handle(text); }
+    const all = [...e.results].map(x => x[0].transcript.trim()).join(" ").replace(/\s+/g, " ").trim();
+    const last = e.results[e.results.length - 1];
+    said = all; $("#heard").textContent = all;
+    clearTimeout(t); t = setTimeout(send, last.isFinal ? 1100 : 2400);
   };
   rec.onerror = e => { if(e.error === "not-allowed"){ setState("idle", "Microphone blocked: allow it in the browser settings."); hangUp(true); } };
-  rec.onend = () => { if(!got && inCall && !speaking && !pendingRid && !muted) setTimeout(listen, 250); };
+  rec.onend = () => { if(said.trim()) return send(); if(!got && inCall && !speaking && !pendingRid && !muted) setTimeout(listen, 60); };
   try { rec.start(); setState("listening", "Listening…"); } catch {}
 }
 

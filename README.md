@@ -122,7 +122,8 @@ or run it on a small always-on machine or VPS.
 
 ### Updating
 
-Text **update** to your JARVIS bot on Telegram. That's it. The laptop downloads the newest version, restarts, and
+JARVIS updates itself every night at 04:10 if there's a newer version (turn off with `JARVIS_AUTO_UPDATE=off`).
+To update right now, text **update** to your JARVIS bot on Telegram. That's it. The laptop downloads the newest version, restarts, and
 texts you "✅ Updated" with what changed. Open pages on the laptop and phone reload themselves onto the new version
 (they wait if someone is talking or a call is on). If the phone app itself ever changes, JARVIS sends you the
 download link. Your `.env`, profile and memory are kept.

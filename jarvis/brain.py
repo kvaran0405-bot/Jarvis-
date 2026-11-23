@@ -103,6 +103,13 @@ def pick(store, background: bool = False, preferred: str = "") -> str | None:
     return None
 
 
+def fast_voice(store) -> bool:
+    """Spoken commands use Gemini Flash (answers in about a second) instead of the main brain. Say "fast mode on"."""
+    import os
+    choice = store.get("voice:fast") or os.environ.get("JARVIS_FAST_VOICE", "off")
+    return choice.lower() == "on"
+
+
 def describe(store) -> dict:
     state = get_mode(store)
     return {"mode": state["mode"], "until": state.get("until"), "primary": primary(),

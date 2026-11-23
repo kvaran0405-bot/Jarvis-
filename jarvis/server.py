@@ -291,19 +291,8 @@ def ignore(sid: int):
 
 # ---------------------------------------------------------------- self-update
 def start_update() -> str:
-    """Run update.bat / update.sh in its own window: it downloads the newest JARVIS and restarts this one."""
-    import os
-    import subprocess
-    if os.name == "nt":
-        script = ROOT / "update.bat"
-        # 'start' opens a separate window whose process isn't ours, so stopping JARVIS doesn't stop the update
-        subprocess.Popen(["cmd", "/c", "start", "JARVIS update", "cmd", "/c", str(script)], cwd=ROOT)
-    else:
-        subprocess.Popen(["bash", str(ROOT / "update.sh")], cwd=ROOT, start_new_session=True)
     from . import updater
-    updater.mark_started(store)
-    bus.log("JARVIS", "⬆ Updating to the newest version - back in a minute.", "system")
-    return "⬆ Updating now, Sir. I'll be back in about a minute."
+    return updater.start(store, bus)
 
 
 @app.get("/api/version")
@@ -677,6 +666,8 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"^\s*(?:jarvis[,\s]+)?(?:try|preview|show me|switch to|put on)(?: the)? (chinese new year|lunar new year|cny|"
                        r"hari raya|raya|deepavali|diwali|national day|christmas|xmas|new year|birthday) (?:skin|mode|look|theme)"
                        r"\s*[.!]?\s*$", re.I)
+FAST_RE = re.compile(_J + r"(?:fast|quick|speed|turbo) (?:voice |reply |replies |response )?mode (on|off)\s*[.!]?\s*$|"
+                     r"^\s*(?:jarvis[,\s]+)?(?:turn (on|off) fast (?:voice|mode|replies))\s*[.!]?\s*$", re.I)
 CINEMA_RE = re.compile(_J + r"(?:show me |play |run |start )?(?:the |all the |all )?(?:cinematics?|cinematic mode|movie mode|"
                        r"the full show|the whole show|showreel|show reel)\s*[.!?]?\s*$", re.I)
 AR_RE = re.compile(_J + r"(?:open |launch |start |show me )?(?:the )?(?:desk ar|ar desk|spatial desk|ar mode|augmented reality)\s*[.!]?\s*$", re.I)
@@ -781,6 +772,13 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         line = holo.narrate(view, holo.data(store))
         bus.publish({"type": "holo", "view": view})
         return line, None, None
+    if m := FAST_RE.match(text):
+        on = (m.group(1) or m.group(2)).lower() == "on"
+        if on and not brain.ready("gemini"):
+            return "Fast mode needs a free Gemini key in .env (GEMINI_API_KEY), Sir. Then say it again.", None, None
+        store.set("voice:fast", "on" if on else "off")
+        return ("Fast mode on, Sir. Spoken questions get the quickest brain; typed ones still get the full one." if on
+                else "Fast mode off. Every reply gets the full brain again, Sir."), None, None
     if CINEMA_RE.match(text):
         bus.publish({"type": "cinema"})
         return "Lights down, Sir. Roll film.", None, None

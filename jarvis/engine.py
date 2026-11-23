@@ -180,6 +180,8 @@ class Engine:
         if agent is None:
             return f"No agent named {agent_name}. Available: {', '.join(AGENTS)}."
         chosen = brain.pick(self.store, background, agent.brain)
+        if voice and chosen and chosen != "gemini" and brain.fast_voice(self.store) and brain.ready("gemini"):
+            chosen = "gemini"   # fast voice: spoken questions go to the quickest brain
         if chosen is None:
             reply = self._unavailable_reply(agent)
             if on_text:

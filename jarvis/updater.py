@@ -44,6 +44,52 @@ def latest_change() -> str:
         return ""
 
 
+def _branch() -> str:
+    import re
+    try:
+        m = re.search(r'set "BRANCH=([^"]+)"', (ROOT / "update.bat").read_text())
+        return m.group(1) if m else "main"
+    except OSError:
+        return "main"
+
+
+def _git(*args: str, timeout: int = 60) -> str:
+    import os
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never"}   # never pop up a sign-in at night
+    flags = 0x08000000 if os.name == "nt" else 0   # no console window on Windows
+    out = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, timeout=timeout, env=env,
+                         creationflags=flags)
+    if out.returncode:
+        raise RuntimeError(out.stderr.strip()[:200])
+    return out.stdout.strip()
+
+
+def newer_available() -> bool:
+    """Is there a newer JARVIS on GitHub? (False if Git isn't set up yet or GitHub can't be reached.)"""
+    try:
+        if not (ROOT / ".git").exists():
+            return False
+        _git("fetch", "-q", "origin", _branch())
+        return _git("rev-parse", "HEAD") != _git("rev-parse", "FETCH_HEAD")
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def start(store, bus=None, quiet: bool = False) -> str:
+    """Run update.bat / update.sh in its own window: it downloads the newest JARVIS and restarts this one."""
+    import os
+    mark_started(store)
+    if os.name == "nt":
+        # 'start' opens a separate window whose process isn't ours, so stopping JARVIS doesn't stop the update
+        subprocess.Popen(["cmd", "/c", "start", "JARVIS update", *(["/min"] if quiet else []), "cmd", "/c",
+                          str(ROOT / "update.bat")], cwd=ROOT)
+    else:
+        subprocess.Popen(["bash", str(ROOT / "update.sh")], cwd=ROOT, start_new_session=True)
+    if bus is not None:
+        bus.log("JARVIS", "⬆ Updating to the newest version - back in a minute.", "system")
+    return "⬆ Updating now, Sir. I'll text you when I'm back (about a minute)."
+
+
 def mark_started(store) -> None:
     store.set("update:pending", version())
 

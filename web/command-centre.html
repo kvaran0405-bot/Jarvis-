@@ -626,12 +626,14 @@ function warmAcks(){   // pre-make the acknowledgement audio so it plays instant
 async function sendCommand(text, agent, voice=false){
   const rid = Math.random().toString(36).slice(2);
   streams[rid] = {buf:"", any:false}; focus(agent); stopSpeaking();
-  if(voice) setTimeout(() => { if(streams[rid] && !streams[rid].any && !streams[rid].acked){ streams[rid].acked = true; queueSpeech(agent, ackFor(agent)); } }, 1200);
+  if(voice) setTimeout(() => { if(streams[rid] && !streams[rid].any && !streams[rid].acked){ streams[rid].acked = true; queueSpeech(agent, ackFor(agent)); } }, 700);
+  pendingCmds++;
   try {
     const r = await fetch("/api/command", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, agent, voice, rid})});
     const data = await r.json();
-    finishStream(rid, agent, data.reply, queueSpeech);
-  } catch(err){ logLine("JARVIS", "Connection to core lost: "+err, "error"); }
+    finishStream(rid, data.agent || agent, data.reply, queueSpeech);
+  } catch(err){ logLine("JARVIS", "Can't reach JARVIS on the laptop right now (it may be restarting). Try again in a moment.", "error"); }
+  finally { pendingCmds--; if(speaking === 0) resumeListening(); }   // muted: the follow-up window still opens
   refresh();
 }
 let nextIsVoice = false;
@@ -646,22 +648,33 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") stopSpeaking(
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let WAKE = ["jarvis", "hey jarvis", "ok jarvis"], handsFree = false, listening = false, awaitingUntil = 0, pttOn = false;
 let rec = null;
+// what speech recognition often hears instead of "Jarvis"
+const MISHEARD = ["jervis", "javis", "jarvas", "jarvi", "jarviss", "charvis", "garvis", "harvis", "jarbis", "jarves", "travis"];
+let heardT = null;
+function heard(text){   // show what was heard but ignored, so nothing vanishes silently
+  $("#cmd").placeholder = `👂 Heard “${text.slice(0, 50)}” - start with “Jarvis” (or an agent's name)`;
+  clearTimeout(heardT); heardT = setTimeout(() => $("#cmd").placeholder = "Give an order… or say “Jarvis, …”", 4000);
+}
 function parseWake(t){
   const said = t.toLowerCase().replace(/[^a-z0-9' ]/g, " ").replace(/\s+/g, " ").trim();
-  const names = [...WAKE, ...ORDER.map(n => n.toLowerCase()), ...ORDER.map(n => "hey " + n.toLowerCase())]
+  const names = [...WAKE, ...MISHEARD, ...ORDER.map(n => n.toLowerCase()), ...ORDER.map(n => "hey " + n.toLowerCase())]
     .sort((a, b) => b.length - a.length);
   for(const w of names){
-    const i = said.indexOf(w);
-    if(i !== -1 && i <= 12){  // wake word at (or near) the start
+    const i = said.search(new RegExp("\\b" + w + "\\b"));
+    if(i !== -1 && i <= 20){  // wake word at (or near) the start
       const agentName = ORDER.find(n => w.endsWith(n.toLowerCase())) || "JARVIS";
       return {agent: agentName, command: said.slice(i + w.length).trim()};
     }
   }
   return null;
 }
-function startRec(){ if(!rec || listening) return; rec.continuous = handsFree && !pttOn; try { rec.start(); listening = true; } catch {} }
+function startRec(){ if(!rec || listening) return; rec.continuous = pttOn || handsFree; try { rec.start(); listening = true; } catch {} }
 function pauseListening(){ if(rec && listening){ try { rec.abort(); } catch {} listening = false; } }
-function resumeListening(){ if(handsFree && !pttOn) setTimeout(startRec, 250); }
+let convo = false, pendingCmds = 0;   // the last thing said was a voice command: allow a follow-up without "Jarvis" for a few seconds
+function resumeListening(){
+  if(convo && pendingCmds === 0){ convo = false; awaitingUntil = Date.now() + 8000; if(handsFree) $("#cmd").placeholder = "👂 Go ahead - no need to say “Jarvis” for a follow-up"; }
+  if(handsFree && !pttOn) setTimeout(startRec, 40);
+}
 function setHandsFree(on){
   handsFree = on; $("#hands").classList.toggle("rec", on);
   $("#hands").textContent = on ? "👂 Listening" : "👂 Hands-free";
@@ -671,11 +684,16 @@ function setHandsFree(on){
 }
 if(SR){
   rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false;
+  let pttText = "", pttT = null;
+  const pttSend = () => { clearTimeout(pttT); const t = ($("#cmd").value || "").trim(); pttOn = false; try { rec.stop(); } catch {}
+    $("#mic").classList.remove("rec"); pttText = ""; if(t){ nextIsVoice = true; $("#bar").requestSubmit(); } };
   rec.onresult = e => {
     const res = e.results[e.results.length - 1], text = res[0].transcript.trim();
-    if(pttOn){  // push to talk: everything said is the command
-      $("#cmd").value = text;
-      if(res.isFinal){ pttOn = false; rec.stop(); nextIsVoice = true; $("#bar").requestSubmit(); }
+    if(pttOn){  // push to talk: everything said is the command; send after a short pause, not at the first breath
+      const finals = [...e.results].filter(r => r.isFinal).map(r => r[0].transcript.trim()).join(" ");
+      const live = res.isFinal ? "" : text;
+      $("#cmd").value = (pttText + " " + finals + " " + live).replace(/\s+/g, " ").trim();
+      clearTimeout(pttT); pttT = setTimeout(pttSend, res.isFinal ? 1300 : 2500);
       return;
     }
     $("#cmd").placeholder = "👂 " + text;
@@ -683,21 +701,24 @@ if(SR){
     $("#cmd").placeholder = "Give an order… or say “Jarvis, …”";
     const w = parseWake(text);
     const CONTROL = /^(pause|sleep|resume|unpause|wake up|status|saver|saver mode|save my claude)\b/;
-    if(w && (w.command.split(" ").length >= 2 || CONTROL.test(w.command))) return sendCommand(w.command, w.agent, true);
+    if(w && (w.command.length >= 2 || CONTROL.test(w.command))){ convo = true; awaitingUntil = 0; return sendCommand(w.command, w.agent, true); }
+    if(Date.now() < awaitingUntil){ awaitingUntil = 0; convo = true; $("#cmd").placeholder = "Give an order… or say “Jarvis, …”"; return sendCommand(text, $("#target").value, true); }
     if(w){ awaitingUntil = Date.now() + 8000; $("#target").value = w.agent; queueSpeech(w.agent, "Yes, Sir?"); return; }
-    if(Date.now() < awaitingUntil){ awaitingUntil = 0; $("#cmd").placeholder = "Give an order… or say “Jarvis, …”"; sendCommand(text, $("#target").value, true); }
+    if(text.split(" ").length >= 2) heard(text);
   };
   rec.onerror = e => { if(e.error === "not-allowed"){ setHandsFree(false); logLine("JARVIS", "Microphone blocked - allow it in the browser's address bar.", "error"); } };
   rec.onend = () => {
     listening = false;
-    if(pttOn){ pttOn = false; }
+    if(pttOn){   // the recogniser stopped by itself mid push-to-talk: send what we have, or keep listening
+      if(($("#cmd").value || "").trim()){ pttText = $("#cmd").value; pttSend(); } else { startRec(); return; }
+    }
     $("#mic").classList.remove("rec");
-    if(handsFree && speaking === 0) setTimeout(startRec, 300);  // Chrome stops after silence: keep going
+    if(handsFree && speaking === 0) setTimeout(startRec, 40);  // Chrome stops after silence: restart at once
   };
   $("#mic").onclick = () => {
-    if(pttOn){ rec.stop(); return; }
-    stopSpeaking(); pauseListening(); pttOn = true; rec.continuous = false;
-    $("#mic").classList.add("rec"); startRec();
+    if(pttOn){ pttSend(); return; }   // second tap: send now
+    stopSpeaking(); pauseListening(); pttOn = true; pttText = ""; $("#cmd").value = "";
+    $("#mic").classList.add("rec"); setTimeout(() => { startRec(); rec.continuous = true; }, 60);
   };
   $("#hands").onclick = () => setHandsFree(!handsFree);
   // Ctrl+Space = push to talk from anywhere on the page
