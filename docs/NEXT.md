@@ -9,6 +9,23 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 4. `/gemini` (fast mode) and `/email` (Gmail).
 5. Try "show me my map" and Training Mode.
 
+## TOP PRIORITY: premium polish on laptop + phone (display, voice, aesthetics)
+Owner: "I want JARVIS laptop and phone display to be top notch, voice top notch, aesthetic amazing."
+- **One design system** for every page (dashboard, call, home, map, holo, sims, setup, vision, AR): shared colour
+  tokens, glass panels, spacing, Orbitron/JetBrains type scale, icons; old pages brought up to the new look.
+- **Motion:** 60 fps everywhere, cinematic transitions between screens, subtle parallax, no jank (measure frame
+  rate; drop heavy effects on slow devices automatically).
+- **Phone app feels native:** bottom tab bar, smooth page transitions, haptics on taps, pull-to-refresh, splash
+  screen, edge-to-edge dark UI, big thumb-friendly controls, landscape for holo.
+- **Voice, best free options first:** (1) Gemini voices (free key, most expressive); (2) a high-quality offline
+  voice on the laptop (e.g. Kokoro/Piper, open-source, natural, works without internet) as the default fallback
+  instead of the robotic browser voice; (3) per-agent voice tuning (pace, warmth, pauses), proper pronunciation of
+  Singapore names and places, breaths/pauses between sentences, no clipped first words; (4) voice starts within
+  ~1 s (stream sentence by sentence). Paid voices (ElevenLabs) only if the owner asks.
+- **Sound design:** soft UI sounds, per-agent chimes, volume-ducking music while JARVIS talks.
+- **Quality bar:** before shipping any screen, screenshot it on laptop + phone sizes and fix anything cramped,
+  overlapping or off-brand.
+
 ## Standing rule from the owner: JARVIS and the agents repair and upgrade themselves EVERY NIGHT
 - **Nightly self-repair (fully automatic):** systems check of everything (version, phone link, location, Telegram,
   Gemini, email, calendar, voice, mic, disk, jobs); fix what it can (restart the phone link, retry the update,
