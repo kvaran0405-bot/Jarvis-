@@ -21,6 +21,15 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 - **Smart day planner:** rebuilds the day around travel time (MRT/bus/drive), rain, MRT delays and energy; moves
   flexible tasks, warns about clashes, and nudges "leave in 10 min" (builds on route planning + leave-now alerts).
 
+## GPS upgrades chosen (owner picked these)
+- **Smart leave alerts 2.0:** compare live location vs the next event's place; "you're at Bugis, the wedding is at
+  Raffles in 25 min, leave now, MRT is fastest" (build on butler.leave_now_check + explore + chatter limits).
+- **Steps & distance from GPS:** daily km walked from the location history; STEVE celebrates streaks.
+- **Gym auto-check-in:** arrive at the saved gym -> STEVE starts the workout log; leave -> asks what you trained
+  (location_magic already prompts on leaving; add the start + the log flow).
+- **Routine detective:** learn usual arrival times (campus, gym, home); flag unusual days kindly; weekly insights.
+- **Venue scout mode:** at a hall/hotel, PEPPER pulls past events there, capacity, notes and crew contacts.
+
 ## Ideas offered, not built yet
 1. Auto car mode when the phone connects to the car's Bluetooth (reads messages aloud).
 2. Deal watch: daily Shopee/Shein price checks, alert on a price drop.
