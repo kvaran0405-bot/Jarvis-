@@ -23,7 +23,8 @@ h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--muted);marg
 .t{flex:1;min-width:0}.t b{display:block;font-size:13px;font-weight:600}.t small{display:block;color:var(--muted);font-size:11px;line-height:1.5;margin-top:2px}
 .t small.warn{color:#ffb347}
 button.go{flex:none;background:transparent;color:var(--ac);border:1px solid var(--ac);font:700 10px Orbitron,sans-serif;letter-spacing:.15em;padding:9px 12px;border-radius:16px;cursor:pointer}
-.item.on button.go{display:none}
+.item.on button.go{display:none}.item.skip-row{opacity:.55}
+button.sk{flex:none;background:transparent;color:var(--muted);border:1px solid var(--line);font:700 9px Orbitron,sans-serif;letter-spacing:.12em;padding:8px 10px;border-radius:16px;cursor:pointer}
 input{width:100%;margin-top:6px;background:#060b12;border:1px solid var(--line);color:var(--txt);padding:8px;border-radius:6px;font:12px "JetBrains Mono",monospace}
 .big{position:fixed;left:0;right:0;bottom:0;padding:14px 16px max(16px,env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 35%)}
 .big button{display:block;width:100%;max-width:608px;margin:0 auto;padding:16px;border:0;border-radius:28px;background:var(--ac);color:#03060a;
@@ -43,6 +44,8 @@ const $ = s => document.querySelector(s), N = window.JarvisNative, esc = s => St
 const call = (f, ...a) => { try { return N && typeof N[f] === "function" ? N[f](...a) : undefined; } catch { return undefined; } };
 const RESTRICTED = "Greyed out? Tap “App settings”, then ⋮ (top right) → “Allow restricted settings”, then come back.";
 let asked = {};
+let skipped = {}; try { skipped = JSON.parse(localStorage.getItem("jarvis-setup-skip") || "{}"); } catch {}
+const saveSkips = () => { try { localStorage.setItem("jarvis-setup-skip", JSON.stringify(skipped)); } catch {} };
 // phone: each step = [label, why, isOn, ask]
 const PHONE = [
   ["Notifications", "Messages, reminders and alerts from your agents", () => call("hasNotifyPermission") !== false, () => call("askNotifyPermission")],
@@ -66,7 +69,10 @@ async function laptopItems(){
   if(ok) $("#intro").dataset.text = $("#intro").innerHTML;
   if(!N){   // in the laptop browser: also the browser's own permissions
     let mic = false; try { mic = (await navigator.permissions.query({name: "microphone"})).state === "granted"; } catch {}
-    LAP.unshift({id: "notify", label: "Desktop notifications", on: "Notification" in window && Notification.permission === "granted", action: "notify"},
+    const nState = "Notification" in window ? Notification.permission : "unsupported";
+    if(nState === "denied" || nState === "unsupported") skipped.notify = true;   // can't ask again here, and it's optional
+    LAP.unshift({id: "notify", label: "Desktop notifications (optional)", on: nState === "granted", action: "notify",
+                 how: nState === "denied" || nState === "unsupported" ? "Blocked in this window, and not needed: JARVIS's alerts show inside JARVIS and on Telegram." : "Pop-up alerts even when JARVIS is minimised"},
                 {id: "mic", label: "Microphone (talk to JARVIS on the laptop)", on: mic, action: "mic"});
   }
 }
@@ -74,23 +80,27 @@ function render(){
   const ph = N ? PHONE.map((p, i) => ({id: "p" + i, label: p[0], how: p[1], on: !!p[2](), warn: p[4], ask: p[3]})) : [];
   const lp = LAP.map(x => ({...x}));
   const all = [...ph, ...(local || !N ? lp : [])], done = all.filter(x => x.on).length;
-  const next = all.find(x => !x.on && (x.ask || x.action));
-  const row = x => `<div class="item ${x.on ? "on" : ""} ${next === x ? "next" : ""}" data-id="${x.id}"><span class="dot">${x.on ? "✓" : "·"}</span>
+  all.forEach(x => x.skip = !x.on && !!skipped[x.id]);
+  const nSkip = all.filter(x => x.skip).length;
+  const next = all.find(x => !x.on && !x.skip && (x.ask || x.action));
+  const row = x => `<div class="item ${x.on ? "on" : ""} ${x.skip ? "skip-row" : ""} ${next === x ? "next" : ""}" data-id="${x.id}"><span class="dot">${x.on ? "✓" : x.skip ? "–" : "·"}</span>
     <div class="t"><b>${esc(x.label)}</b>${x.how ? `<small>${esc(x.how)}</small>` : ""}${x.detail && x.on ? `<small>${esc(x.detail)}</small>` : ""}
     ${!x.on && x.warn && asked[x.id] ? `<small class="warn">${esc(x.warn)}</small>` : ""}
     ${!x.on && x.action === "key" ? `<input placeholder="${x.key === "GEMINI_API_KEY" ? "paste the key here" : "MM-DD"}" data-key="${x.key}" ${local ? "" : "disabled"}>` : ""}</div>
     ${x.ask || x.action || x.link ? `<button class="go">${x.action === "key" ? "SAVE" : x.link ? "OPEN" : "ALLOW"}</button>` : ""}
-    ${!x.on && x.warn && asked[x.id] ? `<button class="go" data-appset>APP SETTINGS</button>` : ""}</div>`;
+    ${!x.on && x.warn && asked[x.id] ? `<button class="go" data-appset>APP SETTINGS</button>` : ""}
+    ${!x.on ? `<button class="sk" data-skip>${x.skip ? "UNDO" : "SKIP"}</button>` : ""}</div>`;
   $("#phone").innerHTML = ph.length ? `<h2>THIS PHONE</h2>` + ph.map(row).join("") : "";
   $("#laptop").innerHTML = lp.length ? `<h2>LAPTOP${N && !local ? " (do these on the laptop)" : ""}</h2>` + lp.map(row).join("") : "";
   $("#bar").style.width = (all.length ? Math.round(done / all.length * 100) : 0) + "%";
-  $("#count").textContent = `${done} / ${all.length} ALLOWED`;
+  $("#count").textContent = `${done} / ${all.length} ALLOWED` + (nSkip ? ` · ${nSkip} SKIPPED` : "");
   $("#next").textContent = next ? "ALLOW NEXT · " + next.label.toUpperCase() : "ALL SET ✓";
   $("#next").classList.toggle("done", !next);
   $("#next").onclick = () => next ? act(next) : location.href = "/command-centre.html?setup=done";
   document.querySelectorAll(".item").forEach(el => { const x = all.find(y => y.id === el.dataset.id); if(!x) return;
     el.querySelector(".go:not([data-appset])")?.addEventListener("click", () => act(x));
-    el.querySelector("[data-appset]")?.addEventListener("click", () => call("openAppSettings")); });
+    el.querySelector("[data-appset]")?.addEventListener("click", () => call("openAppSettings"));
+    el.querySelector("[data-skip]")?.addEventListener("click", () => { if(skipped[x.id]) delete skipped[x.id]; else skipped[x.id] = true; saveSkips(); render(); }); });
 }
 async function act(x){
   if(x.ask){ x.ask(x.id); asked[x.id] = true; setTimeout(refresh, 1500); return; }
@@ -102,7 +112,11 @@ async function act(x){
   if(x.action === "key"){ const inp = document.querySelector(`[data-key="${x.key}"]`); if(!inp?.value.trim()){ inp?.focus(); return; }
     const r = await post("/api/setup/key", {name: x.key, value: inp.value}); if(r.detail){ alert(r.detail); return; } }
   if(!x.action && x.how) alert(x.how);
-  refresh();
+  await refresh();
+  const still = LAP.find(y => y.id === x.id);
+  if(still && !still.on && x.action !== "key"){ asked[x.id] = true;
+    const el = document.querySelector(`.item[data-id="${x.id}"] .t`);
+    el?.insertAdjacentHTML("beforeend", `<small class="warn">That didn't switch on from here. Tap SKIP to move on (you can come back any time).</small>`); }
 }
 async function refresh(){ await laptopItems(); render(); }
 window.onNativeResume = () => setTimeout(refresh, 400);   // back from a settings screen: tick it off, move to the next
