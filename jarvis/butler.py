@@ -257,14 +257,14 @@ def travel_minutes(place: str | None) -> int:
 
 
 def leave_now_check(store, bus) -> list[str]:
-    """Telegram + spoken 'leave now' alerts for today's events that have a place. Once per event."""
+    """Telegram + spoken 'leave now' alerts for upcoming events that have a place (including just after midnight). Once per event."""
     from . import telegram as tg
     from .holo import place_of
     from .speech import announce
     now = datetime.now(settings.tz)
     today = now.date().isoformat()
     sent = []
-    for e in store.list_events(today, (now.date() + timedelta(days=1)).isoformat()):
+    for e in store.list_events(today, (now.date() + timedelta(days=2)).isoformat()):
         loc = (e.get("location") or "").strip()
         if len(e["start"]) <= 10 or not loc or re.search(r"zoom|teams|online|meet\.google", loc, re.I):
             continue
