@@ -122,9 +122,13 @@ or run it on a small always-on machine or VPS.
 
 ### Updating
 
-Double-click **update** in the JARVIS folder (or send `/update` to your Telegram bot, or press *Update* in the
-dashboard's Autopilot tab). It downloads the newest version and restarts JARVIS. Your `.env`, profile and memory are
-kept. The first time it installs Git and may ask you to sign in to GitHub in the browser.
+Text **update** to your JARVIS bot on Telegram. That's it. The laptop downloads the newest version, restarts, and
+texts you "✅ Updated" with what changed. Open pages on the laptop and phone reload themselves onto the new version
+(they wait if someone is talking or a call is on). If the phone app itself ever changes, JARVIS sends you the
+download link. Your `.env`, profile and memory are kept.
+
+You can also double-click **update** in the JARVIS folder, or press *Update* in the dashboard's Autopilot tab. The
+first time, it installs Git and may ask you to sign in to GitHub in the browser.
 
 ### Terminal use
 ```bash

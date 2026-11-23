@@ -65,6 +65,8 @@ async def lifespan(_app):
     if brain.pick(store) == "pro":   # start JARVIS's live session now, so the first spoken reply is quick too
         from . import brains
         brains.warm_up(AGENTS["JARVIS"], engine.system_prompt(AGENTS["JARVIS"]), "low")
+    from . import updater
+    threading.Thread(target=updater.after_boot, args=(store, lambda m: tg.ready() and tg.send(m)), daemon=True).start()
     bus.log("JARVIS", "JARVIS OS online.", "system")
     yield
     from . import brains as _brains
@@ -298,8 +300,16 @@ def start_update() -> str:
         subprocess.Popen(["cmd", "/c", "start", "JARVIS update", "cmd", "/c", str(script)], cwd=ROOT)
     else:
         subprocess.Popen(["bash", str(ROOT / "update.sh")], cwd=ROOT, start_new_session=True)
+    from . import updater
+    updater.mark_started(store)
     bus.log("JARVIS", "⬆ Updating to the newest version - back in a minute.", "system")
     return "⬆ Updating now, Sir. I'll be back in about a minute."
+
+
+@app.get("/api/version")
+def version_api():
+    from . import updater
+    return {"version": updater.version()}
 
 
 @app.post("/api/update")

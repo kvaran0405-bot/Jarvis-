@@ -213,7 +213,7 @@ class Bot:
             return  # strangers are ignored
         if text.startswith("/"):   # "/Update@MyJarvisBot " -> "/update"
             text = re.sub(r"@\w+", "", text.split()[0]).lower() + text[len(text.split()[0]):]
-        if re.match(r"^\s*(?:jarvis[,\s]+)?(?:update yourself|update jarvis|get (?:the )?(?:newest|latest) version)\s*[.!]?\s*$",
+        if re.match(r"^\s*(?:jarvis[,\s]+)?(?:update|update now|update please|update yourself|update jarvis|get (?:the )?(?:newest|latest) version)\s*[.!]?\s*$",
                     text, re.I):
             text = "/update"
         if text == "/voicecheck":
@@ -234,7 +234,7 @@ class Bot:
                  "Save your Claude plan:\n• /pause  or  pause for 3 hours - I use no AI at all\n"
                  "• /saver - run on free Gemini only\n• /resume - back to normal\n• /status - which brain I'm using\n\n"
                  "📱 /app - open the JARVIS app   📞 /call - talk to me live\n"
-                 "🔎 /voicecheck - test voice notes   ⬆ /update - get my newest version")
+                 "🔎 /voicecheck - test voice notes   ⬆ update - get my newest version (laptop + phone)")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
         reply = self.on_text(text, voice=False)

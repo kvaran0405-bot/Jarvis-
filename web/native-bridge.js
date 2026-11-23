@@ -1,3 +1,20 @@
+// Live updates: when JARVIS on the laptop is updated, open pages (laptop and phone) reload onto the new version,
+// waiting until nothing is being said and no call is running.
+(function () {
+  let first = null;
+  const busy = () => (typeof inCall !== "undefined" && inCall) || (typeof speaking !== "undefined" && speaking > 0)
+    || !!document.querySelector("#orb.speak") || (document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.value);
+  async function check() {
+    try {
+      const r = await fetch("/api/version", { cache: "no-store" }); if (!r.ok) return;
+      const v = (await r.json()).version;
+      if (first === null) first = v;
+      else if (v !== first && !busy()) location.reload();
+    } catch (e) { /* laptop restarting: try again shortly */ }
+  }
+  check(); setInterval(check, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+})();
 // Inside the JARVIS Android app, Android's web view has no speech recognition or speech synthesis.
 // This fills both in with the app's native ones (window.JarvisNative), so the pages work unchanged.
 (function () {

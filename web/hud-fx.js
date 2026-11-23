@@ -1,6 +1,6 @@
 /* JARVIS Mark III interactive HUD layer.
    Sits on top of the command centre without changing its look: voice-reactive sphere, poke-able core, agents that
-   answer when tapped, hover readouts, sounds, film subtitles, edge glow, tilt, agent reactions, idle chatter,
+   answer when tapped, hover readouts, sounds, film subtitles, tilt, agent reactions, idle chatter,
    suit themes, guest mode, birthday mode, the cinematic boot and the Stark Expo demo. */
 (() => {
 const $ = s => document.querySelector(s);
@@ -12,7 +12,6 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 // ------------------------------------------------------------------ styles
 const css = document.createElement("style");
 css.textContent = `
-#hudEdge{position:fixed;inset:0;pointer-events:none;z-index:4;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 55%,transparent),inset 0 0 calc(20px + var(--amp,0)*60px) calc(var(--amp,0)*14px) color-mix(in srgb,var(--c) 45%,transparent);opacity:calc(.35 + var(--amp,0)*.65);transition:box-shadow .08s}
 .orb .glow{transform:scale(calc(1 + var(--amp,0)*.42))}
 .orb .ring{opacity:calc(.7 + var(--amp,0)*.3)}
 .orb{cursor:pointer;touch-action:none}
@@ -74,10 +73,12 @@ body.birthday #hudBday{display:block}
 @media (prefers-reduced-motion:reduce){.card.working,.glitch,#hudBoot .scanl{animation:none}}
 `;
 document.head.appendChild(css);
-document.body.insertAdjacentHTML("beforeend", `<div id="hudToast"></div><div id="hudDossier"><div class="file"><span class="stamp">CLASSIFIED</span><div class="k">FOR SIR'S EYES ONLY · MISSION DOSSIER</div><pre></pre><button>ACKNOWLEDGED</button></div></div><div id="hudEdge"></div><div id="hudTip"></div><div id="hudBday">HAPPY BIRTHDAY SIR</div><div id="hudExpo"></div>`);
+document.body.insertAdjacentHTML("beforeend", `<div id="hudToast"></div><div id="hudDossier"><div class="file"><span class="stamp">CLASSIFIED</span><div class="k">FOR SIR'S EYES ONLY · MISSION DOSSIER</div><pre></pre><button>ACKNOWLEDGED</button></div></div><div id="hudTip"></div><div id="hudBday">HAPPY BIRTHDAY SIR</div><div id="hudExpo"></div>`);
 $("#core")?.insertAdjacentHTML("beforeend", `<div id="hudSub" aria-live="polite"></div>`);
 $("#log")?.insertAdjacentHTML("afterbegin", `<div id="hudAmbient"></div>`);
-const setAmp = v => document.documentElement.style.setProperty("--amp", Math.max(0, Math.min(1, v)).toFixed(3));
+let lastAmp = -1;   // only the sphere reacts to the voice: restyling the whole page every frame made replies feel slow
+const setAmp = v => { v = Math.round(Math.max(0, Math.min(1, v)) * 50) / 50; if(v === lastAmp) return; lastAmp = v;
+  document.querySelectorAll(".orb").forEach(o => o.style.setProperty("--amp", v)); };
 
 // ------------------------------------------------------------------ sound effects (made on the fly)
 let AC = null;
