@@ -37,6 +37,10 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 - **Theme designer:** pick any neon colour; HUD, map and phone app recolour to match.
 - **Sound design pack:** richer UI sounds, holo whooshes, per-agent message chimes.
 
+## Automation chosen
+- **Bill alerts:** read "payment due / bill / statement ready" emails (email only, never bank apps; amounts masked
+  as usual) -> reminder 3 days before the due date + on the day; monthly list of upcoming bills for VERONICA.
+
 ## Ideas offered, not built yet
 1. Auto car mode when the phone connects to the car's Bluetooth (reads messages aloud).
 2. Deal watch: daily Shopee/Shein price checks, alert on a price drop.
