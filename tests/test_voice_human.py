@@ -14,7 +14,8 @@ def test_delivery_breathes_and_varies():
     assert voice.delivery("Same line.", "", "JARVIS", 14) == voice.delivery("Same line.", "", "JARVIS", 14)   # stable
 
 
-def test_attitude_and_feelings():
+def test_attitude_and_feelings(monkeypatch):
+    monkeypatch.setattr(voice, "day_mood", lambda agent: "")   # base attitudes, whatever today's moods are
     assert voice.infer_mood("Sorry Sir, the deposit is overdue.", "PEPPER") == "concerned"
     assert voice.infer_mood("Congratulations, you nailed it", "JARVIS") == "proud"
     assert voice.infer_mood("Leave now, the train is coming", "JARVIS") == "urgent"
@@ -56,3 +57,10 @@ def test_everyone_has_their_own_laugh_and_audition():
     assert voice.emote_words("NOBODY", "sighs") == voice.EMOTES["sighs"][0]
     for agent, line in voice.AUDITIONS.items():
         assert voice.EMOTE_RE.search(line) and voice.TAG_RE.search(line), agent   # each scene shows a sound + a mood
+
+
+def test_voice_follows_mood_of_the_day(monkeypatch):
+    monkeypatch.setattr(voice, "day_mood", lambda agent: {"SENTINEL": "stern", "STEVE": "excited"}.get(agent, ""))
+    assert voice.infer_mood("Okay then.", "STEVE") == "excited"        # trained today: pumped
+    assert voice.infer_mood("Okay then.", "BANNER") == "gentle"         # no special mood: his usual self
+    assert voice.infer_mood("Sorry, it's late.", "STEVE") == "concerned"   # what he says still wins

@@ -211,6 +211,38 @@ _CUES = [   # words that carry a feeling -> the mood a person would use
 ]
 
 
+# The agent's mood of the day (from the friendship system) becomes the colour of their voice today.
+DAY_MOOD_VOICE = {
+    "grumpy": "stern", "stern": "stern", "suspicious": "dry", "vigilant": "serious", "on patrol": "serious",
+    "pumped": "excited", "fired up": "excited", "hyped": "excited", "buzzing": "excited", "energetic": "cheerful",
+    "motivated": "cheerful", "competitive": "excited", "restless": "urgent", "intense": "serious",
+    "cheeky": "playful", "mischievous": "playful", "chatty": "cheerful", "sassy": "sarcastic", "judgmental": "sarcastic",
+    "smug": "amused", "quietly amused": "amused", "dry as a bone": "dry", "gossipy": "amused", "charming": "warm",
+    "proud": "proud", "encouraging": "warm", "fond": "warm", "cosy": "gentle", "gentle": "gentle", "calm": "calm",
+    "worried": "worried", "tired": "tired", "busy": "urgent", "unflappable": "calm", "philosophical": "calm",
+    "hyper": "excited", "glowing": "triumphant", "disappointed": "concerned", "focused": "serious",
+}
+_day = {"key": "", "map": {}}
+
+
+def day_mood(agent: str) -> str:
+    """Today's mood for the agent's voice (cached per day; quietly nothing if the store isn't available)."""
+    from datetime import date
+    key = date.today().isoformat()
+    if _day["key"] != key:
+        _day.update(key=key, map={})
+    a = agent.upper()
+    if a not in _day["map"]:
+        try:
+            from . import bonds
+            from .server import store
+            m, _why = bonds.mood(store, a)
+            _day["map"][a] = DAY_MOOD_VOICE.get((m or "").lower(), "")
+        except Exception:  # noqa: BLE001
+            _day["map"][a] = ""
+    return _day["map"][a]
+
+
 def infer_mood(sentence: str, agent: str = "JARVIS", hour: int | None = None) -> str:
     """The feeling of an untagged sentence: from its words, then the agent's attitude. Late at night: softer."""
     for rx, mood in _CUES:
@@ -220,7 +252,7 @@ def infer_mood(sentence: str, agent: str = "JARVIS", hour: int | None = None) ->
         return "gentle"
     if sentence.rstrip().endswith("!"):
         return "cheerful"
-    return ATTITUDE.get(agent.upper(), "")
+    return day_mood(agent) or ATTITUDE.get(agent.upper(), "")
 
 
 def delivery(text: str, mood: str, agent: str = "JARVIS", hour: int | None = None) -> list[tuple[str, int, int, int]]:
