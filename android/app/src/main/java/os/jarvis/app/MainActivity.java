@@ -116,11 +116,7 @@ public class MainActivity extends Activity {
             }
         });
 
-        if (!hasMic()) askMic();
-        if (android.os.Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 44);
-        }
+        if (!hasMic()) askMic(); else askPowersOnce();
         tts = new TextToSpeech(this, status -> {
             ttsReady = status == TextToSpeech.SUCCESS;
             if (ttsReady) tts.setLanguage(Locale.UK);
@@ -249,8 +245,24 @@ public class MainActivity extends Activity {
         requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA}, REQ_MIC);
     }
 
+    /** Ask once for everything JARVIS can use on the phone (each is optional; JARVIS works without any of them). */
+    private void askPowersOnce() {
+        java.util.List<String> want = new java.util.ArrayList<>();
+        String[] perms = android.os.Build.VERSION.SDK_INT >= 33
+                ? new String[]{"android.permission.POST_NOTIFICATIONS", Manifest.permission.READ_CONTACTS,
+                               Manifest.permission.CALL_PHONE, "android.permission.READ_MEDIA_IMAGES"}
+                : new String[]{Manifest.permission.READ_CONTACTS, Manifest.permission.CALL_PHONE,
+                               Manifest.permission.READ_EXTERNAL_STORAGE};
+        for (String p : perms) if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) want.add(p);
+        if (!want.isEmpty() && !getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("asked_powers", false)) {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean("asked_powers", true).apply();
+            requestPermissions(want.toArray(new String[0]), 44);
+        }
+    }
+
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        if (code == REQ_MIC) ui.postDelayed(this::askPowersOnce, 400);
         if (code == 45) {   // location granted: restart the link so it starts reporting places
             stopService(new Intent(this, JarvisLink.class));
             JarvisLink.start(this);
@@ -333,6 +345,21 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openAutopilotSettings() {
             ui.post(() -> startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        }
+
+        @JavascriptInterface
+        public boolean hasUsageAccess() { return JarvisLink.usageGranted(MainActivity.this); }
+
+        @JavascriptInterface
+        public void openUsageSettings() {
+            ui.post(() -> startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)));
+        }
+
+        @JavascriptInterface
+        public void askPowers() {
+            ui.post(() -> requestPermissions(new String[]{Manifest.permission.READ_CONTACTS, Manifest.permission.CALL_PHONE,
+                    android.os.Build.VERSION.SDK_INT >= 33 ? "android.permission.READ_MEDIA_IMAGES"
+                            : Manifest.permission.READ_EXTERNAL_STORAGE}, 46));
         }
 
         @JavascriptInterface

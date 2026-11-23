@@ -14,7 +14,9 @@ DEVICES = ["laptop_status", "open_on_laptop", "laptop_screenshot", "lock_laptop"
            "phone_status", "open_on_phone", "phone_apps", "phone_screenshot"] + FILES
 ROUTINES = ["create_routine", "list_routines", "delete_routine"]
 PHONE = ["find_my_phone", "phone_silent", "phone_clipboard", "phone_notify", "phone_notifications", "save_place",
-         "phone_autopilot"]
+         "phone_autopilot", "phone_call", "phone_contacts", "phone_alarm", "phone_timer", "phone_torch", "phone_volume",
+         "phone_music", "phone_open", "phone_youtube", "phone_shop", "phone_navigate", "phone_email",
+         "phone_screen_time", "phone_latest_photo", "phone_screen"]
 DESK = ["list_windows", "window_action", "snap_windows", "show_desktop", "media_control", "set_brightness", "save_workspace",
         "open_workspace", "organise_folder", "rename_files", "make_slides", "make_spreadsheet", "look_at_screen"]
 LECTURES = ["start_recording", "stop_recording", "list_lectures", "read_lecture", "summarize_lecture"]

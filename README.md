@@ -249,6 +249,14 @@ When something is truly urgent (an exam in an hour you haven't prepared for, an 
 sends a 🚨 Telegram alert with a voice note and says it out loud on the laptop. At night (`JARVIS_QUIET_HOURS`)
 it stays silent unless the alert is critical.
 
+## Phone powers
+
+Just ask, by voice or text: "call Mum", "wake me at 6:30", "timer 10 minutes", "torch on", "play Coldplay on Spotify",
+"pause the music", "find lo-fi on YouTube", "search Shopee for black sneakers", "open Gmail", "take me to Changi",
+"what's on my phone screen?", "what's in my last photo?", "how long was I on Instagram today?".
+JARVIS opens things ready for you: it never sends, buys or pays by itself, and bank and finance apps stay off limits.
+Screen time needs "Usage access" (JARVIS opens that setting the first time you ask).
+
 ## Bank notifications (read-only)
 
 VERONICA reads your bank's **transaction alert e-mails** (turn on e-mail alerts in your bank's app) and sends a

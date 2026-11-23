@@ -191,6 +191,26 @@ public class JarvisLink extends Service implements LocationListener {
                     new Thread(() -> done(id, a.runSteps(steps))).start();
                 }
                 break;
+            case "call": done(id, Powers.call(this, c.optString("number"), c.optString("name"))); break;
+            case "contacts": done(id, Powers.contacts(this, c.optString("name"))); break;
+            case "alarm": done(id, Powers.alarm(this, c.optInt("hour"), c.optInt("minute"), c.optString("label"))); break;
+            case "timer": done(id, Powers.timer(this, c.optInt("seconds", 60), c.optString("label"))); break;
+            case "torch": done(id, Powers.torch(this, c.optBoolean("on", true))); break;
+            case "volume": done(id, Powers.volume(this, c.optInt("level", 50))); break;
+            case "media": done(id, Powers.media(this, c.optString("action", "toggle"))); break;
+            case "play": done(id, Powers.play(this, c.optString("query"), c.optString("app"))); break;
+            case "app": done(id, Powers.openApp(this, c.optString("name"))); break;
+            case "link": done(id, Powers.link(this, c.optString("url"))); break;
+            case "camera": done(id, Powers.camera(this, c.optBoolean("video"))); break;
+            case "navigate": done(id, Powers.navigate(this, c.optString("to"), c.optString("mode", "d"))); break;
+            case "email": done(id, Powers.email(this, c.optString("to"), c.optString("subject"), c.optString("body"))); break;
+            case "screentime": done(id, Powers.screenTime(this)); break;
+            case "screen": {
+                JarvisAccessibility acc = JarvisAccessibility.instance;
+                done(id, acc == null ? "autopilot is off (turn on JARVIS in Settings > Accessibility)" : acc.readScreen());
+                break;
+            }
+            case "photo": new Thread(() -> done(id, Powers.latestPhoto(this))).start(); break;
             default: done(id, "unknown command");
         }
     }
@@ -238,6 +258,8 @@ public class JarvisLink extends Service implements LocationListener {
             } catch (Exception ignored) {}
         });
     }
+
+    static boolean usageGranted(Context c) { return Powers.usageGranted(c); }
 
     static void stopRinging() {
         // the ring stops by itself after 30 seconds; opening the app also silences it (see MainActivity.onResume)

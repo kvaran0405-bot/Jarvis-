@@ -30,6 +30,28 @@ public class JarvisAccessibility extends AccessibilityService {
         return r == null || r.getPackageName() == null ? "" : r.getPackageName().toString();
     }
 
+    /** The text on the phone's screen right now (never from bank, finance or password screens). */
+    String readScreen() {
+        AccessibilityNodeInfo r = getRootInActiveWindow();
+        if (r == null) return "screen not readable right now";
+        String pkg = r.getPackageName() == null ? "" : r.getPackageName().toString();
+        if (Net.isFinance(pkg)) return "a bank or finance app is open, so I won't read it";
+        StringBuilder sb = new StringBuilder();
+        collect(r, sb, 0);
+        try {
+            JSONObject o = new JSONObject(); o.put("app", pkg); o.put("text", sb.length() > 5000 ? sb.substring(0, 5000) : sb.toString());
+            return o.toString();
+        } catch (Exception e) { return "couldn't: " + e.getMessage(); }
+    }
+
+    private void collect(AccessibilityNodeInfo n, StringBuilder sb, int depth) {
+        if (n == null || depth > 40 || sb.length() > 6000) return;
+        if (n.isPassword()) { sb.append("[hidden]\n"); return; }
+        CharSequence t = n.getText() != null ? n.getText() : n.getContentDescription();
+        if (t != null && t.toString().trim().length() > 0) sb.append(t.toString().trim()).append('\n');
+        for (int i = 0; i < n.getChildCount(); i++) collect(n.getChild(i), sb, depth + 1);
+    }
+
     String runSteps(JSONArray steps) {
         if (steps == null) return "no steps";
         StringBuilder log = new StringBuilder();

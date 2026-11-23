@@ -70,7 +70,7 @@ def checkin(store, bus, report: dict) -> list[dict]:
 
 def done(store, cmd_id: int, result: str) -> None:
     _ensure(store)
-    store.execute("UPDATE phone_cmds SET status = 'done', result = ? WHERE id = ?", (result[:500], cmd_id))
+    store.execute("UPDATE phone_cmds SET status = 'done', result = ? WHERE id = ?", (result[:6000], cmd_id))
 
 
 # ------------------------------------------------------------------ location magic
@@ -301,3 +301,157 @@ def widget(store) -> dict:
     return {"next": f"{nxt['title']} · {nxt['start'][11:16]}" if nxt else "Nothing else today",
             "handled": handled, "mode": brain.get_mode(store)["mode"],
             "waiting": len(store.list_proposals("open", 50)) + len(store.list_outbox("pending", 50))}
+
+
+# ------------------------------------------------------------------ phone powers (calls, apps, music, shopping...)
+SHOPS = {"shopee": "https://shopee.sg/search?keyword={q}", "shein": "https://sg.shein.com/pdsearch/{q}/",
+         "lazada": "https://www.lazada.sg/catalog/?q={q}", "amazon": "https://www.amazon.sg/s?k={q}",
+         "carousell": "https://www.carousell.sg/search/{q}", "taobao": "https://s.taobao.com/search?q={q}",
+         "zalora": "https://www.zalora.sg/search?q={q}", "uniqlo": "https://www.uniqlo.com/sg/en/search?q={q}"}
+
+
+def wait_result(store, cmd_id: int, seconds: float = 25) -> str | None:
+    """Wait for the phone to carry out a command (it checks in every few seconds while the screen is on)."""
+    import time
+    end = time.time() + seconds
+    while time.time() < end:
+        row = store.query("SELECT status, result FROM phone_cmds WHERE id = ?", (cmd_id,))
+        if row and row[0]["status"] == "done":
+            return row[0]["result"]
+        time.sleep(0.7)
+    return None
+
+
+def _send(ctx: ToolContext, kind: str, wait: float = 12, **payload) -> dict:
+    if not state(ctx.store):
+        return {"error": "The phone app hasn't linked yet (open the JARVIS app on the phone once)."}
+    cid = queue(ctx.store, kind, **payload)
+    res = wait_result(ctx.store, cid, wait) if wait else None
+    if res is None:
+        return {"queued": True, "note": "The phone will do it as soon as it checks in (it may be asleep)."}
+    try:
+        return {"result": json.loads(res)}
+    except ValueError:
+        return {"result": res}
+
+
+@tool("phone_call", "Call someone from the owner's phone, by contact name or number. Only when the owner asks to call "
+      "someone.", {"name": S, "number": S})
+def phone_call(ctx: ToolContext, name: str = "", number: str = "") -> dict:
+    return _send(ctx, "call", name=name.strip(), number=re.sub(r"[^\d+]", "", number))
+
+
+@tool("phone_contacts", "Look up a contact's phone number on the owner's phone by (part of) their name.", {"name": S}, ["name"])
+def phone_contacts(ctx: ToolContext, name: str) -> dict:
+    return _send(ctx, "contacts", wait=20, name=name.strip()[:40])
+
+
+@tool("phone_alarm", "Set an alarm on the owner's phone. time is HH:MM (24h).", {"time": S, "label": S}, ["time"])
+def phone_alarm(ctx: ToolContext, time: str, label: str = "") -> dict:
+    m = re.match(r"^\s*(\d{1,2})[:.](\d{2})\s*$", time)
+    if not m or int(m.group(1)) > 23 or int(m.group(2)) > 59:
+        return {"error": "time must be HH:MM, e.g. 06:30"}
+    return _send(ctx, "alarm", hour=int(m.group(1)), minute=int(m.group(2)), label=label[:60])
+
+
+@tool("phone_timer", "Start a countdown timer on the owner's phone.", {"minutes": {"type": "number"}, "label": S}, ["minutes"])
+def phone_timer(ctx: ToolContext, minutes: float, label: str = "") -> dict:
+    return _send(ctx, "timer", seconds=int(max(0.1, float(minutes)) * 60), label=label[:60])
+
+
+@tool("phone_torch", "Turn the phone's torch (flashlight) on or off.", {"on": B}, ["on"])
+def phone_torch(ctx: ToolContext, on: bool) -> dict:
+    return _send(ctx, "torch", on=bool(on))
+
+
+@tool("phone_volume", "Set the phone's media volume (0-100).", {"level": {"type": "integer"}}, ["level"])
+def phone_volume(ctx: ToolContext, level: int) -> dict:
+    return _send(ctx, "volume", level=max(0, min(100, int(level))))
+
+
+@tool("phone_music", "Control music on the phone: action play | pause | toggle | next | previous. Or give `query` to "
+      "play a song/artist/playlist (optionally in app: spotify, youtube music, youtube).",
+      {"action": S, "query": S, "app": S})
+def phone_music(ctx: ToolContext, action: str = "toggle", query: str = "", app: str = "") -> dict:
+    if query.strip():
+        return _send(ctx, "play", query=query.strip()[:120], app=app.strip().lower())
+    return _send(ctx, "media", action=(action or "toggle").lower())
+
+
+@tool("phone_open", "Open an app on the owner's phone by name (e.g. 'Gmail', 'Camera', 'Shopee', 'YouTube') or open a "
+      "link (url). Bank and finance apps are blocked.", {"app": S, "url": S})
+def phone_open(ctx: ToolContext, app: str = "", url: str = "") -> dict:
+    if blocked(app, url):
+        return {"error": REFUSAL}
+    if url.strip():
+        if not url.startswith(("https://", "http://")):
+            return {"error": "url must start with https://"}
+        return _send(ctx, "link", url=url.strip())
+    if app.strip().lower() in ("camera", "video camera"):
+        return _send(ctx, "camera", video=app.strip().lower().startswith("video"))
+    return _send(ctx, "app", name=app.strip()[:60])
+
+
+@tool("phone_youtube", "Search YouTube on the owner's phone (opens the YouTube app with the results).", {"query": S}, ["query"])
+def phone_youtube(ctx: ToolContext, query: str) -> dict:
+    from urllib.parse import quote_plus
+    return _send(ctx, "link", url="https://www.youtube.com/results?search_query=" + quote_plus(query.strip()))
+
+
+@tool("phone_shop", "Search a shopping app on the owner's phone: shopee, shein, lazada, amazon, carousell, taobao, "
+      "zalora or uniqlo. Opens the search results in the app; the owner chooses and pays themselves (never buy or pay).",
+      {"store": S, "query": S}, ["store", "query"])
+def phone_shop(ctx: ToolContext, store: str, query: str) -> dict:
+    from urllib.parse import quote, quote_plus
+    key = next((k for k in SHOPS if k in store.lower()), None)
+    if key is None:
+        return {"error": f"Shops I know: {', '.join(SHOPS)}"}
+    q = quote(query.strip()) if "{q}/" in SHOPS[key] else quote_plus(query.strip())
+    return _send(ctx, "link", url=SHOPS[key].format(q=q))
+
+
+@tool("phone_navigate", "Start Google Maps navigation on the phone. mode: d (drive), w (walk), b (bike), l (motorbike).",
+      {"to": S, "mode": S}, ["to"])
+def phone_navigate(ctx: ToolContext, to: str, mode: str = "d") -> dict:
+    return _send(ctx, "navigate", to=to.strip()[:200], mode=mode if mode in ("d", "w", "b", "l") else "d")
+
+
+@tool("phone_email", "Open a ready-written email on the phone for the owner to check and send (never sent by you).",
+      {"to": S, "subject": S, "body": S}, ["subject", "body"])
+def phone_email(ctx: ToolContext, subject: str, body: str, to: str = "") -> dict:
+    if is_secret(body) or blocked(to, subject, body):
+        return {"error": REFUSAL}
+    return _send(ctx, "email", to=to.strip(), subject=subject[:200], body=body[:5000])
+
+
+@tool("phone_screen_time", "How long the owner used each app on their phone today (screen time).")
+def phone_screen_time(ctx: ToolContext) -> dict:
+    return _send(ctx, "screentime", wait=25)
+
+
+@tool("phone_latest_photo", "Look at the newest photo or screenshot on the owner's phone and answer a question about it.",
+      {"question": S})
+def phone_latest_photo(ctx: ToolContext, question: str = "") -> dict:
+    out = _send(ctx, "photo", wait=40)
+    path = out.get("result")
+    if not isinstance(path, str) or not path.endswith(".jpg"):
+        return out
+    from pathlib import Path
+    from . import vision
+    try:
+        seen = vision.ask(Path(path).read_bytes(), "image/jpeg", vision.PROMPT + (f"\nThe owner asks: {question}" if question else ""))
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"I got the photo but couldn't look at it: {exc}", "file": path}
+    return {"photo": Path(path).name, "what_it_shows": seen}
+
+
+@tool("phone_screen", "Read what's on the owner's phone screen right now (the open app's text), e.g. 'what's this on my "
+      "phone?'. Never reads bank, finance or password screens.")
+def phone_screen(ctx: ToolContext) -> dict:
+    out = _send(ctx, "screen", wait=15)
+    res = out.get("result")
+    if isinstance(res, dict):
+        from .guard import mask_numbers
+        lines = [ln for ln in str(res.get("text", "")).splitlines() if not is_secret(ln) and not blocked(ln)]
+        res["text"] = mask_numbers("\n".join(lines))   # codes, passwords and bank lines dropped; long numbers masked
+    return out

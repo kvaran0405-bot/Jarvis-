@@ -1074,6 +1074,27 @@ def phone_done(d: PhoneDone):
     return {"ok": True}
 
 
+class PhonePhoto(BaseModel):
+    name: str = "photo.jpg"
+    image: str            # data URL (JPEG)
+
+
+@app.post("/api/phone/photo")
+def phone_photo(ph: PhonePhoto):
+    """The phone sends its newest photo when an agent asks to look at it (kept in data/phone_photos)."""
+    import base64
+    from .drop import safe_name
+    from .config import ROOT as _ROOT
+    data = base64.b64decode(ph.image.partition(",")[2] or ph.image)
+    if len(data) > 8_000_000:
+        raise HTTPException(413, "too large")
+    folder = _ROOT / "data" / "phone_photos"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{datetime.now(settings.tz):%Y%m%d-%H%M%S}-{safe_name(Path(ph.name).stem)}.jpg"
+    path.write_bytes(data)
+    return {"path": str(path)}
+
+
 class PhoneShare(BaseModel):
     text: str = ""
     image: str = ""     # data URL
