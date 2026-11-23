@@ -39,7 +39,7 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 - **Interruptible conversation:** cut in mid-sentence, it stops and listens.
 - **Parallel tasks with a live HUD:** several jobs at once with progress bars.
 - **Blueprint mode:** any plan as an interactive glowing blueprint.
-- **Simulations (owner loves this):** "run it" -> simulate outcomes (life sim, gig pricing, exam score predictions,
+- **Simulations (owner loves this; preview with demo data at /simulate.html: life, gig pricing, exam, tomorrow played, money future, wedding day run; each plays as a film or interactive with sliders):** "run it" -> simulate outcomes (life sim, gig pricing, exam score predictions,
   "what if" scenarios) shown as holo charts.
 - **Build things for you:** websites, small apps, quizzes, built and tested, handed over.
 - **Perimeter security:** intruder alert, unknown Wi-Fi devices, phone/laptop aware of each other, auto-lock.

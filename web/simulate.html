@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Simulations</title>
+<meta name="theme-color" content="#03060a"><link rel="icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Preview of JARVIS simulations: each one plays like a short film (cinematic) and can be played with (interactive).
+   Demo numbers only: the real ones will come from your own data. */
+:root{--bg:#03060a;--line:#1b2735;--txt:#dce7f2;--muted:#8a95a7;--ac:#ffd23f}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font-family:"JetBrains Mono",monospace}
+body{min-height:100vh;background:radial-gradient(circle at 50% -20%,#0f2638,var(--bg) 60%)}
+.top{display:flex;align-items:center;gap:12px;padding:14px 18px;flex-wrap:wrap}
+.top b{font:700 13px Orbitron,sans-serif;letter-spacing:.3em;color:var(--ac);text-shadow:0 0 14px #ffd23f66}
+.top small{color:var(--muted);font-size:11px}.top .sp{flex:1}
+.btn{background:rgba(10,17,26,.85);color:var(--txt);border:1px solid var(--line);font:700 10px Orbitron,sans-serif;letter-spacing:.14em;padding:9px 14px;border-radius:18px;cursor:pointer}
+.btn.hot{background:var(--ac);color:#03060a;border-color:var(--ac);box-shadow:0 0 18px #ffd23f66}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);gap:14px;padding:0 18px 18px}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}.list{display:flex;overflow-x:auto;gap:8px}.list .it{flex:none;width:200px}}
+.it{border:1px solid var(--line);background:#060c14;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:.2s;border-left:3px solid var(--c)}
+.it b{display:block;font:700 10px Orbitron,sans-serif;letter-spacing:.14em;color:var(--c)}.it small{color:var(--muted);font-size:11px;line-height:1.4;display:block;margin-top:4px}
+.it.on{background:#0a1624;box-shadow:0 0 16px color-mix(in srgb,var(--c) 30%,transparent)}
+.stage{position:relative;border:1px solid var(--line);background:radial-gradient(circle at 50% 40%,#0a1a28,#04080d 75%);min-height:520px;overflow:hidden}
+canvas{display:block;width:100%;height:520px}
+.cap{position:absolute;left:0;right:0;top:14px;text-align:center;pointer-events:none}
+.cap b{font:700 15px Orbitron,sans-serif;letter-spacing:.25em;color:var(--c);text-shadow:0 0 14px var(--c)}
+.cap div{font-size:12px;color:#c9d6e3;margin-top:6px}
+.say{position:absolute;left:6%;right:6%;bottom:16px;text-align:center;font-size:13px;color:#fff;text-shadow:0 2px 6px #000;min-height:18px}
+.ctl{display:flex;gap:16px;flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--line);background:#050a11}
+.ctl label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:4px;min-width:150px;flex:1}
+.ctl input{accent-color:var(--c)}.ctl output{color:var(--txt);font-weight:600}
+.badge{position:absolute;left:12px;top:12px;font:700 9px Orbitron,sans-serif;letter-spacing:.2em;color:var(--muted);border:1px solid var(--line);padding:5px 8px;border-radius:12px;background:rgba(3,6,10,.7)}
+.rec{color:#ff4d5e;border-color:#ff4d5e}
+</style></head><body>
+<div class="top"><b>SIMULATIONS · PREVIEW</b><small>Demo data. The real ones run on your own life.</small><span class="sp"></span>
+  <button class="btn hot" id="film">▶ PLAY AS FILM</button><button class="btn" id="inter">✋ INTERACTIVE</button></div>
+<div class="wrap">
+  <div class="list" id="list"></div>
+  <div><div class="stage"><canvas id="cv"></canvas><div class="cap" id="cap"></div><div class="say" id="say"></div><div class="badge" id="badge">INTERACTIVE</div></div>
+  <div class="ctl" id="ctl"></div></div>
+</div>
+<script>
+const $ = s => document.querySelector(s), cv = $("#cv"), g = cv.getContext("2d");
+let W = 0, H = 0, t0 = performance.now(), cur = 0, film = false, filmAt = 0, params = {};
+function size(){ const r = cv.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1); W = r.width; H = r.height; cv.width = W * d; cv.height = H * d; g.setTransform(d, 0, 0, d, 0, 0); }
+addEventListener("resize", size);
+const ease = x => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
+const glow = (c, b = 14) => { g.shadowColor = c; g.shadowBlur = b; };
+function text(s, x, y, c = "#c9d6e3", f = "11px JetBrains Mono", a = "left"){ g.shadowBlur = 0; g.fillStyle = c; g.font = f; g.textAlign = a; g.fillText(s, x, y); }
+function grid(){ g.strokeStyle = "rgba(95,216,255,.06)"; g.lineWidth = 1; for(let x = 0; x < W; x += 40){ g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); } for(let y = 0; y < H; y += 40){ g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); } }
+function line(pts, c, w = 2.5, upto = 1){ const n = Math.max(2, Math.floor(pts.length * upto)); g.beginPath(); pts.slice(0, n).forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); glow(c); g.strokeStyle = c; g.lineWidth = w; g.stroke(); g.shadowBlur = 0; return pts[n - 1]; }
+const rnd = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(42);
+
+// ------------------------------------------------------------ the simulations
+const SIMS = [
+  {id: "life", name: "LIFE SIMULATOR", c: "#ffd23f", what: "“What if I skip gym this week and take 2 more gigs?”: 4 weeks of energy, grades, money and stress.",
+   ctl: [["gigs", "Extra gigs / week", 0, 4, 2], ["gym", "Gym days / week", 0, 6, 1], ["sleep", "Sleep (h)", 5, 9, 6.5]],
+   say: ["Running 1,000 versions of your next 4 weeks…", "Money climbs (+$1,200), but energy drops 35% by week 3.", "Stress peaks the week of your exam. Grades slip from A- to B+.", "JARVIS suggests: take 1 gig, keep 3 gym days. Best balance."],
+   draw(p, k){ grid(); const x0 = 70, x1 = W - 40, y0 = 90, y1 = H - 70, wk = i => x0 + (x1 - x0) * i / 28;
+     const sl = p.sleep, gy = p.gym, gi = p.gigs, S = [
+       ["MONEY", "#3dff9a", d => .35 + d / 28 * (.15 + gi * .1)], ["ENERGY", "#5fd8ff", d => .75 - d / 28 * (gi * .09 + (7 - sl) * .05) + gy * .03 + Math.sin(d) * .02],
+       ["GRADES", "#b06bff", d => .8 - d / 28 * (gi * .05 + (7 - sl) * .04) + gy * .01], ["STRESS", "#ff4d5e", d => .25 + d / 28 * (gi * .1 + (7 - sl) * .06) - gy * .02 + (d > 18 && d < 23 ? .12 : 0)]];
+     for(let w = 0; w <= 4; w++){ text("WEEK " + w, wk(w * 7), y1 + 22, "#55606f", "10px JetBrains Mono", "center"); }
+     text("EXAM", wk(20), y0 - 8, "#ff4d5e", "10px Orbitron", "center"); g.strokeStyle = "rgba(255,77,94,.3)"; g.setLineDash([4, 6]); g.beginPath(); g.moveTo(wk(20), y0); g.lineTo(wk(20), y1); g.stroke(); g.setLineDash([]);
+     S.forEach(([n, c, f], i) => { for(let r = 0; r < 6; r++){ const pts = []; for(let d = 0; d <= 28; d++) pts.push([wk(d), y1 - (y1 - y0) * Math.max(0, Math.min(1, f(d) + (rnd() - .5) * .05))]);
+         g.globalAlpha = .12; line(pts, c, 1, ease(k)); g.globalAlpha = 1; }
+       const pts = []; for(let d = 0; d <= 28; d++) pts.push([wk(d), y1 - (y1 - y0) * Math.max(0, Math.min(1, f(d)))]);
+       const e = line(pts, c, 3, ease(k)); g.fillStyle = c; glow(c); g.beginPath(); g.arc(e[0], e[1], 5, 0, 7); g.fill(); g.shadowBlur = 0;
+       text(n, 14, y0 + 16 + i * 18, c, "10px Orbitron"); }); }},
+  {id: "price", name: "GIG PRICING", c: "#ffb347", what: "Shaabaz: which price wins the client AND earns the most, from your past quotes won and lost.",
+   ctl: [["guests", "Guests", 80, 400, 180], ["price", "Your quote ($)", 4000, 20000, 9800]],
+   say: ["Simulating 500 clients like this one…", "Each dot is a client: green said yes, red walked away.", "Sweet spot: $9,200 to $10,400. 71% win chance.", "Above $12k you lose most clients. Below $8k you're leaving money on the table."],
+   draw(p, k){ grid(); const x0 = 70, x1 = W - 40, y0 = 100, y1 = H - 130, X = v => x0 + (x1 - x0) * (v - 4000) / 16000;
+     const fair = 4200 + p.guests * 32, win = v => 1 / (1 + Math.exp((v - fair * 1.15) / 1100));
+     const pts = []; for(let v = 4000; v <= 20000; v += 200) pts.push([X(v), y1 - (y1 - y0) * win(v)]);
+     const prof = []; for(let v = 4000; v <= 20000; v += 200) prof.push([X(v), y1 - (y1 - y0) * Math.min(1, win(v) * (v - fair * .55) / 7000)]);
+     line(pts, "#3dff9a", 2.5, ease(k)); line(prof, "#ffb347", 3, ease(k * 1.2));
+     const n = Math.floor(160 * ease(k)); for(let i = 0; i < n; i++){ const v = 4000 + ((i * 97) % 160) * 100, yes = ((i * 37) % 100) / 100 < win(v);
+       g.fillStyle = yes ? "#3dff9a" : "#ff4d5e"; g.globalAlpha = .55; g.beginPath(); g.arc(X(v), y1 + 18 + (i % 5) * 7, 2.5, 0, 7); g.fill(); g.globalAlpha = 1; }
+     const px = X(p.price); g.strokeStyle = "#fff"; g.setLineDash([5, 5]); g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke(); g.setLineDash([]);
+     text(`$${p.price.toLocaleString()} → ${Math.round(win(p.price) * 100)}% win`, px + 8, y0 + 14, "#fff", "12px JetBrains Mono");
+     text("WIN CHANCE", 14, y0 + 16, "#3dff9a", "10px Orbitron"); text("PROFIT", 14, y0 + 34, "#ffb347", "10px Orbitron");
+     [4000, 8000, 12000, 16000, 20000].forEach(v => text("$" + v / 1000 + "k", X(v), y1 + 70, "#55606f", "10px JetBrains Mono", "center")); }},
+  {id: "exam", name: "EXAM PREDICTOR", c: "#b06bff", what: "Your likely score from study hours, quiz results and sleep, and what moves it most.",
+   ctl: [["hours", "Study hours left", 0, 40, 14], ["quiz", "Quiz average %", 30, 100, 68]],
+   say: ["Reading your quiz history and lecture coverage…", "Most likely score: 72. Range 64 to 80.", "+6 hours on Topic 3 (your weakest) lifts it to 79.", "ATHENA has booked those 6 hours into your week."],
+   draw(p, k){ grid(); const mu = Math.min(98, p.quiz * .7 + p.hours * .7 + 12), sd = Math.max(4, 11 - p.hours * .15), x0 = 70, x1 = W - 40, y1 = H - 80, X = v => x0 + (x1 - x0) * v / 100;
+     const pts = []; for(let v = 0; v <= 100; v++){ const d = Math.exp(-((v - mu) ** 2) / (2 * sd * sd)); pts.push([X(v), y1 - (H - 200) * d * ease(k)]); }
+     g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.lineTo(X(100), y1); g.lineTo(X(0), y1); g.closePath();
+     const gr = g.createLinearGradient(0, 100, 0, y1); gr.addColorStop(0, "rgba(176,107,255,.45)"); gr.addColorStop(1, "rgba(176,107,255,0)"); g.fillStyle = gr; g.fill(); line(pts, "#b06bff", 3);
+     [["F", 0], ["D", 45], ["C", 55], ["B", 65], ["A", 75]].forEach(([l, v]) => { g.strokeStyle = "rgba(255,255,255,.08)"; g.beginPath(); g.moveTo(X(v), 90); g.lineTo(X(v), y1); g.stroke(); text(l, X(v) + 6, y1 + 22, "#8a95a7", "11px Orbitron"); });
+     text(`LIKELY ${Math.round(mu)}`, X(mu), 110 + (1 - ease(k)) * 40, "#fff", "700 16px Orbitron", "center");
+     const n = Math.floor(80 * ease(k)); for(let i = 0; i < n; i++){ const v = mu + (rnd() + rnd() + rnd() - 1.5) * sd * 1.3; g.fillStyle = "#e0c8ff"; g.globalAlpha = .5; g.beginPath(); g.arc(X(v), y1 - 6 - (i % 8) * 6, 2, 0, 7); g.fill(); g.globalAlpha = 1; } }},
+  {id: "day", name: "TOMORROW, PLAYED", c: "#5fd8ff", what: "Your day played forward on the map: travel, rain, energy, and where it goes wrong.",
+   ctl: [["leave", "Leave home (min after 8:00)", 0, 60, 25], ["rain", "Rain chance %", 0, 100, 60]],
+   say: ["Playing tomorrow forward…", "09:40 class. You make it with 4 minutes spare.", "15:00 venue visit. Rain at 3pm adds 12 minutes. Leave by 14:15.", "19:30 dinner. Energy is low by then; I've kept the evening light."],
+   draw(p, k){ grid(); const stops = [["HOME", .12, .72], ["KAPLAN", .45, .42], ["RAFFLES", .62, .52], ["MBS", .78, .66]], P = s => [s[1] * W, s[2] * H];
+     g.strokeStyle = "rgba(95,216,255,.25)"; g.lineWidth = 2; g.beginPath(); stops.forEach((s, i) => { const [x, y] = P(s); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+     stops.forEach(s => { const [x, y] = P(s); glow("#5fd8ff"); g.fillStyle = "#5fd8ff"; g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill(); g.shadowBlur = 0; text(s[0], x, y - 14, "#dce7f2", "10px Orbitron", "center"); });
+     const seg = Math.min(2.999, k * 3), i = Math.floor(seg), f = ease(seg - i), [ax, ay] = P(stops[i]), [bx, by] = P(stops[i + 1]);
+     const x = ax + (bx - ax) * f, y = ay + (by - ay) * f; glow("#fff", 22); g.fillStyle = "#fff"; g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); g.shadowBlur = 0;
+     const hh = 8 + p.leave / 60 + k * 11.5; text(`${String(Math.floor(hh)).padStart(2, "0")}:${String(Math.floor(hh % 1 * 60)).padStart(2, "0")}`, W - 30, 40, "#fff", "700 22px Orbitron", "right");
+     const en = 1 - k * .65; g.fillStyle = "#1a2330"; g.fillRect(W - 170, 56, 140, 8); g.fillStyle = en > .4 ? "#3dff9a" : "#ff4d5e"; g.fillRect(W - 170, 56, 140 * en, 8); text("ENERGY", W - 170, 80, "#8a95a7", "10px Orbitron");
+     if(p.rain > 40 && k > .55){ g.strokeStyle = "rgba(120,180,255,.35)"; g.lineWidth = 1; for(let r = 0; r < 70; r++){ const rx = (r * 53 + performance.now() / 4) % W, ry = (r * 97 + performance.now() / 2) % H; g.beginPath(); g.moveTo(rx, ry); g.lineTo(rx - 3, ry + 10); g.stroke(); } text(`☂ RAIN ${p.rain}%: +12 MIN`, W * .62, H * .52 + 30, "#8fb6ff", "11px JetBrains Mono", "center"); } }},
+  {id: "money", name: "MONEY FUTURE", c: "#3dff9a", what: "Your savings over 12 months in 3 futures: careful, normal, and splurge. From email receipts only.",
+   ctl: [["save", "Save / month ($)", 0, 1500, 400], ["gigs", "Gigs / month", 0, 8, 3]],
+   say: ["Projecting 12 months from your spending pattern…", "Normal path: $6,900 by next November.", "Careful path hits your $10k goal in month 11.", "Biggest lever: food delivery, about $180 a month."],
+   draw(p, k){ grid(); const x0 = 70, x1 = W - 40, y0 = 90, y1 = H - 70, X = m => x0 + (x1 - x0) * m / 12, Y = v => y1 - (y1 - y0) * v / 16000;
+     const base = m => 1500 + m * (p.save + p.gigs * 180);
+     [["CAREFUL", "#3dff9a", 1.35], ["NORMAL", "#ffd23f", 1], ["SPLURGE", "#ff4d5e", .55]].forEach(([n, c, mul], i) => {
+       const pts = []; for(let m = 0; m <= 12; m++) pts.push([X(m), Y(1500 + (base(m) - 1500) * mul)]); const e = line(pts, c, 3, ease(k));
+       if(k > .95) text(`${n} $${Math.round(1500 + (base(12) - 1500) * mul).toLocaleString()}`, e[0] - 6, e[1] - 10, c, "10px Orbitron", "right"); });
+     g.strokeStyle = "rgba(255,255,255,.25)"; g.setLineDash([6, 6]); g.beginPath(); g.moveTo(x0, Y(10000)); g.lineTo(x1, Y(10000)); g.stroke(); g.setLineDash([]); text("GOAL $10k", x0 + 4, Y(10000) - 6, "#8a95a7", "10px Orbitron");
+     for(let m = 0; m <= 12; m += 3) text(["NOW", "3 MO", "6 MO", "9 MO", "1 YR"][m / 3], X(m), y1 + 22, "#55606f", "10px JetBrains Mono", "center"); }},
+  {id: "event", name: "WEDDING DAY RUN", c: "#ff5c9a", what: "Shaabaz: the event day played out on the floor plan: crew, guests, timeline, and the risky moments.",
+   ctl: [["crew", "Crew", 3, 14, 7], ["guests", "Guests", 80, 400, 220]],
+   say: ["Running the Tan wedding, minute by minute…", "17:00 setup done with 7 crew. 15 minutes buffer.", "19:10 risk: buffet queue backs up past 12 minutes with 220 guests.", "Fix: open a second buffet line. Simulated wait drops to 5 minutes."],
+   draw(p, k){ grid(); const fx = W * .12, fy = 70, fw = W * .76, fh = H - 150;
+     g.strokeStyle = "#ff5c9a"; glow("#ff5c9a", 8); g.lineWidth = 2; g.strokeRect(fx, fy, fw, fh); g.shadowBlur = 0;
+     text("STAGE", fx + fw / 2, fy + 22, "#ff5c9a", "10px Orbitron", "center"); g.strokeStyle = "rgba(255,92,154,.5)"; g.strokeRect(fx + fw * .35, fy + 6, fw * .3, 26);
+     text("BUFFET", fx + fw - 50, fy + fh - 14, "#ffb347", "10px Orbitron", "center");
+     const tables = []; for(let r = 0; r < 4; r++) for(let c = 0; c < 6; c++) tables.push([fx + fw * (.12 + c * .15), fy + fh * (.3 + r * .17)]);
+     tables.forEach(([x, y]) => { g.strokeStyle = "rgba(255,255,255,.25)"; g.beginPath(); g.arc(x, y, 12, 0, 7); g.stroke(); });
+     const nG = Math.floor(p.guests / 10 * ease(k)); for(let i = 0; i < nG; i++){ const [x, y] = tables[i % tables.length], a = i * 2.4 + performance.now() / 3000; g.fillStyle = "#ffd6e6"; g.globalAlpha = .7; g.beginPath(); g.arc(x + Math.cos(a) * 16, y + Math.sin(a) * 16, 2.2, 0, 7); g.fill(); g.globalAlpha = 1; }
+     const q = Math.floor(Math.max(0, k - .5) * 2 * p.guests / 25); for(let i = 0; i < q; i++){ g.fillStyle = "#ffb347"; g.beginPath(); g.arc(fx + fw - 50 - i * 7, fy + fh - 36, 3, 0, 7); g.fill(); }
+     for(let i = 0; i < p.crew; i++){ const a = performance.now() / 900 + i * 1.7; glow("#3dff9a", 10); g.fillStyle = "#3dff9a"; g.beginPath(); g.arc(fx + fw / 2 + Math.cos(a) * fw * .38, fy + fh / 2 + Math.sin(a * 1.3) * fh * .38, 4, 0, 7); g.fill(); g.shadowBlur = 0; }
+     const hh = 16 + k * 6; text(`${Math.floor(hh)}:${String(Math.floor(hh % 1 * 60)).padStart(2, "0")}`, W - 24, 40, "#fff", "700 20px Orbitron", "right");
+     if(k > .65) text(`⚠ QUEUE ${Math.round(p.guests / 18)} MIN`, fx + fw - 50, fy + fh + 22, "#ff4d5e", "11px JetBrains Mono", "center"); }},
+];
+
+// ------------------------------------------------------------ ui
+SIMS.forEach((s, i) => { params[s.id] = Object.fromEntries(s.ctl.map(c => [c[0], c[4]]));
+  $("#list").insertAdjacentHTML("beforeend", `<div class="it" data-i="${i}" style="--c:${s.c}"><b>${s.name}</b><small>${s.what}</small></div>`); });
+$("#list").onclick = e => { const it = e.target.closest(".it"); if(it){ film = false; pick(+it.dataset.i); } };
+function pick(i){
+  cur = i; t0 = performance.now(); const s = SIMS[i];
+  document.querySelectorAll(".it").forEach((el, j) => el.classList.toggle("on", j === i));
+  $("#cap").style.setProperty("--c", s.c); $("#cap").innerHTML = `<b>${s.name}</b><div>${s.what}</div>`;
+  $("#ctl").style.setProperty("--c", s.c);
+  $("#ctl").innerHTML = s.ctl.map(([k, l, a, b, v]) => `<label>${l} <output id="o-${k}">${params[s.id][k]}</output><input type="range" min="${a}" max="${b}" step="${(b - a) > 50 ? (b - a) / 100 : .5}" value="${params[s.id][k]}" data-k="${k}"></label>`).join("");
+  $("#ctl").querySelectorAll("input").forEach(inp => inp.oninput = () => { params[s.id][inp.dataset.k] = +inp.value; $("#o-" + inp.dataset.k).textContent = inp.value; t0 = performance.now() - 2600; });
+  $("#badge").textContent = film ? "● FILM" : "INTERACTIVE"; $("#badge").classList.toggle("rec", film);
+}
+$("#film").onclick = () => { film = true; filmAt = performance.now(); pick(0); };
+$("#inter").onclick = () => { film = false; pick(cur); };
+const DUR = 9000;
+function frame(now){
+  const s = SIMS[cur], el = now - t0, k = Math.min(1, el / (film ? DUR * .8 : 2600));
+  g.clearRect(0, 0, W, H); s.draw(params[s.id], k);
+  const line = film ? s.say[Math.min(s.say.length - 1, Math.floor(el / (DUR / s.say.length)))] : s.say[s.say.length - 1];
+  $("#say").textContent = line;
+  if(film && el > DUR){ if(cur < SIMS.length - 1) pick(cur + 1); else { film = false; pick(cur); } }
+  requestAnimationFrame(frame);
+}
+size(); pick(0); requestAnimationFrame(frame);
+if(new URLSearchParams(location.search).get("film") === "1") setTimeout(() => $("#film").click(), 400);
+</script>
+</body></html>
