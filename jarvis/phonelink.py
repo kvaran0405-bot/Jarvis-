@@ -58,6 +58,12 @@ def checkin(store, bus, report: dict) -> list[dict]:
     elif "lat" in st:
         st["loc_at"] = now.isoformat()
     store.set("phone:state", json.dumps(st))
+    if report.get("points"):   # the phone's location history since the last check-in (catches up after being offline)
+        from . import explore as _ex
+        try:
+            _ex.add_points(store, report["points"])
+        except Exception:  # noqa: BLE001
+            pass
     if "lat" in report and report.get("lat") is not None:
         from . import explore
         try:

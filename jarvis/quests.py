@@ -88,6 +88,7 @@ def map_data(store) -> dict:
     qs = status(tr, here)
     saved = phonelink.places(store)
     return {"trail": tr, "stats": explore.stats(store), "route": explore.current_route(store),
+            "path": [[p[1], p[2]] for p in explore.path(store)], "here_at": st.get("loc_at") or st.get("at"),
             "here": list(here) if here else None, "quests": qs, "kinds": KINDS,
             "done": sum(q["done"] for q in qs), "total": len(qs),
             "places": [{"name": n, "lat": p[0], "lon": p[1]} for n, p in saved.items()],

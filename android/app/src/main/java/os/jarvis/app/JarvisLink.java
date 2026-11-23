@@ -118,13 +118,27 @@ public class JarvisLink extends Service implements LocationListener {
                 if (lm.isProviderEnabled(p)) {
                     Location l = lm.getLastKnownLocation(p);
                     if (l != null && (lastLoc == null || l.getTime() > lastLoc.getTime())) lastLoc = l;
-                    lm.requestLocationUpdates(p, 90_000L, 80f, this, Looper.getMainLooper());
+                    lm.requestLocationUpdates(p, 30_000L, 40f, this, Looper.getMainLooper());
                 }
             }
         } catch (SecurityException ignored) {}
     }
 
-    @Override public void onLocationChanged(Location l) { lastLoc = l; }
+    // Location history: points are kept until the laptop has them, so nothing is lost when the phone is offline
+    // (no signal, Tailscale off) or the laptop is asleep. At most ~2000 points (several days).
+    private final java.util.ArrayDeque<double[]> pending = new java.util.ArrayDeque<>();
+    private Location lastKept;
+
+    @Override public void onLocationChanged(Location l) {
+        lastLoc = l;
+        boolean moved = lastKept == null || l.distanceTo(lastKept) > 60 || l.getTime() - lastKept.getTime() > 5 * 60_000L;
+        if (!moved || l.getAccuracy() > 150) return;
+        lastKept = l;
+        synchronized (pending) {
+            pending.addLast(new double[]{l.getTime() / 1000.0, l.getLatitude(), l.getLongitude(), l.getAccuracy(), l.hasSpeed() ? l.getSpeed() : -1});
+            while (pending.size() > 2000) pending.removeFirst();
+        }
+    }
     @Override public void onProviderEnabled(String p) {}
     @Override public void onProviderDisabled(String p) {}
     @Override public void onStatusChanged(String p, int s, Bundle b) {}
@@ -144,7 +158,19 @@ public class JarvisLink extends Service implements LocationListener {
                     r.put("lat", l.getLatitude()); r.put("lon", l.getLongitude());
                     r.put("accuracy", l.getAccuracy()); if (l.hasSpeed()) r.put("speed", l.getSpeed());
                 }
+                int sentPts;
+                synchronized (pending) {
+                    JSONArray pts = new JSONArray();
+                    int n = 0;
+                    for (double[] p : pending) {
+                        if (n++ >= 300) break;   // a big backlog goes up in chunks
+                        pts.put(new JSONArray().put(p[0]).put(p[1]).put(p[2]).put(p[3]).put(p[4]));
+                    }
+                    sentPts = pts.length();
+                    if (sentPts > 0) r.put("points", pts);
+                }
                 JSONArray cmds = new JSONObject(Net.call(this, "/api/phone/poll", r.toString(), 15000)).optJSONArray("commands");
+                synchronized (pending) { for (int i = 0; i < sentPts && !pending.isEmpty(); i++) pending.removeFirst(); }
                 if (cmds != null) for (int i = 0; i < cmds.length(); i++) run(cmds.getJSONObject(i));
                 if (System.currentTimeMillis() - lastWidget > 60_000L) { lastWidget = System.currentTimeMillis(); refreshCard(); }
             } catch (Exception ignored) {

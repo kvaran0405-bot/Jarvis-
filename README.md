@@ -273,6 +273,9 @@ it stays silent unless the alert is critical.
   you've been glow and the rest stays in shadow, 40 Singapore side quests (food, nature, heritage, views, night) that
   unlock when you visit, and your route for the day. Tap a quest → + ADD TO ROUTE → ROUTE opens Google Maps.
   Map tiles: © OpenStreetMap contributors © CARTO.
+  **Live location & history:** works over Wi-Fi or mobile data as long as Tailscale is on on the phone. The map shows
+  a live blue dot and today's path; ask "where was I yesterday at 3pm?" or "where did I go today?". When the phone
+  is offline it keeps the points and sends them later. History is kept 120 days, on your laptop only.
   For the trail to keep recording in the background, allow location **all the time** (setup → "Location: all the
   time"). Your location only ever goes to your own laptop.
 - **Your map and route:** every place your phone has been lights up on the Singapore holo map (stored on the laptop

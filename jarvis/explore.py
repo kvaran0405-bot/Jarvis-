@@ -131,3 +131,111 @@ def plan_route(ctx: ToolContext, extra_stops: list | None = None, day: str = "")
 @tool("places_explored", "How much of Singapore the owner has explored (from their phone's location trail).")
 def places_explored(ctx: ToolContext) -> dict:
     return stats(ctx.store)
+
+
+# ------------------------------------------------------------------ location history (timeline)
+KEEP_DAYS = 120
+
+
+def _ensure_locs(store) -> None:
+    store.execute("CREATE TABLE IF NOT EXISTS locs (ts REAL PRIMARY KEY, lat REAL, lon REAL, acc REAL, speed REAL)")
+
+
+def add_points(store, points: list) -> int:
+    """Points from the phone: [unix_seconds, lat, lon, accuracy_m, speed_mps]. Also lights up the trail."""
+    _ensure_locs(store)
+    n = 0
+    now = datetime.now(settings.tz).timestamp()
+    for p in (points or [])[:2000]:
+        try:
+            ts, lat, lon = float(p[0]), float(p[1]), float(p[2])
+            acc = float(p[3]) if len(p) > 3 else -1
+            speed = float(p[4]) if len(p) > 4 else -1
+        except (TypeError, ValueError, IndexError):
+            continue
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180) or ts > now + 300 or ts < now - KEEP_DAYS * 86400:
+            continue
+        store.execute("INSERT OR IGNORE INTO locs (ts, lat, lon, acc, speed) VALUES (?, ?, ?, ?, ?)", (ts, lat, lon, acc, speed))
+        record(store, lat, lon, datetime.fromtimestamp(ts, settings.tz))
+        n += 1
+    if n:
+        store.execute("DELETE FROM locs WHERE ts < ?", (now - KEEP_DAYS * 86400,))
+    return n
+
+
+def path(store, day: date | None = None) -> list[list[float]]:
+    """The day's movements, in order: [[unix_seconds, lat, lon], ...]."""
+    _ensure_locs(store)
+    day = day or datetime.now(settings.tz).date()
+    start = datetime(day.year, day.month, day.day, tzinfo=settings.tz).timestamp()
+    return [[r["ts"], r["lat"], r["lon"]] for r in
+            store.query("SELECT ts, lat, lon FROM locs WHERE ts >= ? AND ts < ? ORDER BY ts", (start, start + 86400))]
+
+
+def parse_when(text: str, now: datetime | None = None) -> datetime | None:
+    """'yesterday 3pm', 'today 09:30', '2026-11-20 14:00', '3pm', 'monday 8pm' -> a time."""
+    now = now or datetime.now(settings.tz)
+    t = (text or "").strip().lower()
+    try:
+        d = datetime.fromisoformat(t)
+        return d if d.tzinfo else d.replace(tzinfo=settings.tz)
+    except ValueError:
+        pass
+    day = now.date()
+    if "yesterday" in t:
+        day -= timedelta(days=1)
+    else:
+        for i, name in enumerate(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]):
+            if re.search(rf"\b{name}", t):
+                back = (now.weekday() - i) % 7 or 7
+                day -= timedelta(days=back)
+    m = re.search(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", t)
+    if not m:
+        return datetime(day.year, day.month, day.day, 12, tzinfo=settings.tz) if day != now.date() else None
+    h, mi = int(m.group(1)), int(m.group(2) or 0)
+    if m.group(3) == "pm" and h < 12:
+        h += 12
+    if m.group(3) == "am" and h == 12:
+        h = 0
+    if h > 23 or mi > 59:
+        return None
+    return datetime(day.year, day.month, day.day, h, mi, tzinfo=settings.tz)
+
+
+def where_at(store, when: datetime) -> dict | None:
+    _ensure_locs(store)
+    ts = when.timestamp()
+    rows = store.query("SELECT ts, lat, lon FROM locs WHERE ts BETWEEN ? AND ? ORDER BY ABS(ts - ?) LIMIT 1",
+                       (ts - 3 * 3600, ts + 3 * 3600, ts))
+    if not rows:
+        return None
+    r = rows[0]
+    from .phonelink import where
+    return {"time": datetime.fromtimestamp(r["ts"], settings.tz).isoformat(timespec="minutes"),
+            "lat": r["lat"], "lon": r["lon"], "place": where(store, r["lat"], r["lon"], 0.5),
+            "map": f"https://maps.google.com/?q={r['lat']},{r['lon']}",
+            "minutes_off": round(abs(r["ts"] - ts) / 60)}
+
+
+@tool("where_was_i", "Where the owner was at a time, from their phone's location history (kept on the laptop only). "
+      "when: e.g. 'yesterday 3pm', 'monday 8pm', 'today 10:30', or an ISO time.", {"when": S}, ["when"])
+def where_was_i(ctx: ToolContext, when: str) -> dict:
+    t = parse_when(when)
+    if t is None:
+        return {"error": "Give a time, e.g. 'yesterday 3pm'."}
+    found = where_at(ctx.store, t)
+    return found or {"error": f"No location recorded around {t:%a %d %b %H:%M} (the phone app needs location on)."}
+
+
+@tool("my_day_path", "The owner's movements on a day (from the phone's location history): places in order with times.",
+      {"day": S})
+def my_day_path(ctx: ToolContext, day: str = "") -> dict:
+    from .phonelink import where
+    d = date.fromisoformat(day) if re.match(r"^\d{4}-\d{2}-\d{2}$", day or "") else (parse_when(day) or datetime.now(settings.tz)).date()
+    stops, last = [], None
+    for ts, lat, lon in path(ctx.store, d):
+        name = where(ctx.store, lat, lon, 0.4)
+        if name and name != last:
+            stops.append({"time": datetime.fromtimestamp(ts, settings.tz).strftime("%H:%M"), "place": name})
+            last = name
+    return {"day": d.isoformat(), "points": len(path(ctx.store, d)), "places": stops}

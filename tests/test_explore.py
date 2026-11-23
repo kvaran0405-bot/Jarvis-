@@ -54,3 +54,27 @@ def test_quests_and_map_api():
     r = c.post("/api/route", json={"stops": ["1.2816,103.8636", "Pulau Ubin"], "today": False}).json()
     assert [s["lat"] for s in r["stops"]] == [1.2816, 1.4045] and "google.com/maps/dir" in r["link"]
     assert c.get("/map.html").status_code == 200 and c.get("/vendor/leaflet/leaflet.js").status_code == 200
+
+
+def test_location_history_and_where_was_i():
+    from jarvis.tools import REGISTRY, ToolContext
+    s = Store(":memory:")
+    y = datetime.now(settings.tz) - timedelta(days=1)
+    at3 = y.replace(hour=15, minute=0, second=0, microsecond=0)
+    pts = [[at3.timestamp() - 600, 1.3006, 103.8497, 12, 0], [at3.timestamp() + 120, 1.2834, 103.8607, 10, 0],
+           ["bad"], [at3.timestamp(), 999, 0, 5, 0]]
+    phonelink.checkin(s, Bus(s), {"battery": 80, "points": pts})          # buffered points arrive with a check-in
+    assert explore.stats(s)["squares"] == 2
+    ctx = ToolContext(s, None, settings, None, "JARVIS")
+    out = REGISTRY["where_was_i"].fn(ctx, when="yesterday 3pm")
+    assert out["place"] == "Marina Bay Sands" and out["minutes_off"] == 2
+    day = REGISTRY["my_day_path"].fn(ctx, day=y.date().isoformat())
+    assert [p["place"] for p in day["places"]] == ["Kaplan City Campus", "Marina Bay Sands"]
+    assert "error" in REGISTRY["where_was_i"].fn(ctx, when="nonsense")
+
+
+def test_parse_when():
+    now = datetime(2026, 11, 25, 10, 0, tzinfo=settings.tz)     # a Wednesday
+    assert explore.parse_when("yesterday 3pm", now) == datetime(2026, 11, 24, 15, 0, tzinfo=settings.tz)
+    assert explore.parse_when("monday 8pm", now).day == 23
+    assert explore.parse_when("today 09:30", now).hour == 9
