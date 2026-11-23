@@ -52,6 +52,7 @@ const PHONE = [
   ["Microphone & camera", "Talk to JARVIS, video calls, Vision", () => call("hasMicCam"), () => call("askMicCam")],
   ["Calls, contacts & photos", "“Call Mum”, “what's in my last photo?”", () => call("hasPowers"), id => asked[id] ? call("openAppSettings") : call("askPowers")],
   ["Location", "Location magic: home, gym, class, leave-now alerts", () => call("hasLocation"), id => asked[id] ? call("openAppSettings") : call("askLocation")],
+  ["Location: all the time", "Keeps your explorer map and location magic going while JARVIS is in the background. Pick “Allow all the time”.", () => call("hasLocationAlways"), id => asked[id] ? call("openAppSettings") : call("askLocationAlways"), "If it only offers “While using the app”: App settings → Permissions → Location → Allow all the time."],
   ["Floating ball", "JARVIS on top of every app", () => call("canFloat"), () => call("showOrb", true)],
   ["Autopilot", "Taps through apps for you, reads your screen (after your OK)", () => call("hasAutopilot"), () => call("openAutopilotSettings"), RESTRICTED],
   ["Smart replies & notifications", "Reply buttons for WhatsApp, Telegram, Instagram…; “what did I miss?”", () => call("hasNotificationAccess"), () => call("openNotificationAccess"), RESTRICTED],

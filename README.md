@@ -271,6 +271,8 @@ it stays silent unless the alert is critical.
   you've been glow and the rest stays in shadow, 40 Singapore side quests (food, nature, heritage, views, night) that
   unlock when you visit, and your route for the day. Tap a quest → + ADD TO ROUTE → ROUTE opens Google Maps.
   Map tiles: © OpenStreetMap contributors © CARTO.
+  For the trail to keep recording in the background, allow location **all the time** (setup → "Location: all the
+  time"). Your location only ever goes to your own laptop.
 - **Your map and route:** every place your phone has been lights up on the Singapore holo map (stored on the laptop
   only). Say "plan my route" for today's stops in order, drawn on the map, with Google Maps directions sent to your
   phone, or "plan a route to Orchard, then Tampines Mall".

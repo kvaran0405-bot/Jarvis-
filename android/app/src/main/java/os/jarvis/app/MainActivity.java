@@ -346,6 +346,24 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean hasLocationAlways() {
+            return android.os.Build.VERSION.SDK_INT < 29
+                    || checkSelfPermission("android.permission.ACCESS_BACKGROUND_LOCATION") == PackageManager.PERMISSION_GRANTED;
+        }
+
+        @JavascriptInterface
+        public void askLocationAlways() {
+            // Android shows its own page here: pick "Allow all the time"
+            ui.post(() -> {
+                if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 45);
+                } else if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    requestPermissions(new String[]{"android.permission.ACCESS_BACKGROUND_LOCATION"}, 45);
+                }
+            });
+        }
+
+        @JavascriptInterface
         public boolean hasAutopilot() { return JarvisAccessibility.instance != null; }
 
         @JavascriptInterface

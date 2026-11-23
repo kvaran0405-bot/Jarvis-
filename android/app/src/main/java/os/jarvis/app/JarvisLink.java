@@ -60,7 +60,16 @@ public class JarvisLink extends Service implements LocationListener {
         super.onCreate();
         channels(this);
         Notification n = card("JARVIS is linked", "Your laptop and phone are connected.");
-        if (Build.VERSION.SDK_INT >= 34) startForeground(8, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        boolean loc = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (Build.VERSION.SDK_INT >= 34) {
+            try {   // with location allowed, the link is also a location service so the explorer trail keeps going
+                startForeground(8, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                        | (loc ? ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION : 0));
+            } catch (Exception e) {
+                startForeground(8, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            }
+        }
         else startForeground(8, n);
         startLocation();
         new Thread(this::loop).start();
