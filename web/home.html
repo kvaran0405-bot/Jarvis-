@@ -99,7 +99,7 @@ async function ask(text){
   catch { clearTimeout(ack); show("JARVIS", "I can't reach your laptop right now, Sir."); setState("OFFLINE"); }
 }
 function listen(){
-  if(!SR || speaking || listening) return; const rec = new SR(); rec.lang = "en-US"; rec.interimResults = false; listening = true; setState("LISTENING");
+  if(!SR || speaking || listening) return; const rec = new SR(); rec.lang = "en-SG"; rec.interimResults = false; listening = true; setState("LISTENING");
   rec.onresult = e => { const t = e.results[0][0].transcript.trim(); listening = false;
     if(hands){ const m = t.match(/^(?:hey |ok )?jarvis[,\s]*(.*)$/i); if(!m){ listen(); return; } if(m[1]) ask(m[1]); else { speak("JARVIS", "Yes Sir?"); } }
     else ask(t); };

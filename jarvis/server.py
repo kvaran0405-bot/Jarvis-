@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import random
 import json
 import queue
@@ -425,8 +426,10 @@ async def _mcp_handle(agent, depth: int, msg: dict, approved: bool = False) -> d
 
 @app.get("/api/voices")
 def voices():
+    from . import stt
     return {"provider": voice.provider(), "voices": voice.voices(),
-            "wake_words": [w.strip().lower() for w in settings.wake_words.split(",") if w.strip()]}
+            "wake_words": [w.strip().lower() for w in settings.wake_words.split(",") if w.strip()],
+            "speech_lang": os.environ.get("JARVIS_SPEECH_LANG", "en-SG"), "hear": stt.available()}
 
 
 @app.post("/api/tts")
@@ -1340,6 +1343,34 @@ async def drop_file(d: Drop):
 def season_api():
     from . import hud
     return {"season": hud.season(store=store), "choice": store.get("hud:season") or "auto"}
+
+
+# ---------------------------------------------------------------- hearing: clean recordings understood on the laptop
+@app.post("/api/hear")
+async def hear(request: Request):
+    """A short recording (webm/ogg/wav) from push-to-talk, understood by the laptop's own speech engine with JARVIS's
+    vocabulary (names, places). Returns {text, confidence}; low confidence -> the page asks to repeat."""
+    import os as _os
+    import tempfile as _tf
+    from . import stt
+    if not stt.available():
+        raise HTTPException(503, "speech engine not installed")
+    data = await request.body()
+    if not data or len(data) > 15_000_000:
+        raise HTTPException(400, "no audio")
+    suffix = {"audio/ogg": ".ogg", "audio/wav": ".wav", "audio/mp4": ".m4a"}.get(
+        (request.headers.get("content-type") or "").split(";")[0], ".webm")
+    with _tf.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+        f.write(data)
+        path = f.name
+    try:
+        text, conf = await asyncio.to_thread(stt.transcribe_scored, path, stt.vocabulary(store))
+    finally:
+        try:
+            _os.remove(path)
+        except OSError:
+            pass
+    return {"text": text, "confidence": round(conf, 2)}
 
 
 # ---------------------------------------------------------------- explorer map (laptop and phone)

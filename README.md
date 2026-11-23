@@ -257,6 +257,12 @@ it stays silent unless the alert is critical.
 - **Training mode** opens when JARVIS starts: hands-on missions for every feature (drop a document, group call, Holo
   Lab, phone powers...). Each ticks off when it actually works. Skip one, skip all, or "don't show on start"; say
   "tutorial" to bring it back.
+- **Hearing you properly:** JARVIS listens in Singapore English (en-SG) on the laptop, the phone and calls, so local
+  accents and names come through. On the laptop, 🎙 push-to-talk records a noise-reduced clip that stops when you stop
+  talking, and the laptop's own speech engine understands it with JARVIS's vocabulary (agent names, Shaabaz, Kaplan,
+  your places). If it isn't sure, JARVIS says "Sorry Sir, say that again?" and listens once more, never silence.
+  On the phone it waits through short pauses and picks the guess that matches JARVIS's names. Choose the laptop
+  engine size with `JARVIS_HEAR_MODEL` (default small; base is lighter, medium is stronger).
 - **Voice typing anywhere (laptop):** hold **Right Alt** (or the **Copilot key** ✦, or Right Ctrl), talk, let go: JARVIS types it into whatever app has the
   cursor. Start with "Jarvis, ..." to give an order instead. Understood on the laptop itself; never types into
   banking windows. Change the key with `JARVIS_DICTATE_KEY` (auto, ralt, copilot, rctrl, f8, f9, capslock) or `JARVIS_DICTATE=off`.

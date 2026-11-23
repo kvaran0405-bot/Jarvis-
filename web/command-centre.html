@@ -683,9 +683,9 @@ function setHandsFree(on){
   else pauseListening();
 }
 if(SR){
-  rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false;
+  rec = new SR(); rec.lang = "en-SG";   // Singapore English: understands local accents and names far better than en-US rec.interimResults = true; rec.continuous = false;
   let pttText = "", pttT = null;
-  const pttSend = () => { clearTimeout(pttT); const t = ($("#cmd").value || "").trim(); pttOn = false; try { rec.stop(); } catch {}
+  const pttSend = () => { clearTimeout(pttT); const t = ($("#cmd").value || "").trim(); pttOn = false; if(t) missed = 0; try { rec.stop(); } catch {}
     $("#mic").classList.remove("rec"); pttText = ""; if(t){ nextIsVoice = true; $("#bar").requestSubmit(); } };
   rec.onresult = e => {
     const res = e.results[e.results.length - 1], text = res[0].transcript.trim();
@@ -703,10 +703,20 @@ if(SR){
     const CONTROL = /^(pause|sleep|resume|unpause|wake up|status|saver|saver mode|save my claude)\b/;
     if(w && (w.command.length >= 2 || CONTROL.test(w.command))){ convo = true; awaitingUntil = 0; return sendCommand(w.command, w.agent, true); }
     if(Date.now() < awaitingUntil){ awaitingUntil = 0; convo = true; $("#cmd").placeholder = "Give an order… or say “Jarvis, …”"; return sendCommand(text, $("#target").value, true); }
-    if(w){ awaitingUntil = Date.now() + 8000; $("#target").value = w.agent; queueSpeech(w.agent, "Yes, Sir?"); return; }
+    if(w){ $("#target").value = w.agent;
+      if(HEAR){ pauseListening(); queueSpeech(w.agent, "Yes, Sir?").then(() => hearTalk(w.agent)); return; }
+      awaitingUntil = Date.now() + 8000; queueSpeech(w.agent, "Yes, Sir?"); return; }
     if(text.split(" ").length >= 2) heard(text);
   };
-  rec.onerror = e => { if(e.error === "not-allowed"){ setHandsFree(false); logLine("JARVIS", "Microphone blocked - allow it in the browser's address bar.", "error"); } };
+  let missed = 0;
+  rec.onerror = e => {
+    if(e.error === "not-allowed"){ setHandsFree(false); logLine("JARVIS", "Microphone blocked - allow it in the browser's address bar.", "error"); return; }
+    if(pttOn && /no-match|no-speech/.test(e.error) && !($("#cmd").value || "").trim()){   // pressed talk but nothing came through
+      pttOn = false; $("#mic").classList.remove("rec");
+      if(missed++ < 1) queueSpeech("JARVIS", "Sorry Sir, say that again?").then(() => $("#mic").click());
+      else { missed = 0; logLine("JARVIS", "I couldn't make that out. Try again a bit closer, or type it.", "system"); }
+    }
+  };
   rec.onend = () => {
     listening = false;
     if(pttOn){   // the recogniser stopped by itself mid push-to-talk: send what we have, or keep listening
@@ -716,6 +726,7 @@ if(SR){
     if(handsFree && speaking === 0) setTimeout(startRec, 40);  // Chrome stops after silence: restart at once
   };
   $("#mic").onclick = () => {
+    if(HEAR){ if(hearing) hearing.stop(); else { stopSpeaking(); pauseListening(); hearTalk(); } return; }   // the laptop's own engine
     if(pttOn){ pttSend(); return; }   // second tap: send now
     stopSpeaking(); pauseListening(); pttOn = true; pttText = ""; $("#cmd").value = "";
     $("#mic").classList.add("rec"); setTimeout(() => { startRec(); rec.continuous = true; }, 60);
@@ -727,6 +738,51 @@ if(SR){
 $("#voiceBtn").onclick = () => { voiceOn = !voiceOn; try{localStorage.setItem("jarvis-voice", voiceOn?"on":"off");}catch{}; $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted"; if(!voiceOn) stopSpeaking(); };
 $("#voiceCfg").onclick = openVoiceSettings;
 if("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
+
+// ---------------------------------------------------------------- hearing: clean recording -> the laptop's speech engine
+// Noise-suppressed recording that stops when you stop talking, understood on the laptop with JARVIS's vocabulary
+// (agent names, Shaabaz, Kaplan, Singapore places). If it isn't sure, JARVIS asks you to say it again, never silence.
+let HEAR = false, hearing = null;
+async function hearTalk(agent, retry = 0){
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({audio: {noiseSuppression: true, echoCancellation: true, autoGainControl: true, channelCount: 1}}); }
+  catch { logLine("JARVIS", "Microphone blocked - allow it in the browser's address bar.", "error"); return; }
+  const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm"].find(m => MediaRecorder.isTypeSupported(m)) || "";
+  const mr = new MediaRecorder(stream, mime ? {mimeType: mime} : undefined), chunks = [];
+  const ac = new (window.AudioContext || window.webkitAudioContext)(), an = ac.createAnalyser(); an.fftSize = 1024;
+  ac.createMediaStreamSource(stream).connect(an); const buf = new Uint8Array(an.fftSize);
+  let heardSpeech = false, quietSince = 0, floor = .012, t0 = Date.now(), raf;
+  const mic = $("#mic"); mic.classList.add("rec"); $("#cmd").value = ""; $("#cmd").placeholder = "🎙 Listening… (just talk, I'll stop when you do)";
+  hearing = {stop: () => mr.state === "recording" && mr.stop()};
+  const tick = () => {
+    an.getByteTimeDomainData(buf); let sum = 0; for(const v of buf){ const d = (v - 128) / 128; sum += d * d; }
+    const rms = Math.sqrt(sum / buf.length), now = Date.now();
+    if(now - t0 < 400) floor = Math.max(floor, rms * 1.6);   // learn the room's noise for the first moment
+    mic.style.boxShadow = `0 0 ${6 + Math.min(40, rms * 400)}px var(--accent, #ffd23f)`;
+    if(rms > floor * 2.2){ heardSpeech = true; quietSince = 0; } else if(heardSpeech && !quietSince) quietSince = now;
+    if((heardSpeech && quietSince && now - quietSince > 1100) || now - t0 > 20000 || (!heardSpeech && now - t0 > 7000)) return hearing.stop();
+    raf = requestAnimationFrame(tick);
+  };
+  mr.ondataavailable = e => e.data.size && chunks.push(e.data);
+  mr.onstop = async () => {
+    cancelAnimationFrame(raf); stream.getTracks().forEach(t => t.stop()); ac.close(); hearing = null;
+    mic.classList.remove("rec"); mic.style.boxShadow = "";
+    if(!heardSpeech){ $("#cmd").placeholder = "Give an order… or say “Jarvis, …”"; resumeListening(); return; }
+    $("#cmd").placeholder = "✍ Understanding…";
+    let r = {text: "", confidence: 0};
+    try { r = await (await fetch("/api/hear", {method: "POST", headers: {"Content-Type": mime.split(";")[0] || "audio/webm"}, body: new Blob(chunks, {type: mime || "audio/webm"})})).json(); } catch {}
+    $("#cmd").placeholder = "Give an order… or say “Jarvis, …”";
+    const text = (r.text || "").trim();
+    if(!text || r.confidence < .32){
+      if(retry < 1){ await queueSpeech(agent || "JARVIS", ["Sorry Sir, say that again?", "Once more, Sir? I missed that.", "Pardon, Sir?"][Math.floor(Math.random() * 3)]); return hearTalk(agent, retry + 1); }
+      logLine("JARVIS", "Couldn't make that out" + (text ? `: “${text}”` : "") + ". Try typing it, or hold the mic closer.", "system"); resumeListening(); return;
+    }
+    const w = parseWake(text), cmd = w && w.command.length >= 2 ? w.command : text;
+    convo = true;
+    sendCommand(cmd, w ? w.agent : (agent || $("#target").value), true);
+  };
+  mr.start(200); tick();
+}
 
 // ---------------------------------------------------------------- brain & pause switch
 const BRAIN_LABEL = {pro: "CLAUDE PLAN", api: "CLAUDE API", gemini: "GEMINI FREE"};
@@ -808,7 +864,8 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
   const info = await infoResp.json();
   info.agents.forEach(a => AGENTS[a.name] = a); ORDER = info.agents.map(a => a.name);
   if(info.brand && info.brand.name && info.brand.name !== "JARVIS"){ document.querySelector("header .brand b").textContent = info.brand.name.toUpperCase() + " OS"; document.title = info.brand.name; }
-  try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; warmAcks(); } catch {}
+  try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words;
+    HEAR = !!vi.hear && !window.JarvisNative && !!(window.MediaRecorder && navigator.mediaDevices?.getUserMedia); if(vi.speech_lang && rec) rec.lang = vi.speech_lang; warmAcks(); } catch {}
   try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
   $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";
   buildGrid(); focus("JARVIS"); await refresh(); connect(); phoneLink();

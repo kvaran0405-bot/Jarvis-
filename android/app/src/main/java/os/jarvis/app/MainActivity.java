@@ -489,7 +489,8 @@ public class MainActivity extends Activity {
 
                         @Override public void onResults(Bundle b) {
                             ArrayList<String> r = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                            if (r != null && !r.isEmpty()) emitSpeech("result", r.get(0), true);
+                            if (r != null && !r.isEmpty()) emitSpeech("result", bestGuess(r), true);
+                            else emitSpeech("error", "no-match", true);
                             emitSpeech("end", "", true);
                         }
 
@@ -501,13 +502,28 @@ public class MainActivity extends Activity {
                 }
                 Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
                 i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-                i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang == null || lang.isEmpty() ? "en-US" : lang);
+                // Singapore English understands local accents and names much better than American English
+                String use = lang == null || lang.isEmpty() || lang.equals("en-US") ? "en-SG" : lang;
+                i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, use);
+                i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, use);
                 i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, partial);
-                i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+                i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);   // several guesses: pick the one that fits JARVIS
+                // don't cut the owner off at a short pause
+                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L);
+                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L);
+                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1200L);
                 i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
                 try { recognizer.startListening(i); }
                 catch (Exception e) { emitSpeech("error", "aborted", true); emitSpeech("end", "", true); }
             });
+        }
+
+        /** Of the recogniser's guesses, prefer one that names JARVIS or an agent (they're often misheard). */
+        private String bestGuess(ArrayList<String> r) {
+            String[] names = {"jarvis", "friday", "oracle", "athena", "zeus", "herald", "pepper", "steve", "veronica",
+                    "banner", "edith", "sentinel", "shaabaz"};
+            for (String g : r) { String l = g.toLowerCase(); for (String n : names) if (l.contains(n)) return g; }
+            return r.get(0);
         }
 
         @JavascriptInterface

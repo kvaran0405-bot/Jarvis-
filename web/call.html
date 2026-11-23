@@ -156,7 +156,7 @@ function finishStream(rid, agent, reply, speakFn, feedFn){
 function stopListening(){ if(rec){ try { rec.abort(); } catch {} } }
 function listen(){
   if(!inCall || muted || speaking || pendingRid || !SR) { if(inCall && muted) setState("idle", "Microphone muted"); return; }
-  rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
+  rec = new SR(); rec.lang = "en-SG"; rec.interimResults = true; rec.continuous = true;
   let got = false, said = "", t = null;
   // wait for a short pause after you finish, so a breath mid-sentence doesn't cut you off
   const send = () => { clearTimeout(t); if(got || !said.trim()) return; got = true; try { rec.stop(); } catch {} handle(said.trim()); };

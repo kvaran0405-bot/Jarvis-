@@ -32,9 +32,42 @@ def _get_model():
         return _model
 
 
-def transcribe(path: str) -> str:
-    segments, _info = _get_model().transcribe(path, beam_size=1, vad_filter=True)
+def vocabulary(store=None) -> str:
+    """Names JARVIS should expect to hear (agents, places, the business), so the recogniser spells them right
+    instead of guessing. Used as the recogniser's starting hint."""
+    from .agents import AGENTS
+    words = [n.title() for n, a in AGENTS.items() if not a.hidden] + [
+        "Jarvis", "Shaabaz", "Kaplan", "Tampines", "Bukit Timah", "Jurong", "Punggol", "Changi", "Orchard", "Bugis",
+        "Sentosa", "Raffles", "Marina Bay Sands", "MRT", "Grab", "Shopee", "Lazada", "Telegram", "WhatsApp", "lah"]
+    if store is not None:
+        try:
+            import json as _json
+            words += list(_json.loads(store.get("places:saved") or "{}"))[:20]
+        except Exception:  # noqa: BLE001
+            pass
+    return "Hey Jarvis. " + ", ".join(dict.fromkeys(words)) + "."
+
+
+def transcribe(path: str, hint: str = "") -> str:
+    segments, _info = _get_model().transcribe(path, beam_size=1, vad_filter=True,
+                                              initial_prompt=hint or vocabulary(), language="en")
     return " ".join(seg.text.strip() for seg in segments).strip()
+
+
+def transcribe_scored(path: str, hint: str = "") -> tuple[str, float]:
+    """(text, confidence 0-1). Low confidence means: ask the owner to say it again rather than guess."""
+    import math
+    import os
+    model = _model_named(os.environ.get("JARVIS_HEAR_MODEL", "small"))   # more accurate for accents and names
+    segments, _info = model.transcribe(path, beam_size=3, vad_filter=True,
+                                              initial_prompt=hint or vocabulary(), language="en")
+    segs = list(segments)
+    text = " ".join(s.text.strip() for s in segs).strip()
+    if not segs:
+        return "", 0.0
+    lp = sum(s.avg_logprob for s in segs) / len(segs)
+    nosp = max(s.no_speech_prob for s in segs)
+    return text, max(0.0, min(1.0, math.exp(lp) * (1 - nosp)))
 
 
 def _model_named(name: str):
@@ -66,4 +99,9 @@ def transcribe_long(path: str, model: str = "", on_progress=None) -> tuple[list[
 def warm_up() -> None:
     """Load the model in the background at startup so the first voice note is quick."""
     if available():
-        threading.Thread(target=_get_model, daemon=True).start()
+        import os
+
+        def load():
+            _get_model()
+            _model_named(os.environ.get("JARVIS_HEAR_MODEL", "small"))   # push-to-talk engine, ready before first use
+        threading.Thread(target=load, daemon=True).start()
