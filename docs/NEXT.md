@@ -22,6 +22,35 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
   the laptop, per-agent autonomy dial, Protocol Zero kill switch, "what did you do without me" audit log, intruder
   alert.
 - **Named protocols:** create by voice ("Create Exam Protocol: ...") and run ("Initiate Exam Protocol").
+- **Daily upgrade report (every morning):** what changed overnight, in plain words with real numbers measured by
+  JARVIS itself, e.g. "We're faster now: replies 1.8s -> 1.2s", "Smoother: map animations 60 fps, no stutter",
+  "Fixed: phone link dropped twice yesterday, now reconnects itself", "New: ATHENA learned to quiz from slides",
+  "Agents learned: you prefer short replies before 9am". Sent on Telegram + spoken in the morning brief; a
+  "What's new" card on the HUD. Track metrics daily: reply latency, errors, page frame rate, phone-link uptime.
+
+## The movie-JARVIS brain (owner said yes to all of these)
+- **Connected memory (knowledge graph):** people, places, events, money (from email), conversations linked
+  ("this client is Ali's cousin who paid late in March, and her date clashes with exam week").
+- **Thinks across everything:** "should I take this gig?" weighs exams, energy, money, crew, travel, client history.
+- **Thinks while you sleep:** works on tomorrow's problems overnight; "3 solved, 1 needs you".
+- **Talks first (owner loves this):** starts conversations when it matters (stuck 40 min on an assignment, late
+  for something, a pattern it noticed), within quiet-hours/focus limits. Location chatter is step one.
+- **Hands-free "Jarvis" on the phone, even locked.**
+- **Interruptible conversation:** cut in mid-sentence, it stops and listens.
+- **Parallel tasks with a live HUD:** several jobs at once with progress bars.
+- **Blueprint mode:** any plan as an interactive glowing blueprint.
+- **Simulations (owner loves this):** "run it" -> simulate outcomes (life sim, gig pricing, exam score predictions,
+  "what if" scenarios) shown as holo charts.
+- **Build things for you:** websites, small apps, quizzes, built and tested, handed over.
+- **Perimeter security:** intruder alert, unknown Wi-Fi devices, phone/laptop aware of each other, auto-lock.
+- NOT wanted: smart home control, earbud/watch "suit" features.
+
+## Suggested build order
+1. Systems check + nightly self-repair + daily upgrade report
+2. Access control + protocols
+3. Connected brain + simulations
+4. Talks first + hands-free phone + interruptible voice
+5. Then the rest of this list
 
 ## Chosen for the next build (owner picked these)
 - **JARVIS learns new skills by itself:** "Jarvis, learn to track my parcels" -> writes the new tool, tests it in a
