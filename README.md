@@ -257,6 +257,9 @@ it stays silent unless the alert is critical.
 - **Training mode** opens when JARVIS starts: hands-on missions for every feature (drop a document, group call, Holo
   Lab, phone powers...). Each ticks off when it actually works. Skip one, skip all, or "don't show on start"; say
   "tutorial" to bring it back.
+- **Voice typing anywhere (laptop):** hold **Right Ctrl**, talk, let go: JARVIS types it into whatever app has the
+  cursor. Start with "Jarvis, ..." to give an order instead. Understood on the laptop itself; never types into
+  banking windows. Change the key with `JARVIS_DICTATE_KEY` (rctrl, ralt, f8, f9, capslock) or `JARVIS_DICTATE=off`.
 - **Photo sorter:** every night the phone sends new photos to the laptop and JARVIS files them into
   Pictures/JARVIS Albums (Receipts, Notes & Slides, Event Setups, Food, People, Places...). Ask "find my Uniqlo
   receipt". Photos of cards, IDs or passwords are thrown away. Turn off with `JARVIS_PHOTO_SORT=off`.
