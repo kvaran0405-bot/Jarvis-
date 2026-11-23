@@ -213,6 +213,7 @@ def data(store) -> dict:
         gigs.append({"client": g["client"], "type": g["event_type"], "value": float(g["quote_total"] or 0),
                      "status": g["status"], "days": days, "next": g["next_step"]})
     spend = store.spending_summary(today.replace(day=1).isoformat())["by_category"]
+    from . import explore as _explore
     places_today, explored = [], set()
     for e in store.list_events((today - timedelta(days=365)).isoformat(), (today + timedelta(days=1)).isoformat()):
         p = place_of(f"{e['title']} {e.get('location') or ''}")
@@ -230,6 +231,7 @@ def data(store) -> dict:
         "income": round(sum(r["total"] for r in spend if r["total"] > 0), 2),
         "outline": SG_OUTLINE, "landmarks": {k: [v[0], v[1]] for k, v in LANDMARKS.items()},
         "today_places": places_today, "explored": sorted(explored),
+        "trail": _explore.trail(store), "trail_stats": _explore.stats(store), "route": _explore.current_route(store),
         "diagnostics": diagnostics(store, today), "trophies": trophies(store),
     }
 

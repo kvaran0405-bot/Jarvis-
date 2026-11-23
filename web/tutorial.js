@@ -29,6 +29,8 @@ const MISSIONS = [
   {id: "dictate", title: "Voice typing anywhere", what: "Hold Right Alt (or the Copilot key ✦), talk, let go: JARVIS types what you said into any app (Word, email, WhatsApp Web…). Start with “Jarvis, …” to give an order instead.", todo: "Click into the box below (or open Notepad), hold Right Alt (or the Copilot key ✦) and say “testing one two three”, then let go.", ev: "dictated", laptop: true},
   {id: "photos", title: "Photo sorter", what: "Every night your phone's new photos are filed into Pictures › JARVIS Albums (Receipts, Notes & Slides, Event Setups…).", todo: "Say: “find my latest receipt” (or “sort my photos now”).", say: /photo|receipt|album/i},
   {id: "email", title: "Your inbox", what: "JARVIS reads your Gmail: briefings, an inbox sweep for what matters, smart reply drafts (you send).", todo: "Send /email to your JARVIS bot on Telegram and follow the 3 steps, then say: “anything important in my email?”", say: /e-?mail|inbox|gmail/i},
+  {id: "route", title: "Your map & route", what: "Every place your phone has been lights up on the Singapore holo map; your day's stops become a route with directions on the phone.", todo: "Say: “plan my route” (or “plan a route to Orchard, then Tampines Mall”).", say: /\broute\b/i},
+  {id: "faces", title: "Agent faces (preview)", what: "A sneak peek of holographic faces for your agents: they blink, look at you, wear their mood and talk.", todo: "Tap “Open faces”, then tap any face.", go: "/faces.html", dom: "faces", goLabel: "OPEN FACES"},
   {id: "update", title: "One-word updates", what: "JARVIS updates itself every night. To update now, text “update” to your bot on Telegram.", todo: "Nothing to do here: tap ✓ Got it.", manual: true},
 ];
 let done = store.get("done", {}), cur = null;
@@ -60,11 +62,12 @@ function show(){
   box.innerHTML = `<div class="k"><span>TRAINING · MISSION ${n + 1}</span><span>${n}/${total}</span></div>
     <h3>${esc(cur.title)}</h3><div>${esc(cur.what)}</div><div class="do">▸ ${esc(cur.todo)}</div>
     <div class="bar"><i style="width:${Math.round(n / total * 100)}%"></i></div>
-    <div class="row">${cur.go ? `<a class="b p" href="${cur.go}">OPEN SETUP</a>` : ""}${cur.manual ? `<button class="p" data-a="got">✓ GOT IT</button>` : ""}
+    <div class="row">${cur.go ? `<a class="b p" href="${cur.go}" data-go>${cur.goLabel || "OPEN SETUP"}</a>` : ""}${cur.manual ? `<button class="p" data-a="got">✓ GOT IT</button>` : ""}
       <button data-a="skip">SKIP THIS</button><button data-a="close">SKIP TUTORIAL</button><button data-a="off" title="Don't show when JARVIS starts">DON'T SHOW ON START</button></div>`;
   box.classList.add("on"); bind();
 }
 function bind(){
+  $("#tut").querySelector("[data-go]")?.addEventListener("click", () => { if(cur?.dom === "faces") complete("faces"); });
   $("#tut").querySelectorAll("[data-a]").forEach(b => b.onclick = () => {
     const a = b.dataset.a; sfx()?.click?.();
     if(a === "skip" || a === "got"){ if(a === "got") return complete(cur.id); done[cur.id] = "skipped"; store.set("done", done); show(); }
@@ -106,6 +109,7 @@ window.TUTORIAL = {show, replay(){ done = {}; store.set("done", done); show(); }
 setTimeout(() => {
   if(store.get("autostart", true) === false || new URLSearchParams(location.search).get("kiosk") === "1" && document.hidden) return;
   const left = todo(); if(!left.length) return;
+  if(window.HOLO?.isOpen?.()) return;   // don't pop up over the Holo Lab
   document.body.insertAdjacentHTML("beforeend", `<div id="tutStart"><div class="c"><h2>TRAINING MODE</h2>
     <p>${left.length} feature${left.length > 1 ? "s" : ""} to try. Each mission takes a few seconds and ticks off when it works.<br>Next up: <b style="color:#fff">${esc(left[0].title)}</b></p>
     <button class="p" id="tutGo">START</button><button id="tutSkip">SKIP</button><button id="tutNever">DON'T SHOW ON START</button></div></div>`);

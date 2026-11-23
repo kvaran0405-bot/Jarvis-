@@ -59,6 +59,11 @@ def checkin(store, bus, report: dict) -> list[dict]:
         st["loc_at"] = now.isoformat()
     store.set("phone:state", json.dumps(st))
     if "lat" in report and report.get("lat") is not None:
+        from . import explore
+        try:
+            explore.record(store, float(report["lat"]), float(report["lon"]))
+        except Exception:  # noqa: BLE001 - the map is a nicety
+            pass
         location_magic(store, bus, float(report["lat"]), float(report["lon"]), float(report.get("speed") or 0), prev)
     continuity(store, st)
     cmds = store.query("SELECT id, kind, payload FROM phone_cmds WHERE status = 'queued' ORDER BY id LIMIT 10")

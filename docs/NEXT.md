@@ -7,6 +7,17 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 - Add the free Gemini key: send `/gemini` (turns on fast mode, Gemini voices, photo sorter).
 - Phone: install the latest JARVIS.apk (Play Protect scanning off for one minute), then say "setup" and tap ALLOW NEXT.
 
+## Chosen for the next build (owner picked these)
+- **JARVIS learns new skills by itself:** "Jarvis, learn to track my parcels" -> writes the new tool, tests it in a
+  sandbox, shows it, adds it after the owner's yes.
+- **Agents run whole projects for days:** multi-day missions (e.g. PEPPER plans the Tan wedding) with a live mission
+  timeline on the HUD and approval checkpoints.
+- **Life simulator:** "what if I skip gym and take 2 more gigs?" -> 4-week projection of energy, grades, money,
+  stress as a holo chart.
+- **Instant local brain:** small on-laptop model for sub-second replies (works offline); big brain for hard ones.
+- **Throw windows between devices:** swipe a laptop window to the phone, flick the phone at the laptop.
+- (Preview built: agent faces at /faces.html; owner to decide if they go on the HUD and phone.)
+
 ## Ideas offered, not built yet
 1. Auto car mode when the phone connects to the car's Bluetooth (reads messages aloud).
 2. Deal watch: daily Shopee/Shein price checks, alert on a price drop.

@@ -235,16 +235,42 @@ const BUILD = {
     const shape = new THREE.Shape(data.outline.map(([lon, lat]) => new THREE.Vector2((lon - 103.82) * k, (lat - 1.355) * k)));
     const land = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat("#5fd8ff", .06)); land.rotation.x = -Math.PI / 2; group.add(land);
     const today = new Set(data.today_places.map(p => p.place)), explored = new Set(data.explored);
+    const rs = ((data.route || {}).stops || []).filter(s => s.lat != null), onRoute = new Set(rs.map(s => s.name));
     Object.entries(data.landmarks).forEach(([name, [lat, lon]]) => {
       const v = P([lon, lat]), isT = today.has(name), isE = explored.has(name), col = isT ? "#5fd8ff" : isE ? "#ffd23f" : "#3a4656";
       const h = isT ? 3 : isE ? 1.4 : .4, pin = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, h, 6), mat(col, isT || isE ? .9 : .5));
       pin.position.set(v.x, h / 2, v.z); group.add(pin);
       const dot = glow(col, isT ? 2.4 : isE ? 1.4 : .6, isT || isE ? .9 : .4); dot.position.set(v.x, h, v.z); group.add(dot);
-      if(isT || isE){ const p = new THREE.Object3D(); p.position.set(v.x, h, v.z); group.add(p);
+      if((isT || isE) && !onRoute.has(name)){ const p = new THREE.Object3D(); p.position.set(v.x, h, v.z); group.add(p);
         const ev = data.today_places.find(x => x.place === name); label(p, `${esc(name)}${ev ? `<small>${esc(ev.title.slice(0, 22))} · ${ev.time}</small>` : ""}`, col); }
       if(isT) animators.push(t => dot.scale.setScalar(2.4 * (1 + Math.sin(t * 4) * .25)));
     });
-    const c = new THREE.Object3D(); c.position.set(0, 4, 0); group.add(c); label(c, `SINGAPORE<small>${explored.size} explored · ${today.size} today</small>`, "#ffd23f");
+    // your real trail: every ~300 m square the phone has been in, brighter where you go often
+    const tr = data.trail || [];
+    if(tr.length){
+      const arr = new Float32Array(tr.length * 3);
+      tr.forEach(([lat, lon, n], i) => { const v = P([lon, lat]); arr[i * 3] = v.x; arr[i * 3 + 1] = .04 + Math.min(n, 12) * .025; arr[i * 3 + 2] = v.z; });
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+      const dots = new THREE.Points(g, new THREE.PointsMaterial({color: C("#ffd23f"), size: .2, transparent: true, opacity: .85,
+        blending: THREE.AdditiveBlending, depthWrite: false}));
+      group.add(dots); animators.push(t => dots.material.opacity = .65 + Math.sin(t * 1.6) * .2);
+    }
+    // today's route: numbered stops joined by an arc, with a light running along it
+    rs.forEach((s, i) => { const v = P([s.lon, s.lat]), p = new THREE.Object3D(); p.position.set(v.x, 1.6 + i * 1.1, v.z); group.add(p);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.6 + i * 1.1, 6), mat("#3dff9a", .7)); stem.position.set(v.x, (1.6 + i * 1.1) / 2, v.z); group.add(stem);
+      const d = glow("#3dff9a", .9, .95); d.position.set(v.x, .2, v.z); group.add(d);
+      label(p, `${i + 1} · ${esc(s.name.slice(0, 22))}${s.time ? `<small>${s.time}</small>` : ""}`, "#3dff9a"); });
+    if(rs.length > 1){
+      const pts2 = [];
+      for(let i = 0; i < rs.length - 1; i++){ const a = P([rs[i].lon, rs[i].lat]), b = P([rs[i + 1].lon, rs[i + 1].lat]);
+        for(let j = 0; j <= 24; j++){ const t = j / 24; pts2.push(new THREE.Vector3(a.x + (b.x - a.x) * t, .2 + Math.sin(Math.PI * t) * (1 + a.distanceTo(b) * .15), a.z + (b.z - a.z) * t)); } }
+      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts2), new THREE.LineBasicMaterial({color: C("#3dff9a"), transparent: true, opacity: .9})));
+      const runner = glow("#ffffff", 1.2, 1); group.add(runner);
+      animators.push(t => { const n = pts2.length, k2 = ((Math.floor(t * 12) % n) + n) % n; if(pts2[k2]) runner.position.copy(pts2[k2]); });
+    }
+    const st = data.trail_stats || {};
+    const c = new THREE.Object3D(); c.position.set(0, 4, 0); group.add(c);
+    label(c, `SINGAPORE<small>${st.squares ? `${st.squares} spots · ${st.km2} km² explored` : `${explored.size} explored`} · ${rs.length ? rs.length + " stops today" : today.size + " today"}</small>`, "#ffd23f");
     animators.push((t, dt) => group.rotation.y += dt * .05);
   },
   diagnostics(){

@@ -706,6 +706,8 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"\s*[.!]?\s*$", re.I)
 FAST_RE = re.compile(_J + r"(?:fast|quick|speed|turbo) (?:voice |reply |replies |response )?mode (on|off)\s*[.!]?\s*$|"
                      r"^\s*(?:jarvis[,\s]+)?(?:turn (on|off) fast (?:voice|mode|replies))\s*[.!]?\s*$", re.I)
+ROUTE_RE = re.compile(_J + r"(?:plan|show|make|map)(?: me)? (?:my |a |the )?route(?: for (?:today|my day))?"
+                      r"(?:\s+(?:to|via|for)\s+(.+?))?\s*[.!?]?\s*$", re.I)
 TUTORIAL_RE = re.compile(_J + r"(?:show me |start |open |run |replay )?(?:the )?(?:tutorial|training(?: mode)?|walkthrough|tour)\s*[.!?]?\s*$", re.I)
 SETUP_RE = re.compile(_J + r"(?:setup|set up|set me up|allow everything|give (?:jarvis |you )?(?:all|full) access|permissions)\s*[.!?]?\s*$", re.I)
 CINEMA_RE = re.compile(_J + r"(?:show me |play |run |start )?(?:the |all the |all )?(?:cinematics?|cinematic mode|movie mode|"
@@ -826,6 +828,14 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         bus.publish({"type": "brain", **brain.describe(store)})
         return (f"Fast mode on, Sir. Gemini answered in {secs:.1f} seconds. Everything you ask now gets the quickest "
                 "brain, and if it ever stumbles I quietly use the main one."), None, None
+    if m := ROUTE_RE.match(text):
+        from . import explore, phonelink
+        extra = [x for x in re.split(r"\s*(?:,|\bthen\b|\band\b|->|→)\s*", m.group(1) or "") if x.strip()]
+        route = explore.plan(store, extra=extra)
+        if route["link"]:
+            phonelink.queue(store, "link", url=route["link"])
+            bus.publish({"type": "holo", "view": "singapore"})
+        return explore.describe(route), None, None
     if TUTORIAL_RE.match(text):
         bus.publish({"type": "tutorial"})
         return "Training mode, Sir. Each mission ticks off when it works.", None, None
