@@ -398,9 +398,10 @@ async function openRoom(agent){
       <div class="sec"><b>ON THE TEAM</b>${li(Object.entries(r.opinions).map(([k, v]) => `${k}: “${v}”`))}</div>
       <div class="sec"><b>FAVOURITES</b>${li(Object.entries(r.favourites).map(([k, v]) => `${k}: ${v}`))}</div>
     </div>
-    <div class="acts"><button class="btn" id="rThank">♥ Thank ${esc(agent)}</button><button class="btn" id="rTalk">Talk</button><a class="btn" href="/call.html?agent=${agent}">Call</a><button class="btn no" id="rClose">Close</button></div></div>`;
+    <div class="acts"><button class="btn" id="rThank">♥ Thank ${esc(agent)}</button><button class="btn" id="rTalk">Talk</button><a class="btn" href="/call.html?agent=${agent}">Call</a><button class="btn" id="rPhoto">📸 Team photo</button><button class="btn no" id="rClose">Close</button></div></div>`;
   $("#modal").style.display = "flex"; SFX.whoosh();
   $("#rClose").onclick = () => $("#modal").style.display = "none";
+  $("#rPhoto").onclick = () => teamPhoto();
   $("#rTalk").onclick = () => { $("#modal").style.display = "none"; $("#target").value = agent; window.focus?.(agent); $("#cmd").focus(); };
   $("#rThank").onclick = async () => { const t = await (await fetch(`/api/bonds/${agent}/thanks`, {method: "POST"})).json(); hearts(col, 6); $("#rThank").textContent = "♥ Thanked"; loadBonds(); };
 }
@@ -414,5 +415,66 @@ const RITUAL_FX = {
 };
 setTimeout(loadBonds, 1500); setInterval(loadBonds, 120000);
 
-window.HUDFX = {speakStart, speakEnd, onEvent: onEvent2, boot, expo, sfx: SFX, toast, dossier, openRoom, loadBonds};
+// ------------------------------------------------------------------ team life: group calls, dinner, gifts, team photo
+const tcss = document.createElement("style");
+tcss.textContent = `#teamCall{position:fixed;left:50%;top:70px;transform:translateX(-50%) translateY(-20px);z-index:44;display:flex;gap:14px;padding:12px 18px;
+background:rgba(4,10,18,.88);border:1px solid var(--line);box-shadow:0 0 30px rgba(0,229,255,.12);opacity:0;pointer-events:none;transition:.4s;align-items:center}
+#teamCall.on{opacity:1;transform:translateX(-50%);pointer-events:auto}#teamCall .tt{font:700 9px Orbitron,sans-serif;letter-spacing:.25em;color:var(--muted);margin-right:6px;writing-mode:vertical-rl;transform:rotate(180deg)}
+#teamCall .p{display:flex;flex-direction:column;align-items:center;gap:5px;font:700 8px Orbitron,sans-serif;letter-spacing:.08em;color:var(--pc);opacity:.45;transition:.25s}
+#teamCall .p i{width:38px;height:38px;border-radius:50%;border:2px solid var(--pc);background:radial-gradient(circle,rgba(255,255,255,.25),transparent 70%);box-shadow:0 0 6px var(--pc)}
+#teamCall .p.talk{opacity:1}#teamCall .p.talk i{animation:tcpulse .6s ease-in-out infinite alternate;box-shadow:0 0 22px var(--pc),inset 0 0 12px var(--pc)}
+@keyframes tcpulse{to{transform:scale(1.15)}}#teamCall .x{margin-left:6px;cursor:pointer;color:var(--dim);font-size:16px}
+#teamCall.dinner{border-color:#ffb347;box-shadow:0 0 34px rgba(255,170,60,.25)}`;
+document.head.appendChild(tcss);
+document.body.insertAdjacentHTML("beforeend", `<div id="teamCall"></div>`);
+let teamLeft = 0;
+function showTeam(ev){
+  const box = $("#teamCall"), who = [...new Set([...(ev.agents || []), ...ev.lines.map(l => l.agent)])];
+  box.className = ev.dinner ? "on dinner" : "on";
+  box.innerHTML = `<span class="tt">${ev.dinner ? "DINNER" : "GROUP CALL"}</span>` + who.map(a => `<div class="p" data-a="${esc(a)}" style="--pc:${window.AGENTS?.[a]?.color || "#2de0c0"}"><i></i>${esc(a)}</div>`).join("")
+    + `<span class="x" title="End call">✕</span>`;
+  box.querySelector(".x").onclick = () => { box.classList.remove("on"); window.stopSpeaking?.(); teamLeft = 0; };
+  teamLeft = ev.lines.length; SFX.lock();
+  if(ev.dinner){ tone(1250, .9, "sine", .03, 1.01); setTimeout(() => tone(1500, .8, "sine", .02), 140); }   // glasses clink
+  if(document.querySelector("#voiceBtn")?.textContent.includes("Muted")) setTimeout(() => box.classList.remove("on"), 12000);   // muted: nothing will be spoken
+}
+function teamTalk(agent, on){
+  const box = $("#teamCall"); if(!box.classList.contains("on")) return;
+  box.querySelectorAll(".p").forEach(p => p.classList.toggle("talk", on && p.dataset.a === agent));
+  if(!on && --teamLeft <= 0) setTimeout(() => { if(teamLeft <= 0) box.classList.remove("on"); }, 2500);
+}
+const _ss = speakStart, _se = speakEnd;
+speakStart = function(clip, audio){ _ss(clip, audio); teamTalk(clip.agent, true); };
+speakEnd = function(clip){ _se(clip); teamTalk(clip?.agent, false); };
+function giftToast(ev){
+  const col = window.AGENTS?.[ev.agent]?.color || "#ff5c9a", t = $("#hudToast"); if(!t) return;
+  t.style.setProperty("--tc", col);
+  t.innerHTML = `<b>🎁 ${esc(ev.agent)} MADE YOU SOMETHING</b>${esc(ev.title)}<div style="font-size:12px;margin-top:4px">${esc(ev.message || "")}</div>
+    <div style="display:flex;gap:6px;margin-top:8px"><a class="btn" href="/api/gifts/${ev.id}" target="_blank">Open gift</a><button class="btn no" onclick="this.closest('#hudToast').classList.remove('on')">Later</button></div>`;
+  t.classList.add("on"); hearts(col, 12); SFX.done(); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 30000);
+}
+function teamPhoto(){
+  $("#modalBody").innerHTML = `<div style="text-align:center"><h2 style="margin:0 0 10px">THE TEAM</h2>
+    <img src="/api/team/photo?t=${Date.now()}" style="max-width:100%;border:1px solid var(--line)" alt="Team photo">
+    <div style="font-size:12px;color:var(--muted);margin:8px 0">Closer friends stand in front and glow brighter. It changes as your bonds grow.</div>
+    <a class="btn" href="/api/team/photo" download="team-photo.png">Save</a> <button class="btn no" onclick="document.querySelector('#modal').style.display='none'">Close</button></div>`;
+  $("#modal").style.display = "flex"; SFX.whoosh();
+}
+async function teamCall(topic){
+  topic = topic ?? prompt("Group call — what about? (empty = catch-up)", "");
+  if(topic === null) return;
+  toast("JARVIS", "Patching the team in…", 4000);
+  fetch("/api/team", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({topic})}).catch(() => {});
+}
+if(vb){ vb.insertAdjacentHTML("afterend", `<button class="pill hud" id="teamBtn" title="Group call with the team (right-click: team photo)">🎙 Team</button>`);
+  $("#teamBtn").onclick = () => { SFX.click(); teamCall(); };
+  $("#teamBtn").oncontextmenu = e => { e.preventDefault(); teamPhoto(); }; }
+const _oe2 = onEvent2;
+function onEvent3(ev){
+  _oe2(ev);
+  if(ev.type === "team") showTeam(ev);
+  if(ev.type === "gift") giftToast(ev);
+}
+
+window.HUDFX = {speakStart: (c, a) => speakStart(c, a), speakEnd: c => speakEnd(c), onEvent: onEvent3, boot, expo, sfx: SFX, toast, dossier, openRoom, loadBonds, teamCall, teamPhoto};
 })();

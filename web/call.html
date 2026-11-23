@@ -211,7 +211,8 @@ const es = new EventSource("/api/stream");
 es.onmessage = e => { const ev = JSON.parse(e.data);
   if(ev.type === "delta" && streams[ev.rid]) feed(ev.rid, ev.agent, ev.text, false);
   else if(ev.type === "delta_end" && streams[ev.rid]) feed(ev.rid, ev.agent, "", true);
-  else if((ev.type === "ask" || ev.type === "say") && inCall){ addLog(ev.agent, ev.say || ev.text); say(ev.agent, ev.say || ev.text); } };
+  else if((ev.type === "ask" || ev.type === "say") && inCall){ addLog(ev.agent, ev.say || ev.text); say(ev.agent, ev.say || ev.text); }
+  else if(ev.type === "team" && inCall){ ev.lines.forEach(l => { addLog(l.agent, l.line); say(l.agent, l.line); }); } };
 
 (async () => {
   try {

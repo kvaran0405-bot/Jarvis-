@@ -8,6 +8,7 @@ import queue
 import re
 import threading
 import urllib.parse
+from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
@@ -708,6 +709,14 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         agent = who if who in AGENTS else "JARVIS"
         bus.publish({"type": "say", "agent": agent, "say": bonds.greet(store, agent, night), "text": ""}) if agent != "JARVIS" else None
         return (bonds.greet(store, agent, night) if agent == "JARVIS" else "…"), None, None
+    from . import team as _team
+    if _team.DINNER_RE.match(text):
+        threading.Thread(target=_team.dinner, args=(engine,), daemon=True).start()
+        return "Setting the table, Sir. The team's pulling up chairs. 🍽", None, None
+    if m := _team.TEAM_RE.match(text):
+        topic = (m.group(1) or m.group(2) or "a quick catch-up").strip()
+        _team.call_async(engine, topic)
+        return "Patching the team in, Sir…", None, None
     if m := CALLME_RE.match(text):
         from . import bonds
         bonds.set_nickname(store, m.group(1), m.group(2))
@@ -802,6 +811,13 @@ def handle_owner_message(text: str, via: str = "WhatsApp", voice: bool = False) 
         items = store.list_outbox("pending", 20)
         return "\n\n".join(f"#{x['id']} {x['channel']} → {x['recipient_name'] or x['recipient']}: {x['body'][:200]}"
                              for x in items) or "Nothing is waiting for approval."
+    from . import team as _team
+    if _team.DINNER_RE.match(text) or _team.TEAM_RE.match(text):   # on Telegram, wait and send the whole call
+        bus.log("YOU", f"({via}) {text}", "command")
+        m = _team.TEAM_RE.match(text)
+        lines = _team.dinner(engine) if _team.DINNER_RE.match(text) else \
+            _team.call(engine, (m.group(1) or m.group(2) or "a quick catch-up").strip())
+        return ("🎙 " if not _team.DINNER_RE.match(text) else "🍽 ") + _team.transcript(lines)
     direct, sp_agent, sp_prompt = special(text)
     if direct is not None:
         bus.log("YOU", f"({via}) {text}", "command")
@@ -1106,6 +1122,50 @@ async def laptop_screenshot_view():
     if _blocked(foreground_title()):
         raise HTTPException(403, "banking screen")
     path = await asyncio.to_thread(devices.screenshot)
+    return FileResponse(path, media_type="image/png")
+
+
+# ---------------------------------------------------------------- team life: group calls, gifts, team photo
+class TeamCall(BaseModel):
+    topic: str = ""
+    agents: list[str] = []
+    dinner: bool = False
+
+
+@app.post("/api/team")
+async def team_call_api(t: TeamCall):
+    """A group call: the script comes back as [{agent, line}] and is also played on the dashboard."""
+    from . import team
+    if t.dinner:
+        return {"lines": await asyncio.to_thread(team.dinner, engine)}
+    who = [a for a in (x.upper() for x in t.agents) if a in AGENTS and not AGENTS[a].hidden] or None
+    return {"lines": await asyncio.to_thread(team.call, engine, t.topic or "a quick catch-up", who=who)}
+
+
+@app.get("/api/team/photo")
+async def team_photo_api():
+    from . import team
+    return FileResponse(await asyncio.to_thread(team.team_photo, store), media_type="image/png",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/gifts")
+async def gifts_list():
+    from . import bonds
+    bonds.room(store, "JARVIS")
+    return store.query("SELECT id, agent, kind, title, body, day FROM agent_gifts ORDER BY id DESC LIMIT 50")
+
+
+@app.get("/api/gifts/{gift_id}")
+async def gift_file(gift_id: int):
+    from . import bonds, team
+    bonds.room(store, "JARVIS")
+    row = store.query("SELECT file FROM agent_gifts WHERE id = ?", (gift_id,))
+    if not row or not row[0]["file"]:
+        raise HTTPException(404, "No such gift")
+    path = Path(row[0]["file"]).resolve()
+    if team.GIFTS.resolve() not in path.parents or not path.exists():
+        raise HTTPException(404, "Gift file is gone")
     return FileResponse(path, media_type="image/png")
 
 

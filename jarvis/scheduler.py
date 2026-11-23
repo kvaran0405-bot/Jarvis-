@@ -169,6 +169,9 @@ THANKS = ("Weekly thank-you. You're writing to the owner as their friend and tea
           "(status_snapshot, recall, my_notebook, list_tasks done) and thank them for ONE specific thing they did "
           "with you or for themselves this week, in your own voice, 2-3 sentences, with feeling (a sound tag is fine). "
           "Your final answer is sent to them as it is.")
+SURPRISE = ("Unprompted surprise voice note to the owner, as their friend: you just thought of them. One or two "
+            "sentences, natural and specific (a memory, their week, or your own personality), with feeling. Don't ask "
+            "them to do anything. Your final answer is the note itself.")
 SUBS = ("Subscription check. search_email('receipt subscription renewal invoice', days=45). List recurring charges "
         "you can see (service, amount, renewal date). Flag ones that look unused or duplicated and `propose` "
         "cancelling them (the owner cancels; you never do). Reply in 2-3 lines.")
@@ -202,6 +205,12 @@ class Scheduler:
             Job("monthly_report", "FRIDAY", "Monthly life report", monthly_at(1, "10:00"), MONTHLY),
             Job("anticipate", "JARVIS", "Before-you-ask", daily_at("08:30"), ANTICIPATE),
             Job("thank_you", "JARVIS", "Weekly thank-you", daily_at("18:30", weekday=5), THANKS, deliver=True),
+            Job("team_dinner", "JARVIS", "Friday team dinner", daily_at("20:30", weekday=4), "custom"),
+            Job("surprise_note", "JARVIS", "Surprise voice note", daily_at("16:10"), SURPRISE, deliver=True,
+                when=lambda sc: sc._surprise() is not None),
+            Job("diaries", "JARVIS", "Agent diaries", daily_at("21:40", weekday=6), "custom"),
+            Job("gift", "JARVIS", "A gift from a friend", daily_at("11:20", weekday=5), "custom",
+                when=lambda sc: sc._has_friend(5)),
             Job("team_tuneup", "JARVIS", "Team tune-up", daily_at("22:00", weekday=6), TUNEUP),
             Job("mission_briefing", "JARVIS", "Mission briefing", daily_at("07:20"), MISSION, deliver=True,
                 when=lambda sc: sc.big_day()),
@@ -254,10 +263,19 @@ class Scheduler:
                 agent = top[0]["agent"] if top else "JARVIS"
             if job.when is not None and not job.when(self):
                 return f"{job.label}: nothing to do"
+            if name == "surprise_note":
+                agent = self._surprise_pick or "JARVIS"
+            if job.prompt == "custom":
+                return self._team_job(name)
             result = self.night_shift() if job.prompt is None else self.engine.run(agent, job.prompt,
                                                                                     background=True, chat=job.deliver)
             if job.deliver:
                 self.deliver(agent, result)
+                if name == "surprise_note" and not result.startswith(("⚠", "⏸")) and "hit an error" not in result:
+                    from . import bonds
+                    from .speech import announce
+                    bonds.moment(self.store, agent, "Surprise voice note: " + result[:120])
+                    announce(self.bus, agent, result, phone=False)
                 if name == "mission_briefing":
                     self.bus.publish({"type": "mission", "agent": agent, "text": result})
             self.bus.log(job.agent, f"{job.label} complete: {result[:200]}", "job")
@@ -265,6 +283,32 @@ class Scheduler:
         finally:
             with self._lock:
                 self._running.discard(name)
+
+    _surprise_pick: str | None = None
+
+    def _has_friend(self, level: int) -> bool:
+        from .bonds import all_bonds
+        return any(r["level"] >= level for r in all_bonds(self.store))
+
+    def _surprise(self) -> str | None:
+        from .team import surprise_agent
+        self._surprise_pick = surprise_agent(self.store)
+        return self._surprise_pick
+
+    def _team_job(self, name: str) -> str:
+        from . import team
+        if name == "team_dinner":
+            lines = team.dinner(self.engine)
+            from . import telegram as tg
+            if tg.ready() and lines:
+                tg.send("🍽 Friday team dinner\n\n" + team.transcript(lines))
+            return f"Team dinner: {len(lines)} lines"
+        if name == "diaries":
+            return f"{team.write_diaries(self.engine)} diary entries"
+        if name == "gift":
+            g = team.give_gift(self.engine)
+            return f"Gift: {g['title']} from {g['agent']}" if g else "No gift this week"
+        return "?"
 
     def big_day(self) -> bool:
         import re as _re

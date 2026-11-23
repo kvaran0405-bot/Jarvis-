@@ -759,6 +759,9 @@ function connect(){
       logLine(ev.agent, "🔊 " + ev.text, "reply");
       queueSpeech(ev.agent, ev.text);
     }
+    else if(ev.type === "team"){   // a group call: everyone speaks in turn, each in their own voice
+      ev.lines.forEach(l => { logLine(l.agent, (ev.dinner ? "🍽 " : "🎙 ") + l.line, "reply"); queueSpeech(l.agent, l.line); });
+    }
     else if(ev.type === "ask"){   // an agent needs a yes/no: say it, then listen for the answer (no wake word needed)
       logLine(ev.agent, "💡 " + ev.say, "reply");
       $("#target").value = "JARVIS";
