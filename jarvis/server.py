@@ -56,6 +56,16 @@ async def lifespan(_app):
                  on_decision=lambda msg_id, yes: approve_message(msg_id) if yes else reject_message(msg_id),
                  log=lambda m: bus.log("JARVIS", m, "system"))
     bot.on_update = start_update
+
+    def _connect_email(address: str, app_password: str) -> str:   # "/email" on Telegram
+        from . import access, updater
+        try:
+            result = access.save_email(address, app_password)
+        except ValueError as exc:
+            return f"⚠ {exc}\nSend /email to try again."
+        threading.Timer(4, lambda: updater.start(store, bus, quiet=True)).start()
+        return "✅ " + result + " Try: “anything important in my email?”"
+    bot.on_email = _connect_email
     bot.start()
     from . import clap
     bus.log("JARVIS", clap.start(on_double_clap), "system")

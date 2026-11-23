@@ -12,6 +12,7 @@ import re
 import secrets
 import tempfile
 import threading
+import time
 import urllib.request
 import uuid
 from pathlib import Path
@@ -45,6 +46,18 @@ def ready() -> bool:
 
 def pair_code() -> str:
     return str(_store.get("telegram:pair_code", "")) if _store else ""
+
+
+EMAIL_SETUP_RE = re.compile(r"^\s*(?:jarvis[,\s]+)?(?:set ?up|connect|link|add) (?:my )?(?:e-?mails?|gmail|inbox)\s*[.!]?\s*$", re.I)
+EMAIL_STEPS = ("📧 Let's connect your Gmail (2 minutes):\n\n"
+               "1. Open https://myaccount.google.com/apppasswords and sign in.\n"
+               "   (If it says it's not available: turn on 2-Step Verification first at "
+               "https://myaccount.google.com/signinoptions/twosv, then open the link again.)\n"
+               "2. Type JARVIS as the name and tap Create. Google shows 16 letters.\n"
+               "3. Send me ONE message with your Gmail address and those 16 letters, like:\n"
+               "   you@gmail.com abcd efgh ijkl mnop\n\n"
+               "I'll delete your message straight away, check it with Gmail, and restart. "
+               "(This works for the next 15 minutes.)")
 
 
 # ---------------------------------------------------------------- Telegram Bot API
@@ -124,6 +137,8 @@ class Bot:
         self.on_text, self.on_decision, self.log, self.on_reply = on_text, on_decision, log, on_reply
         self.on_proposal = on_proposal
         self.on_update: Callable[[], str] | None = None
+        self.on_email: Callable[[str, str], str] | None = None   # (gmail address, app password) -> result
+        self._email_until = 0.0
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -216,6 +231,27 @@ class Bot:
         if re.match(r"^\s*(?:jarvis[,\s]+)?(?:update|update now|update please|update yourself|update jarvis|get (?:the )?(?:newest|latest) version)\s*[.!]?\s*$",
                     text, re.I):
             text = "/update"
+        if self.on_email and (text in ("/email", "/gmail") or EMAIL_SETUP_RE.match(text)):
+            self._email_until = time.time() + 900
+            send(EMAIL_STEPS)
+            return
+        if self._email_until > time.time() and "@" in text and self.on_email:
+            # this message holds the app password: take it out of the chat at once, whatever happens next
+            try:
+                api("deleteMessage", chat_id=sender, message_id=msg.get("message_id"))
+            except Exception:  # noqa: BLE001
+                pass
+            addr = re.search(r"[^\s@]+@[^\s@]+\.[a-z]{2,}", text, re.I)
+            pw = re.search(r"(?<![a-z])([a-z]{4})\s?([a-z]{4})\s?([a-z]{4})\s?([a-z]{4})(?![a-z])",
+                           text.replace(addr.group(0), " ") if addr else text, re.I)
+            if not addr or not pw:
+                send("🔒 I deleted that message to keep it private. Please send it again like this:\n"
+                     "you@gmail.com abcd efgh ijkl mnop")
+                return
+            self._email_until = 0
+            send("🔒 Got it and deleted your message. Checking with Gmail…")
+            send(self.on_email(addr.group(0), "".join(pw.groups())))
+            return
         if text == "/voicecheck":
             send(voice_check())
             return
@@ -234,7 +270,7 @@ class Bot:
                  "Save your Claude plan:\n• /pause  or  pause for 3 hours - I use no AI at all\n"
                  "• /saver - run on free Gemini only\n• /resume - back to normal\n• /status - which brain I'm using\n\n"
                  "📱 /app - open the JARVIS app   📞 /call - talk to me live\n"
-                 "🔎 /voicecheck - test voice notes   ⬆ update - get my newest version (laptop + phone)")
+                 "📧 /email - connect your Gmail\n🔎 /voicecheck - test voice notes   ⬆ update - get my newest version (laptop + phone)")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
         reply = self.on_text(text, voice=False)

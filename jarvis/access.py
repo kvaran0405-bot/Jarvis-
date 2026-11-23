@@ -45,7 +45,7 @@ def status(store) -> list[dict]:
          "how": "Text 'update' once or double-click update.bat"},
         {"id": "email", "label": "Reads your email (briefings, inbox sweep, smart replies)", "on": channels.email_read_ready(),
          "action": "email", "detail": settings.smtp_user,
-         "how": "Your Gmail address and a Gmail app password (not your normal password)."},
+         "how": "Easiest: send /email to your JARVIS bot on Telegram. Or type it here: Gmail address + a Gmail app password."},
         {"id": "calendar", "label": "Google Calendar sync", "on": gcal.ready(), "link": "/google-setup.html"},
         {"id": "birthday", "label": "Your birthday (birthday mode)", "on": bool(os.environ.get("JARVIS_BIRTHDAY")),
          "action": "key", "key": "JARVIS_BIRTHDAY", "how": "MM-DD, e.g. 04-05"},

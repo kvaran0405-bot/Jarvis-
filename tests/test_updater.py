@@ -38,3 +38,23 @@ def test_version_route():
     from jarvis import server
     c = TestClient(server.app, base_url="http://127.0.0.1:7334", client=("127.0.0.1", 5))
     assert c.get("/api/version").json()["version"] == updater.version()
+
+
+def test_telegram_email_setup(monkeypatch):
+    from jarvis import telegram
+    out, calls, got = [], [], []
+    bot = telegram.Bot(on_text=lambda t, voice=False: "AI:" + t, on_decision=lambda *a: "", log=lambda m: None)
+    bot.on_email = lambda a, p: got.append((a, p)) or "connected"
+    monkeypatch.setattr(telegram, "chat_id", lambda: "42")
+    monkeypatch.setattr(telegram, "send", lambda text, *a, **k: out.append(text))
+    monkeypatch.setattr(telegram, "api", lambda method, **p: calls.append((method, p)))
+    msg = lambda t, i=1: {"update_id": i, "message": {"message_id": i, "text": t, "chat": {"id": 42}}}
+    bot.handle(msg("me@gmail.com abcd efgh ijkl mnop"))
+    assert not got                                                 # not asked for yet: goes to the AI as normal
+    bot.handle(msg("set up my email"))
+    assert "apppasswords" in out[-1]
+    bot.handle(msg("me@gmail.com my password is hunter2", 7))
+    assert ("deleteMessage", {"chat_id": "42", "message_id": 7}) in calls and not got and "again" in out[-1]
+    bot.handle(msg("Me@Gmail.com  abcd efgh ijkl mnop", 8))
+    assert got == [("Me@Gmail.com", "abcdefghijklmnop")] and out[-1] == "connected"
+    assert ("deleteMessage", {"chat_id": "42", "message_id": 8}) in calls
