@@ -87,8 +87,10 @@ function render(){
     <div class="t"><b>${esc(x.label)}</b>${x.how ? `<small>${esc(x.how)}</small>` : ""}${x.detail && x.on ? `<small>${esc(x.detail)}</small>` : ""}
     ${!x.on && x.warn && asked[x.id] ? `<small class="warn">${esc(x.warn)}</small>` : ""}
     ${!x.on && x.key === "GEMINI_API_KEY" ? `<small><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--ac)">▸ GET A FREE KEY</a> · sign in → “Create API key” → copy → paste below → SAVE</small>` : ""}
+    ${!x.on && x.action === "email" ? `<small><a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener" style="color:var(--ac)">▸ MAKE AN APP PASSWORD</a> · sign in → name it “JARVIS” → Create → copy the 16 letters (needs 2-Step Verification on your Google account)</small>
+      <input placeholder="you@gmail.com" data-email="address" ${local ? "" : "disabled"}><input placeholder="16-letter app password" data-email="pw" type="password" ${local ? "" : "disabled"}>` : ""}
     ${!x.on && x.action === "key" ? `<input placeholder="${x.key === "GEMINI_API_KEY" ? "paste the key here" : "MM-DD"}" data-key="${x.key}" ${local ? "" : "disabled"}>` : ""}</div>
-    ${x.ask || x.action || x.link ? `<button class="go">${x.action === "key" ? "SAVE" : x.link ? "OPEN" : "ALLOW"}</button>` : ""}
+    ${x.ask || x.action || x.link ? `<button class="go">${x.action === "key" ? "SAVE" : x.action === "email" ? "CONNECT" : x.link ? "OPEN" : "ALLOW"}</button>` : ""}
     ${!x.on && x.warn && asked[x.id] ? `<button class="go" data-appset>APP SETTINGS</button>` : ""}
     ${!x.on ? `<button class="sk" data-skip>${x.skip ? "UNDO" : "SKIP"}</button>` : ""}</div>`;
   $("#phone").innerHTML = ph.length ? `<h2>THIS PHONE</h2>` + ph.map(row).join("") : "";
@@ -110,6 +112,11 @@ async function act(x){
   if(x.action === "mic"){ try { (await navigator.mediaDevices.getUserMedia({audio: true})).getTracks().forEach(t => t.stop()); } catch { if(local) post("/api/setup/windows", {which: "microphone"}); } }
   if(x.action === "notify" && "Notification" in window) await Notification.requestPermission();
   if(x.action === "autostart") await post("/api/setup/autostart");
+  if(x.action === "email"){ const a = document.querySelector('[data-email="address"]'), w = document.querySelector('[data-email="pw"]');
+    if(!a?.value.trim() || !w?.value.trim()){ (a?.value.trim() ? w : a)?.focus(); return; }
+    const btn = document.querySelector('.item[data-id="email"] .go'); if(btn) btn.textContent = "CHECKING…";
+    const r = await post("/api/setup/email", {address: a.value, app_password: w.value});
+    alert(r.detail || r.result); if(r.detail){ if(btn) btn.textContent = "CONNECT"; return; } }
   if(x.action === "key"){ const inp = document.querySelector(`[data-key="${x.key}"]`); if(!inp?.value.trim()){ inp?.focus(); return; }
     const r = await post("/api/setup/key", {name: x.key, value: inp.value}); if(r.detail){ alert(r.detail); return; } }
   if(!x.action && x.how) alert(x.how);

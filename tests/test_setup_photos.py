@@ -12,6 +12,8 @@ def test_setup_status_and_keys(tmp_path, monkeypatch):
     from jarvis import config
     monkeypatch.setattr(access, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("GEMINI_API_KEY=\nOTHER=1\n")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("JARVIS_BIRTHDAY", raising=False)
     items = {i["id"]: i for i in access.status(Store(":memory:"))}
     assert {"brain", "gemini", "telegram", "phone", "autostart", "email", "calendar"} <= set(items)
     with pytest.raises(ValueError):
@@ -63,3 +65,22 @@ def test_photo_sorter(tmp_path, monkeypatch):
     photosort.request_new(s)
     cmd = s.query("SELECT kind, payload FROM phone_cmds")[0]
     assert cmd["kind"] == "photos" and json.loads(cmd["payload"])["since"] == 1763900000
+
+
+def test_email_setup(tmp_path, monkeypatch):
+    from jarvis import config
+    monkeypatch.setattr(access, "ROOT", tmp_path)
+    for v in ("JARVIS_SMTP_HOST", "JARVIS_SMTP_PORT", "JARVIS_IMAP_HOST", "JARVIS_SMTP_USER", "JARVIS_SMTP_PASSWORD"):
+        monkeypatch.delenv(v, raising=False)   # restored after the test
+    for k in ("smtp_host", "smtp_port", "imap_host", "smtp_user", "smtp_password"):
+        monkeypatch.setattr(config.settings, k, getattr(config.settings, k))
+    with pytest.raises(ValueError):
+        access.save_email("not-an-email", "abcdabcdabcdabcd", check=False)
+    with pytest.raises(ValueError):
+        access.save_email("me@gmail.com", "myNormalPassword1", check=False)
+    access.save_email("me@gmail.com", "abcd efgh ijkl mnop", check=False)
+    env = (tmp_path / ".env").read_text()
+    assert "JARVIS_SMTP_USER=me@gmail.com" in env and "JARVIS_SMTP_PASSWORD=abcdefghijklmnop" in env
+    assert "JARVIS_IMAP_HOST=imap.gmail.com" in env
+    from jarvis import channels
+    assert channels.email_read_ready()

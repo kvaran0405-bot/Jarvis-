@@ -43,8 +43,9 @@ def status(store) -> list[dict]:
          "action": "autostart"},
         {"id": "updates", "label": "Updates itself (nightly + 'update' on Telegram)", "on": (ROOT / ".git").exists(),
          "how": "Text 'update' once or double-click update.bat"},
-        {"id": "email", "label": "Reads your email (briefings, smart replies)", "on": channels.email_read_ready(),
-         "how": "Gmail app password in .env (see README: Setting up the extras)"},
+        {"id": "email", "label": "Reads your email (briefings, inbox sweep, smart replies)", "on": channels.email_read_ready(),
+         "action": "email", "detail": settings.smtp_user,
+         "how": "Your Gmail address and a Gmail app password (not your normal password)."},
         {"id": "calendar", "label": "Google Calendar sync", "on": gcal.ready(), "link": "/google-setup.html"},
         {"id": "birthday", "label": "Your birthday (birthday mode)", "on": bool(os.environ.get("JARVIS_BIRTHDAY")),
          "action": "key", "key": "JARVIS_BIRTHDAY", "how": "MM-DD, e.g. 04-05"},
@@ -65,17 +66,49 @@ def save_key(name: str, value: str) -> str:
     value = value.strip()
     if name not in KEYS or not KEYS[name].match(value):
         raise ValueError("That doesn't look right. Check it and try again.")
-    env = ROOT / ".env"
-    text = env.read_text(encoding="utf-8") if env.exists() else ""
-    if re.search(rf"^{name}=.*$", text, re.M):
-        text = re.sub(rf"^{name}=.*$", f"{name}={value}", text, flags=re.M)
-    else:
-        text = text.rstrip("\n") + f"\n{name}={value}\n"
-    env.write_text(text, encoding="utf-8")
-    os.environ[name] = value
+    _write_env({name: value})
     if name == "GEMINI_API_KEY":
         settings.gemini_key = value
     return "Saved."
+
+
+def _write_env(values: dict[str, str]) -> None:
+    env = ROOT / ".env"
+    text = env.read_text(encoding="utf-8") if env.exists() else ""
+    for name, value in values.items():
+        if re.search(rf"^{name}=.*$", text, re.M):
+            text = re.sub(rf"^{name}=.*$", lambda _m: f"{name}={value}", text, flags=re.M)
+        else:
+            text = text.rstrip("\n") + f"\n{name}={value}\n"
+        os.environ[name] = str(value)
+    env.write_text(text, encoding="utf-8")
+
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[a-z]{2,}$", re.I)
+
+
+def save_email(address: str, app_password: str, check: bool = True) -> str:
+    """Gmail (or Google Workspace) via an app password: checks it really logs in, then saves it."""
+    address, pw = address.strip(), re.sub(r"\s+", "", app_password)
+    if not EMAIL_RE.match(address):
+        raise ValueError("That email address doesn't look right.")
+    if not re.fullmatch(r"[a-zA-Z]{16}", pw):
+        raise ValueError("A Gmail app password is 16 letters (Google shows it in 4 groups of 4). Your normal password won't work.")
+    if check:
+        import imaplib
+        try:
+            box = imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=20)
+            box.login(address, pw)
+            box.logout()
+        except imaplib.IMAP4.error:
+            raise ValueError("Google said no. Check the address, and make a fresh app password.") from None
+        except OSError as exc:
+            raise ValueError(f"Couldn't reach Gmail to check it ({exc}). Is the laptop online?") from None
+    _write_env({"JARVIS_SMTP_HOST": "smtp.gmail.com", "JARVIS_SMTP_PORT": "587", "JARVIS_IMAP_HOST": "imap.gmail.com",
+                "JARVIS_SMTP_USER": address, "JARVIS_SMTP_PASSWORD": pw})
+    settings.smtp_host, settings.smtp_port, settings.imap_host = "smtp.gmail.com", 587, "imap.gmail.com"
+    settings.smtp_user, settings.smtp_password = address, pw
+    return "Email connected. JARVIS restarts in a moment to start the inbox sweep."
 
 
 def open_windows_setting(which: str) -> str:

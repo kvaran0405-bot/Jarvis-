@@ -1312,6 +1312,23 @@ def setup_key(k: SetupKey, request: Request):
         raise HTTPException(400, str(exc)) from None
 
 
+class SetupEmail(BaseModel):
+    address: str
+    app_password: str
+
+
+@app.post("/api/setup/email")
+def setup_email(e: SetupEmail, request: Request):
+    from . import access, updater
+    _local_only(request)
+    try:
+        result = access.save_email(e.address, e.app_password)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    threading.Timer(4, lambda: updater.start(store, bus, quiet=True)).start()   # restart so the email jobs start
+    return {"result": result}
+
+
 @app.post("/api/setup/autostart")
 def setup_autostart(request: Request):
     from . import access
