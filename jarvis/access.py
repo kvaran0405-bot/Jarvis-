@@ -10,7 +10,7 @@ from pathlib import Path
 from .config import ROOT, settings
 
 KEYS = {   # what the setup page may write to .env (typed on the laptop itself, never sent anywhere else)
-    "GEMINI_API_KEY": re.compile(r"^[A-Za-z0-9_\-]{20,80}$"),
+    "GEMINI_API_KEY": re.compile(r"^[A-Za-z0-9_.\-]{20,200}$"),   # "AIza..." or the newer "AQ...." style
     "JARVIS_BIRTHDAY": re.compile(r"^\d{2}-\d{2}$"),
 }
 

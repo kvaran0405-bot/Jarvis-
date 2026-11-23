@@ -18,6 +18,7 @@ def test_setup_status_and_keys(tmp_path, monkeypatch):
         access.save_key("ANTHROPIC_API_KEY", "x" * 30)          # only the keys the page is meant to set
     with pytest.raises(ValueError):
         access.save_key("JARVIS_BIRTHDAY", "5 April")
+    access.save_key("GEMINI_API_KEY", "AQ.Test" + "b" * 40)        # newer key style (with a dot) is accepted
     access.save_key("GEMINI_API_KEY", "AIzaSyA" + "b" * 32)
     access.save_key("JARVIS_BIRTHDAY", "04-05")
     env = (tmp_path / ".env").read_text()
