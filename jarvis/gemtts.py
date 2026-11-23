@@ -67,8 +67,18 @@ def direction(agent: str, text: str) -> str:
             return "(whispering) "
         return f"({t}) " if t in MOODS else ""
     line = re.sub(r"\[(\w+)\]\s*", tag, text)
-    return (f"You are voicing {who}. Perform the line below naturally, like a real person: act out the stage "
-            f"directions in brackets (laughs, sighs, moods) as sounds and tone, never read them aloud.\n\n{line}")
+    from datetime import datetime
+    from .voice import ATTITUDE
+    hour = datetime.now(settings.tz).hour
+    when = ("It's late at night: keep it soft, close and unhurried." if hour >= 23 or hour < 6 else
+            "It's morning: bright and awake, but not loud." if 6 <= hour < 11 else "")
+    mood = ATTITUDE.get(agent.upper(), "")
+    return (f"You are voicing {who}. Your usual attitude is {mood or 'natural'}; let it colour the whole line.\n"
+            "Perform it like a real person talking to a close friend, not like a narrator or an assistant: natural "
+            "breaths, small hesitations where someone would think, vary your pace (quick on easy bits, slower on what "
+            "matters), let questions lift, lean on the important word, and let the emotion show in the voice. "
+            "Act the stage directions in brackets (laughs, sighs, moods) as real sounds and tone; never read them aloud. "
+            f"{when}\n\n{line}")
 
 
 def synthesize(agent: str, text: str, path: Path) -> Path:

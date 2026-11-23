@@ -10,6 +10,8 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+REM optional extras (offline voice): never stop JARVIS from starting if one can't install
+pip install -q -r requirements-extras.txt >nul 2>&1
 if not exist .env (copy .env.example .env >nul & echo Created .env - add your ANTHROPIC_API_KEY to it.)
 if not exist profile.md copy profile.example.md profile.md >nul
 findstr /r /c:"^JARVIS_BRIDGE_TOKEN=.." .env >nul || (for /f %%t in ('python -c "import secrets;print(secrets.token_hex(16))"') do echo JARVIS_BRIDGE_TOKEN=%%t>> .env)

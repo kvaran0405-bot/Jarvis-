@@ -1,0 +1,2 @@
+# Optional extras: installed by start.bat if possible; JARVIS works fine without them.
+kokoro-onnx>=0.4      # natural offline voice on the laptop (model downloads once, ~330 MB)

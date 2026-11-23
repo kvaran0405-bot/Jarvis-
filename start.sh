@@ -5,6 +5,7 @@ cd "$(dirname "$0")"
 [ -d .venv ] || python3 -m venv .venv
 . .venv/bin/activate
 pip install -q -r requirements.txt
+pip install -q -r requirements-extras.txt >/dev/null 2>&1 || true
 [ -f .env ] || { cp .env.example .env; echo "Created .env - add your ANTHROPIC_API_KEY to it."; }
 [ -f profile.md ] || cp profile.example.md profile.md
 grep -q '^JARVIS_BRIDGE_TOKEN=..' .env || echo "JARVIS_BRIDGE_TOKEN=$(python -c 'import secrets;print(secrets.token_hex(16))')" >> .env

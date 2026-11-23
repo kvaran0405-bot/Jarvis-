@@ -19,6 +19,11 @@ def startup_file() -> Path:
     return Path(os.environ.get("APPDATA", str(Path.home()))) / "Microsoft/Windows/Start Menu/Programs/Startup/JARVIS.bat"
 
 
+def _offline_voice() -> bool:
+    from . import localvoice
+    return localvoice.ready()
+
+
 def _stt_ready() -> bool:
     from . import stt
     return stt.available()
@@ -44,6 +49,8 @@ def status(store) -> list[dict]:
          "how": "Open the JARVIS app on your phone"},
         {"id": "hearing", "label": "Accurate hearing (JARVIS understands you on the laptop, with your names and places)",
          "on": _stt_ready(), "how": "start.bat installs it; the first start downloads the speech model once (~500 MB)"},
+        {"id": "offline_voice", "label": "Natural offline voice (JARVIS still sounds human with no internet)",
+         "on": _offline_voice(), "how": "Sets itself up: start.bat installs it and the voice downloads once (~330 MB)"},
         {"id": "dictate", "label": "Voice typing anywhere (hold Right Alt or the Copilot key and talk)", "on": _dictate_ready(),
          "how": "Needs faster-whisper and sounddevice (start.bat installs them)"},
         {"id": "autostart", "label": "Starts with Windows", "on": os.name != "nt" or startup_file().exists(),

@@ -263,6 +263,13 @@ it stays silent unless the alert is critical.
   your places). If it isn't sure, JARVIS says "Sorry Sir, say that again?" and listens once more, never silence.
   On the phone it waits through short pauses and picks the guess that matches JARVIS's names. Choose the laptop
   engine size with `JARVIS_HEAR_MODEL` (default small; base is lighter, medium is stronger).
+- **Voices that sound human:** every agent has an attitude in their voice (JARVIS dry, FRIDAY playful, PEPPER warm,
+  ZEUS fired up, VERONICA sarcastic, BANNER gentle, SENTINEL stern…). Each sentence gets its own delivery: questions
+  lift, exclamations brighten, "…" trails off, and there are real breaths between sentences. JARVIS also hears the
+  feeling in the words (sorry → concerned, congrats → proud, hurry → urgent), and everyone speaks softer late at
+  night. Laughs, sighs and gasps are acted out. With the free Gemini key (`/gemini`) the agents get full acting
+  direction (breaths, hesitations, emphasis). With no internet, a natural offline voice on the laptop takes over
+  (installs itself; check "Natural offline voice" on the setup page).
 - **Says Singapore names properly:** Tampines, Bukit Timah, Punggol, Shaabaz, MRT and more are spoken right (the
   screen keeps the real spelling). Teach new ones: "Jarvis, pronounce Kamal as Kah-mahl". JARVIS also wakes your
   speakers or Bluetooth headphones a moment before talking, so the first word isn't swallowed.

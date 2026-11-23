@@ -52,6 +52,8 @@ async def lifespan(_app):
     tg.attach(store)
     from . import stt
     stt.warm_up()
+    from . import localvoice
+    localvoice.fetch_in_background()   # offline natural voice, downloaded once while online
     bot = tg.Bot(on_reply=pick_reply, on_proposal=answer_proposal,
                  on_text=lambda text, voice=False: handle_owner_message(text, "Telegram", voice),
                  on_decision=lambda msg_id, yes: approve_message(msg_id) if yes else reject_message(msg_id),

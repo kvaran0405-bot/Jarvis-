@@ -159,6 +159,76 @@ def segments(text: str) -> list[tuple[str, str]]:
     return parts or [("", text)]
 
 
+# ------------------------------------------------------------------ human delivery (free voices)
+# Each agent's attitude when a line has no mood tag, so nobody sounds flat.
+ATTITUDE = {"JARVIS": "dry", "FRIDAY": "playful", "PEPPER": "warm", "ATHENA": "calm", "ZEUS": "excited",
+            "HERALD": "amused", "STEVE": "cheerful", "VERONICA": "sarcastic", "BANNER": "gentle", "EDITH": "dry",
+            "SENTINEL": "stern", "ORACLE": "calm"}
+_CUES = [   # words that carry a feeling -> the mood a person would use
+    (re.compile(r"\b(sorry|unfortunately|afraid|bad news|missed|failed|overdue|late again)\b", re.I), "concerned"),
+    (re.compile(r"\b(congrat|well done|brilliant|amazing|nailed|you did it|proud of you|great news)\w*", re.I), "proud"),
+    (re.compile(r"\b(urgent|right now|immediately|asap|leave now|hurry)\b", re.I), "urgent"),
+    (re.compile(r"\b(relax|breathe|it's okay|it's alright|take it easy|no rush|rest)\b", re.I), "gentle"),
+    (re.compile(r"\b(ha|haha|lol|funny|joke|cheeky)\b", re.I), "amused"),
+]
+
+
+def infer_mood(sentence: str, agent: str = "JARVIS", hour: int | None = None) -> str:
+    """The feeling of an untagged sentence: from its words, then the agent's attitude. Late at night: softer."""
+    for rx, mood in _CUES:
+        if rx.search(sentence):
+            return mood
+    if hour is not None and (hour >= 23 or hour < 6):
+        return "gentle"
+    if sentence.rstrip().endswith("!"):
+        return "cheerful"
+    return ATTITUDE.get(agent.upper(), "")
+
+
+def delivery(text: str, mood: str, agent: str = "JARVIS", hour: int | None = None) -> list[tuple[str, int, int, int]]:
+    """Split a mood segment into sentences, each with its own (words, rate %, pitch Hz, pause ms after), so the line
+    breathes like a person instead of one flat read: questions lift, exclamations brighten, "..." trails off slowly,
+    and small natural variations keep it from sounding robotic. Untagged lines take the agent's attitude, gently."""
+    import zlib
+    parts = [p for p in re.split(r"(?<=[.!?…])\s+", text.strip()) if p.strip()] or [text]
+    out = []
+    for i, sent in enumerate(parts):
+        m = mood or infer_mood(sent, agent, hour)
+        dr, dp = MOODS.get(m, (0, 0))
+        if not mood:   # an inferred feeling is played lighter than one the agent chose
+            dr, dp = round(dr * .6), round(dp * .6)
+        seed = zlib.crc32(sent.encode()) % 7 - 3   # stable small variation, so the same line always sounds the same
+        dr += seed
+        dp += (seed // 2)
+        end = sent.rstrip()[-1:] if sent.strip() else ""
+        if sent.rstrip().endswith(("...", "…")):
+            dr -= 8
+            pause = 420
+        elif end == "?":
+            dp += 3
+            pause = 260
+        elif end == "!":
+            dr += 3
+            dp += 2
+            pause = 220
+        elif end in ",;:":
+            pause = 150
+        else:
+            pause = 300
+        if len(sent) < 18:   # short reactions ("Right." "Oh!") land quicker
+            pause -= 80
+        if i == len(parts) - 1:
+            pause = 0
+        out.append((sent, dr, dp, max(0, pause)))
+    return out
+
+
+def silence_mp3(ms: int) -> bytes:
+    """Silent MP3 frames matching the free voices' format (24 kHz, 48 kbps, mono): a real pause between sentences."""
+    frame = bytes([0xFF, 0xF3, 0x64, 0xC0]) + bytes(140)   # MPEG-2 Layer III, 24 kHz, 48 kbps, mono, silent
+    return frame * max(0, round(ms / 24))
+
+
 def _shift(base: str, delta: int, unit: str) -> str:
     n = int(re.sub(r"[^\d-]", "", base.replace("+", "")) or 0) + delta
     return f"{'+' if n >= 0 else ''}{n}{unit}"
@@ -238,6 +308,10 @@ def provider() -> str:
     if choice in ("elevenlabs", "auto") and settings.elevenlabs_key:
         return "elevenlabs"
     from . import gemtts
+    if choice == "local":
+        from . import localvoice
+        if localvoice.ready():
+            return "local"
     if choice in ("gemini", "auto") and gemtts.enabled():
         return "gemini"
     if choice in ("voicestudio", "auto") and voicestudio_up():
@@ -286,6 +360,8 @@ def _edge(text: str, agent: str, path: Path) -> None:
         edge_tts.communicate._SSL_CTX = ssl.create_default_context(cafile=cafile)
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or None
     name, rate, pitch = _edge_voice(agent)
+    from datetime import datetime as _dt
+    hour = _dt.now(settings.tz).hour
 
     async def say(v: str, words: str, r: str, p: str) -> bytes:
         audio = bytearray()
@@ -301,8 +377,9 @@ def _edge(text: str, agent: str, path: Path) -> None:
                 said, dr, dp, _vs = EMOTES[mood[1:]]
                 out += await say(v, said, _shift(base_rate, dr, "%"), _shift(base_pitch, dp, "Hz"))
                 continue
-            dr, dp = MOODS.get(mood, (0, 0))
-            out += await say(v, words, _shift(base_rate, dr, "%"), _shift(base_pitch, dp, "Hz"))
+            for sent, dr, dp, pause in delivery(words, mood, agent, hour):
+                out += await say(v, sent, _shift(base_rate, dr, "%"), _shift(base_pitch, dp, "Hz"))
+                out += silence_mp3(pause)
         return bytes(out)
 
     try:
@@ -392,7 +469,8 @@ def synthesize(agent: str, text: str, live: bool = False) -> Path:
     text = speakable(text)[:2500]
     if prov not in ("edge", "voicestudio", "gemini"):
         text = strip_moods(text)
-    tune = (_edge_voice(agent) if prov == "edge" else
+    tune = (_local_tune(agent) if prov == "local" else
+            _edge_voice(agent) if prov == "edge" else
             VS_VOICES.get(agent.upper()) if prov == "voicestudio" else
             _gemini_tune(agent) if prov == "gemini" else voice_id)
     key = hashlib.sha256(f"{prov}|{tune}|{settings.elevenlabs_model}|{text}".encode()).hexdigest()[:32]
@@ -420,11 +498,16 @@ def synthesize(agent: str, text: str, live: bool = False) -> Path:
             path = CACHE / f"{hashlib.sha256(f'edge|{_edge_voice(agent)}|{text}'.encode()).hexdigest()[:32]}.mp3"
             if path.exists():
                 return path
+    if prov == "local":
+        return _local(text, agent, path)
     if prov == "edge":
         try:
             _edge(text, agent, path)
         except Exception:
             path.unlink(missing_ok=True)
+            from . import localvoice
+            if localvoice.ready():   # no internet (or the online voice failed): the offline natural voice takes over
+                return _local(text, agent, CACHE / f"local-{path.stem}.mp3")
             raise
         return path
     if prov != "elevenlabs":
@@ -439,6 +522,27 @@ def synthesize(agent: str, text: str, live: bool = False) -> Path:
     CACHE.mkdir(parents=True, exist_ok=True)
     path.write_bytes(audio)
     return path
+
+
+def _local_tune(agent: str) -> tuple:
+    from .localvoice import CAST
+    return ("local",) + CAST.get(agent.upper(), CAST["JARVIS"])
+
+
+def _local(text: str, agent: str, path: Path) -> Path:
+    from datetime import datetime as _dt
+    from . import localvoice
+    hour = _dt.now(settings.tz).hour
+    pieces = []
+    for mood, words in segments(text):
+        if mood.startswith("!"):
+            said, dr, dp, _vs = EMOTES[mood[1:]]
+            pieces.append((said, dr, dp, 120))
+        else:
+            pieces += delivery(words, mood, agent, hour)
+    if path.with_suffix(".wav").exists():
+        return path.with_suffix(".wav")
+    return localvoice.synthesize(agent, pieces, path)
 
 
 def synthesize_for_phone(agent: str, text: str) -> Path:

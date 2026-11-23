@@ -17,6 +17,7 @@ Owner: "I want JARVIS laptop and phone display to be top notch, voice top notch,
   rate; drop heavy effects on slow devices automatically).
 - **Phone app feels native:** bottom tab bar, smooth page transitions, haptics on taps, pull-to-refresh, splash
   screen, edge-to-edge dark UI, big thumb-friendly controls, landscape for holo.
+- (Voice upgrade round 1 DONE: per-sentence human delivery + pauses, attitude per agent, feelings inferred from words, late-night softness, richer Gemini direction, offline Kokoro voice fallback, Singapore pronunciation, speaker wake-up. Next: per-agent voice picker on the HUD, emotion from conversation context, voice auditions.)
 - **Voice, best free options first:** (1) Gemini voices (free key, most expressive); (2) a high-quality offline
   voice on the laptop (e.g. Kokoro/Piper, open-source, natural, works without internet) as the default fallback
   instead of the robotic browser voice; (3) per-agent voice tuning (pace, warmth, pauses), proper pronunciation of
