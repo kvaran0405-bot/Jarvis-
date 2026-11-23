@@ -662,6 +662,11 @@ HOLO_VIEWS = {"week": "week", "calendar": "week", "schedule": "week", "business"
               "money": "money", "spending": "money", "singapore": "singapore", "map": "singapore", "city": "singapore",
               "diagnostics": "diagnostics", "run diagnostics": "diagnostics", "trophies": "trophies",
               "achievements": "trophies", "trophy hall": "trophies", "holo lab": "week", "hololab": "week", "lab": "week"}
+SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode)\s+(on|off|auto)\s*[.!]?\s*$|"
+                       r"^\s*(?:jarvis[,\s]+)?(?:try|preview|show me|switch to|put on)(?: the)? (chinese new year|lunar new year|cny|"
+                       r"hari raya|raya|deepavali|diwali|national day|christmas|xmas|new year|birthday) (?:skin|mode|look|theme)"
+                       r"\s*[.!]?\s*$", re.I)
+AR_RE = re.compile(_J + r"(?:open |launch |start |show me )?(?:the )?(?:desk ar|ar desk|spatial desk|ar mode|augmented reality)\s*[.!]?\s*$", re.I)
 WAR_RE = re.compile(_J + r"(?:war room|brief me(?: for (.+))?|full briefing)\s*[.!?]?\s*$", re.I)
 
 
@@ -709,6 +714,17 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         agent = who if who in AGENTS else "JARVIS"
         bus.publish({"type": "say", "agent": agent, "say": bonds.greet(store, agent, night), "text": ""}) if agent != "JARVIS" else None
         return (bonds.greet(store, agent, night) if agent == "JARVIS" else "…"), None, None
+    if AR_RE.match(text):
+        from . import phonelink
+        phonelink.queue(store, "open", url="/ar.html")
+        return ("Desk AR is opening on your phone, Sir. Hold it up and look around." if phonelink.online(store)
+                else "Open /ar.html on your phone, Sir, and hold it up: your day floats around the desk."), None, None
+    if m := SEASON_RE.match(text):
+        val = hud.set_season(store, m.group(1) or m.group(2))
+        sea = hud.season(store=store)
+        bus.publish({"type": "season", "season": sea})
+        return ("Seasonal skins off. Back to the classic suit, Sir." if val == "off" else
+                (sea["line"] if sea else "Seasonal skins on. They'll appear on their own when a festival comes round, Sir.")), None, None
     from . import team as _team
     if _team.DINNER_RE.match(text):
         threading.Thread(target=_team.dinner, args=(engine,), daemon=True).start()
@@ -1167,6 +1183,36 @@ async def gift_file(gift_id: int):
     if team.GIFTS.resolve() not in path.parents or not path.exists():
         raise HTTPException(404, "Gift file is gone")
     return FileResponse(path, media_type="image/png")
+
+
+class Drop(BaseModel):
+    name: str
+    data: str            # base64 or a data: URL
+    agent: str = "JARVIS"
+    note: str = ""
+
+
+@app.post("/api/drop")
+async def drop_file(d: Drop):
+    """A file dragged onto the reactor or an agent's card: they read it and say what matters."""
+    import base64
+    from . import drop
+    if brain.pick(store) is None:
+        return {"agent": "JARVIS", "reply": "I'm paused, Sir. Say resume and drop it again."}
+    try:
+        data = base64.b64decode(d.data.partition(",")[2] if d.data.startswith("data:") else d.data)
+    except ValueError:
+        raise HTTPException(400, "bad file") from None
+    bus.log("YOU", f"📎 dropped {drop.safe_name(d.name)} on {d.agent.upper()}", "command")
+    out = await asyncio.to_thread(drop.handle, engine, d.name, data, d.agent, d.note)
+    bus.log(out["agent"], out["reply"], "reply")
+    return out
+
+
+@app.get("/api/season")
+def season_api():
+    from . import hud
+    return {"season": hud.season(store=store), "choice": store.get("hud:season") or "auto"}
 
 
 # ---------------------------------------------------------------- studio: floor plans, portfolio, backups

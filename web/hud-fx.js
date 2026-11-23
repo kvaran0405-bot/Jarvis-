@@ -417,7 +417,7 @@ setTimeout(loadBonds, 1500); setInterval(loadBonds, 120000);
 
 // ------------------------------------------------------------------ team life: group calls, dinner, gifts, team photo
 const tcss = document.createElement("style");
-tcss.textContent = `#teamCall{position:fixed;left:50%;top:70px;transform:translateX(-50%) translateY(-20px);z-index:44;display:flex;gap:14px;padding:12px 18px;
+tcss.textContent = `#teamCall{position:fixed;left:50%;bottom:250px;transform:translateX(-50%) translateY(-20px);z-index:44;display:flex;gap:14px;padding:12px 18px;
 background:rgba(4,10,18,.88);border:1px solid var(--line);box-shadow:0 0 30px rgba(0,229,255,.12);opacity:0;pointer-events:none;transition:.4s;align-items:center}
 #teamCall.on{opacity:1;transform:translateX(-50%);pointer-events:auto}#teamCall .tt{font:700 9px Orbitron,sans-serif;letter-spacing:.25em;color:var(--muted);margin-right:6px;writing-mode:vertical-rl;transform:rotate(180deg)}
 #teamCall .p{display:flex;flex-direction:column;align-items:center;gap:5px;font:700 8px Orbitron,sans-serif;letter-spacing:.08em;color:var(--pc);opacity:.45;transition:.25s}
@@ -476,5 +476,79 @@ function onEvent3(ev){
   if(ev.type === "gift") giftToast(ev);
 }
 
-window.HUDFX = {speakStart: (c, a) => speakStart(c, a), speakEnd: c => speakEnd(c), onEvent: onEvent3, boot, expo, sfx: SFX, toast, dossier, openRoom, loadBonds, teamCall, teamPhoto};
+// ------------------------------------------------------------------ drag-and-drop life
+const dcss = document.createElement("style");
+dcss.textContent = `.card.dropme,#orb.dropme{outline:2px dashed var(--ac,#2de0c0);outline-offset:4px;box-shadow:0 0 26px var(--ac,#2de0c0)}
+#orb.dropme{--ac:#2de0c0;border-radius:50%}[data-tid]{cursor:grab}[data-tid].dragging{opacity:.4}
+#dropHint{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:46;padding:8px 16px;font:700 10px Orbitron,sans-serif;letter-spacing:.2em;
+background:rgba(4,10,18,.9);border:1px solid var(--line);color:var(--muted);display:none}#dropHint.on{display:block}`;
+document.head.appendChild(dcss);
+document.body.insertAdjacentHTML("beforeend", `<div id="dropHint">DROP ON THE REACTOR OR AN AGENT</div>`);
+const dropTarget = el => el?.closest?.(".card,#orb");
+const isFiles = e => [...(e.dataTransfer?.types || [])].includes("Files");
+let dragDepth = 0;
+document.addEventListener("dragstart", e => { const t = e.target.closest?.("[data-tid]"); if(!t) return;
+  e.dataTransfer.setData("text/jarvis-task", t.dataset.tid); e.dataTransfer.effectAllowed = "move"; t.classList.add("dragging"); $("#dropHint").textContent = "DROP ON AN AGENT TO HAND IT OVER"; $("#dropHint").classList.add("on"); });
+document.addEventListener("dragend", e => { e.target.closest?.("[data-tid]")?.classList.remove("dragging"); $("#dropHint").classList.remove("on"); });
+document.addEventListener("dragenter", e => { if(isFiles(e) && ++dragDepth === 1){ $("#dropHint").textContent = "DROP ON THE REACTOR OR AN AGENT"; $("#dropHint").classList.add("on"); } });
+document.addEventListener("dragleave", e => { if(isFiles(e) && --dragDepth <= 0){ dragDepth = 0; $("#dropHint").classList.remove("on"); } });
+document.addEventListener("dragover", e => { const t = dropTarget(e.target);
+  document.querySelectorAll(".dropme").forEach(x => x !== t && x.classList.remove("dropme"));
+  if(t){ e.preventDefault(); t.classList.add("dropme"); } else if(isFiles(e)) e.preventDefault(); });
+document.addEventListener("drop", async e => {
+  const t = dropTarget(e.target); document.querySelectorAll(".dropme").forEach(x => x.classList.remove("dropme"));
+  dragDepth = 0; $("#dropHint").classList.remove("on");
+  if(!t){ if(isFiles(e)) e.preventDefault(); return; }
+  e.preventDefault();
+  const agent = t.id === "orb" ? "JARVIS" : t.dataset.a, col = window.AGENTS?.[agent]?.color || "#2de0c0";
+  const tid = e.dataTransfer.getData("text/jarvis-task");
+  if(tid){
+    await fetch(`/api/tasks/${tid}`, {method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify({assignee: agent})});
+    SFX.lock(); hearts(col, 4);
+    const lines = ["On it.", "Consider it handled.", "Leave it with me.", "Mine now.", "Tonight's night shift, sorted."];
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    window.logLine?.(agent, `📌 Took task #${tid}. ${line}`, "reply"); window.queueSpeech?.(agent, line); window.refresh?.(); return;
+  }
+  for(const f of [...e.dataTransfer.files].slice(0, 3)){
+    if(f.size > 20e6){ toast(agent, `${f.name} is over 20 MB.`); continue; }
+    SFX.whoosh(); toast(agent, `📎 Reading ${f.name}…`, 5000);
+    const data = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f); });
+    try {
+      const out = await (await fetch("/api/drop", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({name: f.name, data, agent})})).json();
+      window.logLine?.(out.agent || agent, out.reply || out.detail || "Done.", "reply"); window.queueSpeech?.(out.agent || agent, out.reply || "Done.");
+    } catch { toast(agent, "That file didn't make it through. Try again?"); }
+  }
+});
+
+// ------------------------------------------------------------------ seasonal skins
+const scss = document.createElement("style");
+scss.textContent = `#seasonFx{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}#seasonFx span{position:absolute;top:-40px;opacity:.55;animation:sfall linear forwards;filter:drop-shadow(0 0 6px var(--sc))}
+@keyframes sfall{to{transform:translateY(calc(100vh + 80px)) rotate(var(--r))}}#seasonBadge{font:700 9px Orbitron,sans-serif;letter-spacing:.18em;color:var(--sc);padding:3px 8px;border:1px solid var(--sc);
+box-shadow:0 0 10px var(--sc);margin-left:8px;cursor:pointer;white-space:nowrap}body.season #orb{filter:drop-shadow(0 0 18px var(--sc))}`;
+document.head.appendChild(scss);
+let SEASON = null, seasonT = null;
+function applySeason(s){
+  SEASON = s; clearInterval(seasonT); document.querySelector("#seasonFx")?.remove(); document.querySelector("#seasonBadge")?.remove();
+  document.body.classList.toggle("season", !!s); if(!s) return;
+  document.body.style.setProperty("--sc", s.accent);
+  document.body.insertAdjacentHTML("afterbegin", `<div id="seasonFx"></div>`);
+  const brand = document.querySelector("header .brand");
+  brand?.insertAdjacentHTML("afterend", `<span id="seasonBadge" title="${esc(s.line)} (say “seasonal skins off” to hide)">${esc(s.badge)}</span>`);
+  $("#seasonBadge")?.addEventListener("click", () => { SFX.click(); window.queueSpeech?.("JARVIS", s.line); burst(); });
+  if(reduce) return;
+  const fx = [...s.fx], box = $("#seasonFx");
+  const drop = () => { if(document.hidden || box.childElementCount > 16) return; const p = document.createElement("span");
+    p.textContent = fx[Math.floor(Math.random() * fx.length)]; p.style.left = Math.random() * 100 + "vw"; p.style.fontSize = (12 + Math.random() * 14) + "px";
+    p.style.setProperty("--r", (Math.random() * 360 - 180) + "deg"); p.style.animationDuration = (9 + Math.random() * 9) + "s";
+    box.appendChild(p); setTimeout(() => p.remove(), 19000); };
+  seasonT = setInterval(drop, 1400);
+}
+function burst(){ if(!SEASON || reduce) return; const box = $("#seasonFx"); [...Array(14)].forEach((_, i) => setTimeout(() => {
+  const p = document.createElement("span"); p.textContent = [...SEASON.fx][i % [...SEASON.fx].length]; p.style.left = (35 + Math.random() * 30) + "vw";
+  p.style.fontSize = "22px"; p.style.setProperty("--r", "360deg"); p.style.animationDuration = "5s"; box?.appendChild(p); setTimeout(() => p.remove(), 5200); }, i * 60)); }
+(async () => { try { applySeason((await (await fetch("/api/season")).json()).season); } catch {} })();
+const _oe3 = onEvent3;
+function onEvent4(ev){ _oe3(ev); if(ev.type === "season"){ applySeason(ev.season); if(ev.season) burst(); SFX.boom(); } }
+
+window.HUDFX = {speakStart: (c, a) => speakStart(c, a), speakEnd: c => speakEnd(c), onEvent: onEvent4, boot, expo, sfx: SFX, toast, dossier, openRoom, loadBonds, teamCall, teamPhoto};
 })();

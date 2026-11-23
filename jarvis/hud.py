@@ -52,6 +52,73 @@ def is_birthday(today: date | None = None) -> bool:
     return bool(b) and (today.month, today.day) == b
 
 
+# ---------------------------------------------------------------- seasonal skins
+# Singapore festivals. Moving festivals use the expected public-holiday dates (Hari Raya and Deepavali can shift by a
+# day once the official date is announced; add or fix one with JARVIS_SEASON_DATES="deepavali=2027-10-28,...").
+FESTIVALS = {
+    "cny": ["2027-02-06", "2028-01-26", "2029-02-13"],
+    "raya": ["2027-03-10", "2028-02-27", "2029-02-14"],
+    "deepavali": ["2026-11-08", "2027-10-28", "2028-10-17", "2029-11-05"],
+}
+WINDOWS = {"cny": (-7, 14), "raya": (-3, 7), "deepavali": (-4, 2)}
+SEASONS = {   # particles, accent glow, badge, greeting line
+    "birthday": {"fx": "🎈🎉✨", "accent": "#ff5c9a", "badge": "🎂 BIRTHDAY MODE", "line": "Happy birthday, Sir. Today, everything is about you."},
+    "cny": {"fx": "🏮🧧✨", "accent": "#ff3b3b", "badge": "🏮 LUNAR NEW YEAR", "line": "Gong Xi Fa Cai, Sir. Huat ah — may the year be prosperous."},
+    "raya": {"fx": "🌙⭐✨", "accent": "#2ee59d", "badge": "🌙 HARI RAYA", "line": "Selamat Hari Raya, Sir. Maaf zahir dan batin."},
+    "deepavali": {"fx": "🪔✨🪔", "accent": "#ffb02e", "badge": "🪔 DEEPAVALI", "line": "Happy Deepavali, Sir. Light wins. It always does."},
+    "national": {"fx": "🇸🇬🎆✨", "accent": "#ff3355", "badge": "🇸🇬 NATIONAL DAY", "line": "Majulah Singapura, Sir. Happy National Day."},
+    "christmas": {"fx": "❄❅✨", "accent": "#7fdcff", "badge": "🎄 CHRISTMAS", "line": "Merry Christmas, Sir. The team got you something — check our rooms."},
+    "newyear": {"fx": "🎆🥂✨", "accent": "#ffd23f", "badge": "🎆 NEW YEAR", "line": "Happy New Year, Sir. New year, new suit upgrades."},
+}
+
+
+def _festival_dates() -> dict[str, list[date]]:
+    import os
+    out = {k: [date.fromisoformat(d) for d in v] for k, v in FESTIVALS.items()}
+    for item in os.environ.get("JARVIS_SEASON_DATES", "").split(","):
+        k, _, d = item.strip().partition("=")
+        if k.strip().lower() in out and re.match(r"^\d{4}-\d{2}-\d{2}$", d.strip()):
+            out[k.strip().lower()].append(date.fromisoformat(d.strip()))
+    return out
+
+
+def season(today: date | None = None, store=None) -> dict | None:
+    """Which seasonal skin is on today (or the one the owner picked), else None."""
+    today = today or datetime.now(settings.tz).date()
+    pick = (store.get("hud:season") or "auto") if store is not None else "auto"
+    if pick == "off":
+        return None
+    name = pick if pick in SEASONS else None
+    if name is None:
+        if is_birthday(today):
+            name = "birthday"
+        elif (today.month, today.day) >= (12, 31) or (today.month, today.day) <= (1, 2):
+            name = "newyear"
+        elif today.month == 12 and today.day <= 26:
+            name = "christmas"
+        elif today.month == 8 and today.day <= 10:
+            name = "national"
+        else:
+            for fest, dates in _festival_dates().items():
+                lo, hi = WINDOWS[fest]
+                if any(lo <= (today - d).days <= hi for d in dates):
+                    name = fest
+                    break
+    return {"name": name, **SEASONS[name]} if name else None
+
+
+SEASON_ALIASES = {"chinese new year": "cny", "lunar new year": "cny", "cny": "cny", "hari raya": "raya", "raya": "raya",
+                  "deepavali": "deepavali", "diwali": "deepavali", "national day": "national", "christmas": "christmas",
+                  "xmas": "christmas", "new year": "newyear", "birthday": "birthday"}
+
+
+def set_season(store, word: str) -> str:
+    word = word.strip().lower()
+    value = "off" if word == "off" else "auto" if word in ("on", "auto") else SEASON_ALIASES.get(word, "auto")
+    store.set("hud:season", value)
+    return value
+
+
 def orb_state(store, bus) -> dict:
     from . import brain
     from .agents import AGENTS
@@ -62,6 +129,7 @@ def orb_state(store, bus) -> dict:
     return {"agent": agent, "color": color, "speaking": speaking, "mode": brain.get_mode(store)["mode"],
             "focus": store.get("focus:until") or "", "theme": theme(store), "accent": THEMES[theme(store)],
             "guest": guest_on(store), "birthday": is_birthday(), "screens": bus.screens,
+            "season": season(store=store),
             "text": bus.last_text[-160:] if speaking else ""}
 
 

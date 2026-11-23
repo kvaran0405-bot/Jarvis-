@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Desk AR</title>
+<meta name="theme-color" content="#03060a"><link rel="icon" href="/icon-192.png">
+<script src="/native-bridge.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Spatial desk: HUD panels float around you in space over the camera. Turn the phone and they stay put. */
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:#03060a;color:#dce7f2;font-family:"JetBrains Mono",monospace;overflow:hidden;touch-action:none}
+video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(.75) brightness(.8)}
+#scan{position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(95,216,255,.035) 0 1px,transparent 1px 4px)}
+.top{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:8px;padding:max(12px,env(safe-area-inset-top)) 14px 8px;background:linear-gradient(#03060acc,transparent)}
+.top b{font:700 12px Orbitron,sans-serif;letter-spacing:.3em;color:#5fd8ff;margin-right:auto}
+.top a,.top button{color:#8a95a7;text-decoration:none;font:600 11px "JetBrains Mono",monospace;border:1px solid #1b2330;padding:6px 10px;border-radius:16px;background:rgba(10,17,26,.7)}
+#world{position:fixed;inset:0;pointer-events:none}
+.panel{position:absolute;left:0;top:0;width:min(250px,64vw);padding:12px 14px;pointer-events:auto;will-change:transform;
+  background:linear-gradient(160deg,rgba(6,20,32,.78),rgba(3,8,14,.62));border:1px solid var(--pc);box-shadow:0 0 18px color-mix(in srgb,var(--pc) 40%,transparent),inset 0 0 18px rgba(95,216,255,.06);
+  backdrop-filter:blur(3px);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+.panel h3{margin:0 0 8px;font:700 9px Orbitron,sans-serif;letter-spacing:.28em;color:var(--pc)}
+.panel .big{font:700 26px Orbitron,sans-serif;color:#fff;text-shadow:0 0 12px var(--pc)}
+.panel .l{font-size:12px;line-height:1.55;color:#c9d6e3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panel .l i{color:var(--pc);font-style:normal}
+.panel.open{width:min(340px,86vw)}.panel.open .l{white-space:normal}
+.bar{height:3px;background:#14202c;margin-top:3px}.bar i{display:block;height:100%;background:var(--pc);box-shadow:0 0 6px var(--pc)}
+#reticle{position:fixed;left:50%;top:50%;width:34px;height:34px;margin:-17px;border:1px solid rgba(95,216,255,.5);border-radius:50%;pointer-events:none}
+#reticle:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#5fd8ff;border-radius:50%;box-shadow:0 0 8px #5fd8ff}
+#compass{position:fixed;left:0;right:0;bottom:max(18px,env(safe-area-inset-bottom));text-align:center;font:700 9px Orbitron,sans-serif;letter-spacing:.3em;color:#5fd8ff99;pointer-events:none}
+#hint{position:fixed;left:50%;bottom:calc(48px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(420px,90%);text-align:center;font-size:12px;color:#8a95a7;transition:opacity 1s}
+#start{position:fixed;inset:0;z-index:9;display:grid;place-items:center;background:#03060aee;text-align:center;padding:24px}
+#start button{font:700 12px Orbitron,sans-serif;letter-spacing:.25em;color:#03060a;background:#5fd8ff;border:0;padding:14px 22px;border-radius:24px;box-shadow:0 0 24px #5fd8ff88}
+#start p{color:#8a95a7;font-size:13px;max-width:320px;line-height:1.6}
+</style></head><body>
+<video id="cam" playsinline muted autoplay></video><div id="scan"></div>
+<div id="world"></div><div id="reticle"></div>
+<div class="top"><b>DESK AR</b><button id="center">⌖ Recenter</button><a href="/vision.html">Vision</a><a href="/command-centre.html">← JARVIS</a></div>
+<div id="compass"></div><div id="hint">Turn around: your panels are pinned in the room. Tap one to open it.</div>
+<div id="start"><div><div style="font:700 20px Orbitron,sans-serif;letter-spacing:.3em;color:#5fd8ff;margin-bottom:14px">DESK AR</div>
+<p>Your day, your tasks and your team float around your desk. Point the phone ahead, then look left and right.</p>
+<button id="go">ENGAGE</button></div></div>
+<script>
+const $ = s => document.querySelector(s), esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// panel: yaw (degrees, + is to your right), pitch (+ is up)
+const PANELS = [
+  {id: "now", yaw: 0, pitch: 8, color: "#5fd8ff", title: "NOW"},
+  {id: "tasks", yaw: -42, pitch: 0, color: "#ffd23f", title: "TASKS"},
+  {id: "week", yaw: 42, pitch: 0, color: "#3dff9a", title: "NEXT 7 DAYS"},
+  {id: "team", yaw: -84, pitch: 4, color: "#ff5c9a", title: "THE TEAM"},
+  {id: "goals", yaw: 84, pitch: 4, color: "#b06bff", title: "GOALS"},
+  {id: "focus", yaw: 0, pitch: 48, color: "#ff7a3c", title: "LOOK UP: TODAY'S ONE THING"},
+];
+const world = $("#world"), pos = {yaw: 0, pitch: 0}, view = {yaw: 0, pitch: 0};
+let base = null, sensors = false, FOV = 62;
+PANELS.forEach(p => { world.insertAdjacentHTML("beforeend", `<div class="panel" id="p-${p.id}" style="--pc:${p.color}"><h3>${p.title}</h3><div class="c">…</div></div>`);
+  $(`#p-${p.id}`).onclick = e => { e.currentTarget.classList.toggle("open"); if(navigator.vibrate) navigator.vibrate(8); }; });
+
+async function load(){
+  const j = async u => { try { const r = await fetch(u); return r.ok ? r.json() : null; } catch { return null; } };
+  const [st, w, bonds] = await Promise.all([j("/api/state"), j("/api/widget"), j("/api/bonds")]);
+  const now = new Date(), fmt = d => new Date(d.length <= 10 ? d + "T00:00" : d).toLocaleString([], d.length <= 10 ? {weekday: "short"} : {weekday: "short", hour: "2-digit", minute: "2-digit"});
+  $("#p-now .c").innerHTML = `<div class="big">${now.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}</div>
+    <div class="l"><i>NEXT</i> ${esc(w?.next || "—")}</div><div class="l"><i>WAITING</i> ${w?.waiting ?? 0} for your OK · <i>HANDLED</i> ${w?.handled ?? 0} this month</div>`;
+  const t = st?.tasks || [];
+  $("#p-tasks .c").innerHTML = t.length ? t.slice(0, 6).map(x => `<div class="l"><i>${x.assignee ? "→" + esc(x.assignee.slice(0, 3)) : "P" + x.priority}</i> ${esc(x.title)}</div>`).join("") : `<div class="l">Clear. Nicely done.</div>`;
+  const ev = st?.events || [];
+  $("#p-week .c").innerHTML = ev.length ? ev.slice(0, 6).map(e => `<div class="l"><i>${esc(fmt(e.start))}</i> ${esc(e.title)}</div>`).join("") : `<div class="l">Calendar clear.</div>`;
+  const b = (bonds || []).slice().sort((a, c) => c.level - a.level || c.progress - a.progress).slice(0, 5);
+  $("#p-team .c").innerHTML = b.map(x => `<div class="l"><i>♥${x.level}</i> ${esc(x.agent)} · ${esc(x.mood)}</div><div class="bar"><i style="width:${Math.round(x.progress * 100)}%"></i></div>`).join("") || `<div class="l">…</div>`;
+  const g = st?.goals || [];
+  $("#p-goals .c").innerHTML = g.length ? g.slice(0, 4).map(x => `<div class="l">${esc(x.title)}</div><div class="bar"><i style="width:${x.progress}%"></i></div>`).join("") : `<div class="l">No goals yet. Tell JARVIS one.</div>`;
+  const top = t.find(x => x.due && x.due.slice(0, 10) <= now.toISOString().slice(0, 10)) || t[0];
+  $("#p-focus .c").innerHTML = `<div class="l" style="font-size:14px;color:#fff">${esc(top ? top.title : "Nothing urgent. Enjoy it.")}</div>`;
+}
+
+// phone pose -> where you're looking (yaw left/right, pitch up/down), relative to where you started
+function onPose(e){
+  if(e.alpha == null) return; sensors = true;
+  const heading = e.webkitCompassHeading != null ? e.webkitCompassHeading : 360 - e.alpha;   // clockwise degrees
+  const landscape = [90, 270, -90].includes(screen.orientation?.angle ?? window.orientation ?? 0);
+  const pitch = landscape ? 0 : e.beta - 90;   // portrait: upright phone = looking straight ahead
+  if(base === null) base = heading;
+  pos.yaw = ((heading - base + 540) % 360) - 180; pos.pitch = Math.max(-80, Math.min(80, pitch));
+}
+function render(){
+  view.yaw += (((pos.yaw - view.yaw + 540) % 360) - 180) * .18; view.pitch += (pos.pitch - view.pitch) * .18;
+  const ppd = innerWidth / FOV, cx = innerWidth / 2, cy = innerHeight / 2;
+  PANELS.forEach(p => { const el = $(`#p-${p.id}`), dy = ((p.yaw - view.yaw + 540) % 360) - 180, dp = p.pitch - view.pitch;
+    const x = cx + dy * ppd - el.offsetWidth / 2, y = cy - dp * ppd - el.offsetHeight / 2, off = Math.abs(dy) > FOV;
+    const depth = Math.max(.82, 1 - Math.abs(dy) / 260), tilt = Math.max(-35, Math.min(35, dy * .45));
+    el.style.transform = `translate(${x}px,${y}px) perspective(700px) rotateY(${-tilt}deg) scale(${depth})`; el.style.visibility = off ? "hidden" : "visible";
+    el.style.opacity = 1 - Math.min(.6, Math.abs(dy) / 90); });
+  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  $("#compass").textContent = sensors ? `◂ ${Math.round(view.yaw)}° ▸  ·  ${dirs[Math.round((((base || 0) + view.yaw + 360) % 360) / 45) % 8]}` : "DRAG TO LOOK AROUND";
+  requestAnimationFrame(render);
+}
+// no motion sensors (laptop): drag to look around
+let drag = null;
+addEventListener("pointerdown", e => { if(!sensors && !e.target.closest(".panel,.top")) drag = {x: e.clientX, y: e.clientY, yaw: pos.yaw, pitch: pos.pitch}; });
+addEventListener("pointermove", e => { if(drag){ pos.yaw = drag.yaw - (e.clientX - drag.x) / (innerWidth / FOV); pos.pitch = Math.max(-60, Math.min(70, drag.pitch + (e.clientY - drag.y) / (innerWidth / FOV))); } });
+addEventListener("pointerup", () => drag = null);
+$("#center").onclick = () => { base = null; pos.yaw = view.yaw = 0; if(!sensors) pos.pitch = view.pitch = 0; };
+
+$("#go").onclick = async () => {
+  $("#start").remove();
+  try { if(typeof DeviceOrientationEvent !== "undefined" && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission(); } catch {}
+  addEventListener("deviceorientationabsolute", onPose); addEventListener("deviceorientation", e => { if(!("ondeviceorientationabsolute" in window)) onPose(e); });
+  try { $("#cam").srcObject = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}, audio: false}); }
+  catch { $("#cam").remove(); document.body.style.background = "radial-gradient(circle at 50% 40%,#0a2233,#03060a 70%)"; }
+  setTimeout(() => $("#hint").style.opacity = 0, 6000);
+  load(); setInterval(load, 60000); render();
+};
+</script>
+</body></html>

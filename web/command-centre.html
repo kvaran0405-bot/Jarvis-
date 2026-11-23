@@ -463,7 +463,7 @@ async function refresh(){
   drawDayRing(); if(state.focus) showFocus(state.focus.until, state.focus.task);
   const t = state.tasks;
   $("#p-tasks").innerHTML = (t.length ? "" : `<div class="empty">No open tasks. Tell JARVIS what's on your plate.</div>`) +
-    t.map(x => `<div class="item ${x.due && x.due.slice(0,10) < today ? "overdue":""}"><div class="row">
+    t.map(x => `<div class="item ${x.due && x.due.slice(0,10) < today ? "overdue":""}" draggable="true" data-tid="${x.id}" title="Drag onto an agent to hand it over"><div class="row">
       <input type="checkbox" data-done="${x.id}" title="Mark done"><div><div class="t">${esc(x.title)}</div>
       <div class="s"><span class="tag">${x.area}</span><span class="tag">P${x.priority}</span>${x.assignee?`<span class="tag" style="color:${AGENTS[x.assignee]?.color||"#aaa"}">→ ${x.assignee}</span>`:""}${x.due?"due "+fmt(x.due):""}</div></div></div></div>`).join("") +
     (state.done_recent.length ? `<div class="h">Recently done</div>` + state.done_recent.slice(0,5).map(x => `<div class="item"><div class="t" style="color:var(--muted);text-decoration:line-through">${esc(x.title)}</div>${x.result?`<div class="s">${esc(x.result.slice(0,160))}</div>`:""}</div>`).join("") : "");

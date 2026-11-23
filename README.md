@@ -287,6 +287,40 @@ unlock automatically.
 - Mood-board PDFs, portfolio website, brand kit and QR business card.
 - `python -m jarvis backup` / `restore`. See docs/SELLING.md for turning JARVIS into a product.
 
+## JARVIS Mark IV: the team comes alive
+
+**Emotion and voices**
+- Agents laugh, sigh, gasp and whisper. Write it in a reply as `[laughs]` or `[sighs]`; the voice acts it out and the reactor reacts.
+- **Gemini voices:** if `GEMINI_API_KEY` is set, each agent gets their own expressive Google voice. If Google says no
+  (limits or preview rules), JARVIS falls back to the free voices on its own. Turn it off with `JARVIS_GEMINI_VOICES=off`.
+
+**Friendships (bonds)**
+- Every agent has a bond level, from 1 (New) to 10. It grows when you talk, say thanks, approve their ideas and
+  celebrate together. Look for the ♥ badge on each card.
+- **Double-click a card (long-press on the phone)** to open that agent's room. It shows unlocks, shared memories,
+  their diary, gifts they made you, what they think of the team, and their favourites.
+- Unlocks: level 2 nicknames, 3 running gags, 4 surprise voice notes, 5 gifts, and more after that.
+- Agents have daily moods that follow your life. SENTINEL is grumpy when tasks are overdue; STEVE is pumped after the gym.
+- Try "good morning team", "good night Friday", or "Friday, call me Dragon".
+- A weekly thank-you note (Saturday) comes from the agent you worked with most.
+
+**Team life**
+- **Group call:** say "team, what should I do this weekend?" or "group call about the Tan wedding", or press 🎙 Team.
+  Agents talk to you and to each other, each in their own voice. This also works on Telegram and during a phone call.
+- **Team dinner:** every Friday at 20:30, or say "team dinner" any time. It's banter, roasts and a toast.
+- **Surprise voice notes:** up to 2 a week, sent by a close friend (level 4+).
+- **Diaries:** agents write a private entry every Sunday. Read them in their rooms.
+- **Gifts** from friends at level 5+: playlists, neon phone wallpapers and cards (Saturday).
+- **Team photo:** right-click 🎙 Team, or open it from any room. Closer friends stand in front.
+
+**Interactive and style**
+- **Drag and drop:** drag a task onto an agent to hand it over. Drag a file (PDF, Word, PowerPoint, text or an image)
+  onto the reactor or an agent, and they read it and tell you what matters.
+- **Desk AR** (`/ar.html` on the phone, or say "open desk AR"): your day, tasks, team and goals float around your
+  desk over the camera. Turn the phone to look around.
+- **Seasonal skins** appear on their own: Deepavali, Lunar New Year, Hari Raya, National Day, Christmas, New Year
+  and your birthday. You can say "seasonal skins off", or "preview the Christmas skin".
+
 ## Your crew of friends
 
 - **Evening check-in (21:30):** FRIDAY, JARVIS or BANNER texts you about your day; just reply. They log your mood
