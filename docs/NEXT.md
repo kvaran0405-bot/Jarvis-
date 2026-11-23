@@ -2,10 +2,12 @@
 
 Pick-up list for the next session. Remove an item when it ships (and add its Training mission, see CLAUDE.md).
 
-## Owner to-dos
-- Connect Gmail: send `/email` to the JARVIS bot on Telegram.
-- Add the free Gemini key: send `/gemini` (turns on fast mode, Gemini voices, photo sorter).
-- Phone: install the latest JARVIS.apk (Play Protect scanning off for one minute), then say "setup" and tap ALLOW NEXT.
+## Owner to-dos (after exams)
+1. Restart the laptop, then send `/update` on Telegram (check: `/installapp` replies with the app link).
+2. `/installapp` -> install the newest phone app (Play Protect off for a minute, then back on).
+3. Phone: say "setup" -> ALLOW NEXT, including "Location: all the time".
+4. `/gemini` (fast mode) and `/email` (Gmail).
+5. Try "show me my map" and Training Mode.
 
 ## Chosen for the next build (owner picked these)
 - **JARVIS learns new skills by itself:** "Jarvis, learn to track my parcels" -> writes the new tool, tests it in a
