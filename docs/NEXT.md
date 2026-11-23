@@ -18,6 +18,8 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
   stress as a holo chart.
 - **Instant local brain:** small on-laptop model for sub-second replies (works offline); big brain for hard ones.
 - **Throw windows between devices:** swipe a laptop window to the phone, flick the phone at the laptop.
+- **Smart day planner:** rebuilds the day around travel time (MRT/bus/drive), rain, MRT delays and energy; moves
+  flexible tasks, warns about clashes, and nudges "leave in 10 min" (builds on route planning + leave-now alerts).
 
 ## Ideas offered, not built yet
 1. Auto car mode when the phone connects to the car's Bluetooth (reads messages aloud).
