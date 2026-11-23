@@ -86,6 +86,7 @@ function render(){
   const row = x => `<div class="item ${x.on ? "on" : ""} ${x.skip ? "skip-row" : ""} ${next === x ? "next" : ""}" data-id="${x.id}"><span class="dot">${x.on ? "✓" : x.skip ? "–" : "·"}</span>
     <div class="t"><b>${esc(x.label)}</b>${x.how ? `<small>${esc(x.how)}</small>` : ""}${x.detail && x.on ? `<small>${esc(x.detail)}</small>` : ""}
     ${!x.on && x.warn && asked[x.id] ? `<small class="warn">${esc(x.warn)}</small>` : ""}
+    ${!x.on && x.key === "GEMINI_API_KEY" ? `<small><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--ac)">▸ GET A FREE KEY</a> · sign in → “Create API key” → copy → paste below → SAVE</small>` : ""}
     ${!x.on && x.action === "key" ? `<input placeholder="${x.key === "GEMINI_API_KEY" ? "paste the key here" : "MM-DD"}" data-key="${x.key}" ${local ? "" : "disabled"}>` : ""}</div>
     ${x.ask || x.action || x.link ? `<button class="go">${x.action === "key" ? "SAVE" : x.link ? "OPEN" : "ALLOW"}</button>` : ""}
     ${!x.on && x.warn && asked[x.id] ? `<button class="go" data-appset>APP SETTINGS</button>` : ""}
