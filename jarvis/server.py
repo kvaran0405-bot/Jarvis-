@@ -59,6 +59,14 @@ async def lifespan(_app):
     bot.start()
     from . import clap
     bus.log("JARVIS", clap.start(on_double_clap), "system")
+    from . import dictate
+
+    def _dictated_command(text: str) -> None:   # "Jarvis, ..." said while holding the voice-typing key
+        from .speech import announce
+        reply = handle_owner_message(text, "Voice typing", True)
+        bus.log("JARVIS", reply, "reply")
+        announce(bus, "JARVIS", reply, phone=False)
+    bus.log("JARVIS", dictate.start(bus, _dictated_command), "system")
     if voice.provider() == "voicestudio":   # time VoiceStudio once, so live replies know if it's quick enough
         threading.Thread(target=lambda: voice.synthesize("JARVIS", "All systems online, Sir. Good to have you back."),
                          daemon=True).start()
@@ -73,6 +81,8 @@ async def lifespan(_app):
     _brains.close_sessions()
     from . import clap as _clap
     _clap.stop()
+    from . import dictate as _dictate
+    _dictate.stop()
     bot.stop()
     scheduler.stop()
 

@@ -19,6 +19,11 @@ def startup_file() -> Path:
     return Path(os.environ.get("APPDATA", str(Path.home()))) / "Microsoft/Windows/Start Menu/Programs/Startup/JARVIS.bat"
 
 
+def _dictate_ready() -> bool:
+    from . import dictate
+    return bool(dictate.status().get("on"))
+
+
 def status(store) -> list[dict]:
     from . import brain, channels, gcal, phonelink
     from . import telegram as tg
@@ -32,6 +37,8 @@ def status(store) -> list[dict]:
          "how": f"Send /start {tg.pair_code()} to your bot" if tg.enabled() and not tg.ready() else "Add your bot token in .env"},
         {"id": "phone", "label": "Phone linked", "on": phonelink.online(store, 30),
          "how": "Open the JARVIS app on your phone"},
+        {"id": "dictate", "label": "Voice typing anywhere (hold Right Ctrl and talk)", "on": _dictate_ready(),
+         "how": "Needs faster-whisper and sounddevice (start.bat installs them)"},
         {"id": "autostart", "label": "Starts with Windows", "on": os.name != "nt" or startup_file().exists(),
          "action": "autostart"},
         {"id": "updates", "label": "Updates itself (nightly + 'update' on Telegram)", "on": (ROOT / ".git").exists(),
