@@ -263,6 +263,9 @@ it stays silent unless the alert is critical.
   your places). If it isn't sure, JARVIS says "Sorry Sir, say that again?" and listens once more, never silence.
   On the phone it waits through short pauses and picks the guess that matches JARVIS's names. Choose the laptop
   engine size with `JARVIS_HEAR_MODEL` (default small; base is lighter, medium is stronger).
+- **Says Singapore names properly:** Tampines, Bukit Timah, Punggol, Shaabaz, MRT and more are spoken right (the
+  screen keeps the real spelling). Teach new ones: "Jarvis, pronounce Kamal as Kah-mahl". JARVIS also wakes your
+  speakers or Bluetooth headphones a moment before talking, so the first word isn't swallowed.
 - **Voice typing anywhere (laptop):** hold **Right Alt** (or the **Copilot key** ✦, or Right Ctrl), talk, let go: JARVIS types it into whatever app has the
   cursor. Start with "Jarvis, ..." to give an order instead. Understood on the laptop itself; never types into
   banking windows. Change the key with `JARVIS_DICTATE_KEY` (auto, ralt, copilot, rctrl, f8, f9, capslock) or `JARVIS_DICTATE=off`.

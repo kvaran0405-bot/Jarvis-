@@ -284,9 +284,20 @@ function voiceSettings(agent){
   return {pitch: base.pitch, rate: base.rate, name: "", ...(CUSTOM[agent] || {})};
 }
 function browserVoices(){ return "speechSynthesis" in window ? speechSynthesis.getVoices() : []; }
+let PRONOUNCE = {};   // how to say Singapore names (from the laptop; the screen keeps the real spelling)
+function sayNames(t){ for(const [w, s] of Object.entries(PRONOUNCE).sort((a, b) => b[0].length - a[0].length))
+  t = t.replace(new RegExp("(^|[^\\w-])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\w-])", "gi"), (m, pre) => pre + s); return t; }
+// Speakers and Bluetooth headphones sleep when quiet and swallow the first word: wake them with a moment of silence.
+let lastSound = 0, wakeCtx = null;
+async function wakeAudio(){
+  if(Date.now() - lastSound < 8000) return;
+  try { wakeCtx = wakeCtx || new (window.AudioContext || window.webkitAudioContext)(); if(wakeCtx.state === "suspended") await wakeCtx.resume();
+    const o = wakeCtx.createOscillator(), g = wakeCtx.createGain(); g.gain.value = 0.0001; o.connect(g); g.connect(wakeCtx.destination);
+    o.start(); o.stop(wakeCtx.currentTime + 0.35); await new Promise(r => setTimeout(r, 300)); } catch {}
+}
 function speakBrowser(agent, text, done){
   const mood = (String(text).match(/^\s*\[(\w+)\]/) || [])[1]?.toLowerCase();
-  const u = new SpeechSynthesisUtterance(plain(sayEmotes(String(text).replace(MOOD_RE, ""))));
+  const u = new SpeechSynthesisUtterance(sayNames(plain(sayEmotes(String(text).replace(MOOD_RE, "")))));
   const v = voiceSettings(agent), [dr, dp] = MOODS[mood] || [0, 0];
   u.pitch = Math.max(0.1, v.pitch + dp / 20); u.rate = Math.max(0.5, v.rate * (1 + dr / 100));
   const all = browserVoices(), en = all.filter(x => x.lang.startsWith("en"));
@@ -315,7 +326,7 @@ function playClip(clip){
     focus(clip.agent); $("#orb").classList.add("speak"); window.HUDFX?.speakStart(clip, null);
     const browser = () => "speechSynthesis" in window ? speakBrowser(clip.agent, clip.text, done) : done();
     if(clip.audio){
-      clip.audio.then(b => { if(clip.gen !== speechGen) return done(); const a = new Audio(URL.createObjectURL(b)); currentAudio = a; a.onended = a.onerror = done; window.HUDFX?.speakStart(clip, a); return a.play(); })
+      clip.audio.then(async b => { await wakeAudio(); lastSound = Date.now(); if(clip.gen !== speechGen) return done(); const a = new Audio(URL.createObjectURL(b)); currentAudio = a; a.onended = a.onerror = () => { lastSound = Date.now(); done(); }; window.HUDFX?.speakStart(clip, a); return a.play(); })
         .catch(browser);
       setTimeout(done, 9000 + clip.text.length*120); // safety
     } else browser();
@@ -864,7 +875,7 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
   const info = await infoResp.json();
   info.agents.forEach(a => AGENTS[a.name] = a); ORDER = info.agents.map(a => a.name);
   if(info.brand && info.brand.name && info.brand.name !== "JARVIS"){ document.querySelector("header .brand b").textContent = info.brand.name.toUpperCase() + " OS"; document.title = info.brand.name; }
-  try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words;
+  try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; PRONOUNCE = vi.pronounce || {};
     HEAR = !!vi.hear && !window.JarvisNative && !!(window.MediaRecorder && navigator.mediaDevices?.getUserMedia); if(vi.speech_lang && rec) rec.lang = vi.speech_lang; warmAcks(); } catch {}
   try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
   $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";

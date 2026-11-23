@@ -429,7 +429,8 @@ def voices():
     from . import stt
     return {"provider": voice.provider(), "voices": voice.voices(),
             "wake_words": [w.strip().lower() for w in settings.wake_words.split(",") if w.strip()],
-            "speech_lang": os.environ.get("JARVIS_SPEECH_LANG", "en-SG"), "hear": stt.available()}
+            "speech_lang": os.environ.get("JARVIS_SPEECH_LANG", "en-SG"), "hear": stt.available(),
+            "pronounce": {k: v for k, v in voice.pronunciations().items() if k != v}}
 
 
 @app.post("/api/tts")
@@ -709,6 +710,7 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"\s*[.!]?\s*$", re.I)
 FAST_RE = re.compile(_J + r"(?:fast|quick|speed|turbo) (?:voice |reply |replies |response )?mode (on|off)\s*[.!]?\s*$|"
                      r"^\s*(?:jarvis[,\s]+)?(?:turn (on|off) fast (?:voice|mode|replies))\s*[.!]?\s*$", re.I)
+PRONOUNCE_RE = re.compile(_J + r"(?:pronounce|say)\s+[\"“']?(.{2,40}?)[\"”']?\s+(?:as|like)\s+[\"“']?(.{2,60}?)[\"”']?\s*[.!]?\s*$", re.I)
 CHATTER_RE = re.compile(_J + r"(?:location|place|area) (?:chat|chatter|messages|comments)\s+(on|off)\s*[.!]?\s*$", re.I)
 MAP_RE = re.compile(_J + r"(?:show me |open |pull up |display )?(?:the |my )?(?:map|explorer(?: map)?|side ?quests?|places i'?ve been|where i'?ve been)\s*[.!?]?\s*$", re.I)
 ROUTE_RE = re.compile(_J + r"(?:plan|show|make|map)(?: me)? (?:my |a |the )?route(?: for (?:today|my day))?"
@@ -813,6 +815,9 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
                                 "they want you to handle without asking). After each answer, `remember` the lasting "
                                 "facts, react in character, then ask the next question. Stop after about 8 questions "
                                 "with a short summary of what you'll do differently now. Start with the first question.")
+    if m := PRONOUNCE_RE.match(text):
+        voice.teach(m.group(1), m.group(2))
+        return f"Noted, Sir. From now on I'll say {m.group(1)} as “{m.group(2)}”.", None, None
     if m := CHATTER_RE.match(text):
         store.set("chatter:on", m.group(1).lower())
         return ("Location chat on. When you're out and about, the team will drop you a line about where you are, Sir."

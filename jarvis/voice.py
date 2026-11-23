@@ -84,6 +84,52 @@ GREETINGS = (r"good\s+(?:morning|afternoon|evening|night)|morning|afternoon|even
              r"goodbye|good\s+night|sleep\s+well|congratulations|well\s+done|apologies|sorry")
 
 
+# How to SAY Singapore names (spoken only; the screen still shows the real spelling). Teach more by saying
+# "Jarvis, pronounce Tampines as Tam-pih-neez" (saved in data/pronounce.json).
+PRONOUNCE = {
+    "Shaabaz": "Shah-bahz", "Tampines": "Tam-pih-neez", "Bukit Timah": "Boo-kit Tee-mah", "Bukit Batok": "Boo-kit Bah-tok",
+    "Bukit Panjang": "Boo-kit Pahn-jahng", "Punggol": "Poong-goal", "Jurong": "Joo-rong", "Pasir Ris": "Pah-seer Riss",
+    "Yishun": "Yee-shoon", "Ang Mo Kio": "Ahng Mo Kee-oh", "Toa Payoh": "Twa Pah-yoh", "Hougang": "Ho-gahng",
+    "Sengkang": "Seng-kahng", "Serangoon": "Seh-rahng-goon", "Geylang": "Gay-lahng", "Kallang": "Kah-lahng",
+    "Changi": "Chahng-ee", "Bugis": "Boo-giss", "Tiong Bahru": "Tee-ong Bah-roo", "Lau Pa Sat": "Lao Pah Saht",
+    "Sembawang": "Sem-bah-wahng", "Woodlands": "Woodlands", "Choa Chu Kang": "Chwa Choo Kahng", "Bedok": "Beh-dock",
+    "Kampong Glam": "Kahm-pong Glahm", "Joo Chiat": "Joo Chee-at", "Katong": "Kah-tong", "Paya Lebar": "Pah-yah Leh-bar",
+    "Kranji": "Krahn-jee", "Simei": "See-may", "Tanjong Pagar": "Tahn-jong Pah-gar", "Hari Raya": "Hah-ree Rah-yah",
+    "Deepavali": "Dee-pah-vah-lee", "kopitiam": "koh-pee-tee-ahm", "MRT": "M R T", "HDB": "H D B", "lah": "lah",
+}
+_custom = {"mtime": 0.0, "map": {}}
+
+
+def pronunciations() -> dict[str, str]:
+    """Built-in + the owner's own (data/pronounce.json)."""
+    f = CACHE.parent / "pronounce.json"
+    try:
+        m = f.stat().st_mtime
+        if m != _custom["mtime"]:
+            import json as _json
+            _custom.update(mtime=m, map=_json.loads(f.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        _custom.update(mtime=0.0, map={})
+    return {**PRONOUNCE, **_custom["map"]}
+
+
+def teach(word: str, sounds_like: str) -> None:
+    import json as _json
+    f = CACHE.parent / "pronounce.json"
+    cur = dict(pronunciations())
+    mine = {k: v for k, v in cur.items() if PRONOUNCE.get(k) != v}
+    mine[word.strip()] = sounds_like.strip()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(_json.dumps(mine, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def say_names(text: str) -> str:
+    for word, sound in sorted(pronunciations().items(), key=lambda x: -len(x[0])):
+        if word != sound:
+            text = re.sub(rf"(?<![\w-]){re.escape(word)}(?![\w-])", sound, text, flags=re.I)
+    return text
+
+
 def speakable(text: str) -> str:
     """Text for speaking: no Markdown, and no pause between a greeting and the owner's name
     ("Good morning, Sir" -> "Good morning Sir")."""
@@ -92,6 +138,7 @@ def speakable(text: str) -> str:
     t = re.sub(r"[*_`#>|]+", "", t)
     name = re.escape(settings.owner_name.strip() or "Sir")
     t = re.sub(rf"\b({GREETINGS}),\s*({name})\b", r"\1 \2", t, flags=re.I)   # "Good morning, Sir" -> "Good morning Sir"
+    t = say_names(t)   # Singapore names said properly
     return re.sub(r"[ \t]+", " ", t).strip()
 
 
