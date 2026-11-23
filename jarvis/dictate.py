@@ -1,9 +1,9 @@
-"""Voice typing anywhere (laptop): hold Right Ctrl, talk, let go, and JARVIS types what you said into whatever app has
+"""Voice typing anywhere (laptop): hold Right Alt (or the Copilot key, or Right Ctrl), talk, let go, and JARVIS types what you said into whatever app has
 the cursor (Word, WhatsApp Web, email, a form...). Start with "Jarvis, ..." and it's a command to JARVIS instead.
 
 Speech is understood on the laptop itself (faster-whisper), so nothing you dictate leaves the laptop. It never types
-into banking windows. Change the key with JARVIS_DICTATE_KEY (rctrl, ralt, f8, f9, capslock) or turn it off with
-JARVIS_DICTATE=off. A quick tap of Right Ctrl, or Right Ctrl with another key (Ctrl+C...), is ignored.
+into banking windows. Pick one key with JARVIS_DICTATE_KEY (auto, ralt, copilot, rctrl, f8, f9, capslock) or turn it off with
+JARVIS_DICTATE=off. A quick tap, or the key with another key (Ctrl+C, AltGr letters...), is ignored.
 """
 from __future__ import annotations
 
@@ -15,7 +15,10 @@ import time
 import wave
 from typing import Callable
 
-KEYS = {"rctrl": 0xA3, "ralt": 0xA5, "f8": 0x77, "f9": 0x78, "capslock": 0x14}
+KEYS = {"rctrl": 0xA3, "ralt": 0xA5, "copilot": 0x86, "f8": 0x77, "f9": 0x78, "capslock": 0x14}
+# "auto": whichever of these the laptop has. Newer laptops (like the Zenbook 14) have a Copilot key where Right Ctrl
+# used to be; it sends F23 while held.
+AUTO = ["rctrl", "ralt", "copilot"]
 RATE = 16000
 MIN_HOLD = 0.45          # shorter than this is a normal key press, not dictation
 COMMAND_RE = re.compile(r"^\s*(?:hey |ok )?jarvis[\s,.!:-]+(.+)$", re.I | re.S)
@@ -79,6 +82,16 @@ def type_text(text: str) -> bool:
     return True
 
 
+def _mask_alt() -> None:
+    """Tap an unused key while Alt is held, so releasing Alt doesn't open menus/ribbon key tips."""
+    try:
+        import ctypes
+        ctypes.windll.user32.keybd_event(0xE8, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(0xE8, 0, 2, 0)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _beep(freq: int) -> None:
     try:
         import winsound
@@ -105,7 +118,8 @@ def start(bus, on_command: Callable[[str], None]) -> str:
         return "voice typing: needs sounddevice + numpy"
     import ctypes
     user32 = ctypes.windll.user32
-    vk = KEYS.get(os.environ.get("JARVIS_DICTATE_KEY", "rctrl").strip().lower(), KEYS["rctrl"])
+    choice = os.environ.get("JARVIS_DICTATE_KEY", "auto").strip().lower()
+    vks = [KEYS[k] for k in AUTO] if choice not in KEYS else [KEYS[choice]]
     other = [k for k in range(0x30, 0x5B)] + [0x20, 0x0D, 0x09]   # letters, digits, space, enter, tab
 
     def held(k: int) -> bool:
@@ -142,7 +156,8 @@ def start(bus, on_command: Callable[[str], None]) -> str:
     def run() -> None:
         _state.update(on=True, why="")
         while not _stop.is_set():
-            if not held(vk):
+            vk = next((k for k in vks if held(k)), None)
+            if vk is None:
                 time.sleep(0.03)
                 continue
             t0, blocks, spoiled = time.monotonic(), [], False
@@ -158,6 +173,8 @@ def start(bus, on_command: Callable[[str], None]) -> str:
                         if not started and time.monotonic() - t0 >= MIN_HOLD and not spoiled:
                             started = True
                             clap.pause(True)
+                            if vk == KEYS["ralt"]:
+                                _mask_alt()   # so letting go of Alt doesn't open the app's menu
                             _beep(880)
                             bus.publish({"type": "dictate", "state": "listening"})
                         if time.monotonic() - t0 > 120:
@@ -180,7 +197,7 @@ def start(bus, on_command: Callable[[str], None]) -> str:
                 bus.publish({"type": "dictate", "state": "idle"})
 
     threading.Thread(target=run, daemon=True, name="jarvis-dictate").start()
-    return "voice typing: hold Right Ctrl and talk"
+    return "voice typing: hold Right Alt (or the Copilot key) and talk"
 
 
 def stop() -> None:

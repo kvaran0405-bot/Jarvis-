@@ -579,7 +579,7 @@ async function cinema(){
 const _oe3 = onEvent3;
 function onEvent4(ev){ _oe3(ev);
   if(ev.type === "dictate"){ const t = $("#hudToast"); if(t){ if(ev.state === "listening"){ t.style.setProperty("--tc", "#ff5c5c");
-      t.innerHTML = `<b>🎙 VOICE TYPING</b>Listening… let go of Right Ctrl to type it`; t.classList.add("on"); clearTimeout(t._h); }
+      t.innerHTML = `<b>🎙 VOICE TYPING</b>Listening… let go to type it`; t.classList.add("on"); clearTimeout(t._h); }
     else if(ev.state === "thinking"){ t.innerHTML = `<b>🎙 VOICE TYPING</b>Writing it down…`; }
     else { t._h = setTimeout(() => t.classList.remove("on"), 600); } } } if(ev.type === "season"){ applySeason(ev.season); if(ev.season) burst(); SFX.boom(); } if(ev.type === "cinema") cinema(); }
 

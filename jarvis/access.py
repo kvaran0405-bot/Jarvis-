@@ -37,7 +37,7 @@ def status(store) -> list[dict]:
          "how": f"Send /start {tg.pair_code()} to your bot" if tg.enabled() and not tg.ready() else "Add your bot token in .env"},
         {"id": "phone", "label": "Phone linked", "on": phonelink.online(store, 30),
          "how": "Open the JARVIS app on your phone"},
-        {"id": "dictate", "label": "Voice typing anywhere (hold Right Ctrl and talk)", "on": _dictate_ready(),
+        {"id": "dictate", "label": "Voice typing anywhere (hold Right Alt or the Copilot key and talk)", "on": _dictate_ready(),
          "how": "Needs faster-whisper and sounddevice (start.bat installs them)"},
         {"id": "autostart", "label": "Starts with Windows", "on": os.name != "nt" or startup_file().exists(),
          "action": "autostart"},
