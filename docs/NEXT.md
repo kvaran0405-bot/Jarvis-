@@ -40,6 +40,14 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 ## Automation chosen
 - **Bill alerts:** read "payment due / bill / statement ready" emails (email only, never bank apps; amounts masked
   as usual) -> reminder 3 days before the due date + on the day; monthly list of upcoming bills for VERONICA.
+- **Receipts -> spending:** receipt/order emails logged as spending automatically (merchant, amount, category).
+- **Subscription price changes:** spot "your price is changing" emails -> "it went up by $3" alert.
+- **Payday mode:** salary/payout email -> savings goal reminder + weekly budget reset (VERONICA).
+- **Refund tracker:** "refund initiated" emails tracked until the "refund completed" one arrives; nudge if late.
+- **Parcel tracker:** shipping emails (Shopee, Lazada, Amazon, couriers) -> HUD delivery card, "out for delivery
+  today" alert, delivered tick.
+- **Gym auto-log:** GPS gym visits logged as workouts automatically; STEVE's weekly plan adjusts.
+  (All money items read email only, never bank or finance apps.)
 
 ## Ideas offered, not built yet
 1. Auto car mode when the phone connects to the car's Bluetooth (reads messages aloud).
