@@ -49,6 +49,16 @@ Pick-up list for the next session. Remove an item when it ships (and add its Tra
 - **Gym auto-log:** GPS gym visits logged as workouts automatically; STEVE's weekly plan adjusts.
   (All money items read email only, never bank or finance apps.)
 
+## Scanners & visuals chosen (only the NEW parts; base modes already exist in web/vision.html + jarvis/vision.py)
+- **Food scanner+:** Meal mode exists -> add a neon macro overlay (protein/carbs/fat rings) and auto-log to STEVE.
+- **Outfit scanner+:** Outfit mode exists -> add wardrobe memory (items seen, when worn, suggestions from owned clothes).
+- **Document scanner+:** reading exists -> add clean PDF output (crop/contrast) and auto-create events/tasks from dates.
+- **Price scanner (new):** point at a product -> name it -> compare via phone_shop links (Shopee/Lazada/Amazon).
+- **Venue scanner (new, Shaabaz):** AR measuring grid + capacity estimate + layout overlay, linked to the floor planner.
+- **Hologram projector+:** gestures already open/close/switch Holo views -> add grab-to-spin, pinch-to-zoom,
+  point-to-select and a full-screen projector mode.
+- (Object ID already built: Vision "Scan"/"Ask" with labels; nothing to add.)
+
 ## Ideas offered, not built yet
 1. Auto car mode when the phone connects to the car's Bluetooth (reads messages aloud).
 2. Deal watch: daily Shopee/Shein price checks, alert on a price drop.
