@@ -101,8 +101,16 @@ def places(store) -> dict:
 
 
 def where(store, lat: float, lon: float, radius_km: float = 0.35) -> str | None:
-    best = min(((n, _km((lat, lon), p)) for n, p in places(store).items()), key=lambda x: x[1], default=None)
-    return best[0] if best and best[1] <= radius_km else None
+    """The named place you're at. Your own saved places (home, gym...) win over built-in landmarks."""
+    try:
+        saved = {k: tuple(v) for k, v in json.loads(store.get("places:saved") or "{}").items()}
+    except ValueError:
+        saved = {}
+    for pool in (saved, places(store)):
+        best = min(((n, _km((lat, lon), p)) for n, p in pool.items()), key=lambda x: x[1], default=None)
+        if best and best[1] <= radius_km:
+            return best[0]
+    return None
 
 
 def location_magic(store, bus, lat: float, lon: float, speed: float, prev: dict) -> list[str]:

@@ -150,8 +150,10 @@ class Engine:
                 bond = bonds.context(self.store, agent.name) + "\n"
             except Exception:  # noqa: BLE001 - never let the relationship layer break a reply
                 bond = ""
+        from . import awareness
+        live = awareness.situation(self.store)
         return (f"[Context] Now: {now.strftime('%A %Y-%m-%d %H:%M')} ({self.settings.timezone}).\n"
-                f"Known facts about the owner:\n{mem}\n{own}{radar}{style}{bond}[/Context]\n\n")
+                f"Known facts about the owner:\n{mem}\n{live}{own}{radar}{style}{bond}[/Context]\n\n")
 
     def tools_for(self, agent: Agent) -> list[dict]:
         tools = [REGISTRY[name].schema() for name in self.tool_names_for(agent)]

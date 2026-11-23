@@ -353,4 +353,5 @@ from . import desktop as _desktop  # noqa: E402,F401  (laptop command: windows, 
 from . import phonelink as _phonelink  # noqa: E402,F401  (phone link: find my phone, silent, clipboard, autopilot)
 from . import photosort as _photosort  # noqa: E402,F401  (photo sorter: albums, find_photo)
 from . import explore as _explore  # noqa: E402,F401  (places explored, route planning)
+from . import awareness as _awareness  # noqa: E402,F401  (live situation, time at places)
 from . import studio as _studio  # noqa: E402,F401  (floor plans, mood boards, portfolio, backups)

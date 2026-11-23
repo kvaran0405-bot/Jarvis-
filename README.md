@@ -269,6 +269,10 @@ it stays silent unless the alert is critical.
   address and the 16 letters, and it deletes your message, checks it with Gmail, saves it and restarts. Or, on the
   setup page, enter your Gmail address and a Gmail app password (the page links to Google's
   page for making one; it needs 2-Step Verification). JARVIS checks it works, saves it on the laptop, and restarts.
+- **JARVIS just knows (live awareness):** before every reply, every agent automatically gets where you are now,
+  where you've been today, hours at each place this week (worked out from GPS), your next event, phone battery,
+  last night's screen time and any urgent messages. You never have to tell it. Ask "how many hours was I at the gym
+  this week?". Guests never see any of it.
 - **Explorer map** (`/map.html`, or say "show me my map"; works on the phone too): a dark street map where the places
   you've been glow and the rest stays in shadow, 40 Singapore side quests (food, nature, heritage, views, night) that
   unlock when you visit, and your route for the day. Tap a quest → + ADD TO ROUTE → ROUTE opens Google Maps.
