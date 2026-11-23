@@ -260,6 +260,8 @@ it stays silent unless the alert is critical.
 - **Voice typing anywhere (laptop):** hold **Right Alt** (or the **Copilot key** ✦, or Right Ctrl), talk, let go: JARVIS types it into whatever app has the
   cursor. Start with "Jarvis, ..." to give an order instead. Understood on the laptop itself; never types into
   banking windows. Change the key with `JARVIS_DICTATE_KEY` (auto, ralt, copilot, rctrl, f8, f9, capslock) or `JARVIS_DICTATE=off`.
+- **Email:** on the setup page, enter your Gmail address and a Gmail app password (the page links to Google's
+  page for making one; it needs 2-Step Verification). JARVIS checks it works, saves it on the laptop, and restarts.
 - **Photo sorter:** every night the phone sends new photos to the laptop and JARVIS files them into
   Pictures/JARVIS Albums (Receipts, Notes & Slides, Event Setups, Food, People, Places...). Ask "find my Uniqlo
   receipt". Photos of cards, IDs or passwords are thrown away. Turn off with `JARVIS_PHOTO_SORT=off`.

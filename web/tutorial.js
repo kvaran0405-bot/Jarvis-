@@ -28,6 +28,7 @@ const MISSIONS = [
   {id: "cinema", title: "The showreel", what: "Every cinematic back to back, with sound. Perfect for showing off.", todo: "Say: “show me the cinematics”.", ev: "cinema"},
   {id: "dictate", title: "Voice typing anywhere", what: "Hold Right Alt (or the Copilot key ✦), talk, let go: JARVIS types what you said into any app (Word, email, WhatsApp Web…). Start with “Jarvis, …” to give an order instead.", todo: "Click into the box below (or open Notepad), hold Right Alt (or the Copilot key ✦) and say “testing one two three”, then let go.", ev: "dictated", laptop: true},
   {id: "photos", title: "Photo sorter", what: "Every night your phone's new photos are filed into Pictures › JARVIS Albums (Receipts, Notes & Slides, Event Setups…).", todo: "Say: “find my latest receipt” (or “sort my photos now”).", say: /photo|receipt|album/i},
+  {id: "email", title: "Your inbox", what: "JARVIS reads your Gmail: briefings, an inbox sweep for what matters, smart reply drafts (you send).", todo: "Connect Gmail on the setup page, then say: “anything important in my email?”", say: /e-?mail|inbox|gmail/i},
   {id: "update", title: "One-word updates", what: "JARVIS updates itself every night. To update now, text “update” to your bot on Telegram.", todo: "Nothing to do here: tap ✓ Got it.", manual: true},
 ];
 let done = store.get("done", {}), cur = null;
