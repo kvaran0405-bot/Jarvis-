@@ -272,6 +272,13 @@ const BUILD = {
     const c = new THREE.Object3D(); c.position.set(0, 4, 0); group.add(c);
     label(c, `SINGAPORE<small>${st.squares ? `${st.squares} spots · ${st.km2} km² explored` : `${explored.size} explored`} · ${rs.length ? rs.length + " stops today" : today.size + " today"}</small>`, "#ffd23f");
     animators.push((t, dt) => group.rotation.y += dt * .05);
+    // the real street map lives on its own page
+    const b = document.createElement("a"); b.href = "/map.html"; b.target = "_blank"; b.className = "lbl";
+    b.style.cssText = "position:absolute;left:50%;bottom:64px;transform:translateX(-50%);pointer-events:auto;cursor:pointer;" +
+      "padding:10px 18px;border:1px solid #3dff9a;border-radius:20px;color:#3dff9a;background:rgba(3,6,10,.85);" +
+      "font:700 11px Orbitron,sans-serif;letter-spacing:.2em;text-decoration:none;box-shadow:0 0 18px #3dff9a55;z-index:5";
+    b.textContent = "🗺 OPEN EXPLORER MAP (STREETS + SIDE QUESTS)";
+    root.querySelector(".labels").appendChild(b); labels.push({obj: null, el: b});
   },
   diagnostics(){
     data.diagnostics.forEach((d, i) => {
@@ -320,7 +327,7 @@ function frame(now){
   const target = new THREE.Vector3().setFromSpherical(sph); camera.position.lerp(target, Math.min(1, dt * 3)); camera.lookAt(0, view === "body" ? .2 : 0, 0);
   renderer.render(scene, camera);
   const v = new THREE.Vector3();
-  labels.forEach(L => { L.obj.getWorldPosition(v); v.project(camera); const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+  labels.forEach(L => { if(!L.obj) return; L.obj.getWorldPosition(v); v.project(camera); const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
     L.el.style.display = vis ? "" : "none"; if(vis){ L.el.style.left = (v.x * .5 + .5) * innerWidth + "px"; L.el.style.top = (-v.y * .5 + .5) * innerHeight + "px"; } });
   raf = requestAnimationFrame(frame);
 }
