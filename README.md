@@ -440,6 +440,18 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## The 3D core (#18)
+
+The glowing core on the phone, in solo mode and on the laptop dashboard is now a living 3D hologram of about 12,000
+particles:
+
+- **Idle:** it breathes.
+- **Listening:** it ripples inward in cyan.
+- **Thinking:** it swirls purple.
+- **Speaking:** it pulses with JARVIS's actual voice, throwing sparks on loud words.
+
+It takes each agent's colour and your suit theme. On a device without 3D graphics, the classic reactor shows instead.
+
 ## The trailer: show off (#8 to #14)
 
 A one-minute 3D film starring you, for showing friends and family:

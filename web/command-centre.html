@@ -48,6 +48,7 @@ main{display:grid;grid-template-columns:1fr 380px;height:calc(100% - 50px)}
 .orb .glow{position:absolute;inset:38px;border-radius:50%;background:radial-gradient(circle,#fff 0%,var(--c) 38%,color-mix(in srgb,var(--c) 30%,transparent) 62%,transparent 72%);
   filter:drop-shadow(0 0 28px var(--c));animation:pulse 2.4s ease-in-out infinite;transition:background .6s}
 .orb .ring{position:absolute;inset:6px;border-radius:50%;border:2px solid transparent;border-top-color:var(--c);border-right-color:var(--c);animation:spin 5s linear infinite;opacity:.9}
+.orb.core3d-on .glow,.orb.core3d-on .ring,.orb.core3d-on #globe{opacity:.12}
 .orb #globe{position:absolute;inset:-60px;width:270px;height:270px;opacity:.35;pointer-events:none}
 .orb #dayring{position:absolute;inset:-28px;width:206px;height:206px;pointer-events:none}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:20}
@@ -661,13 +662,13 @@ async function sendCommand(text, agent, voice=false){
   const rid = Math.random().toString(36).slice(2);
   streams[rid] = {buf:"", any:false}; focus(agent); stopSpeaking();
   if(voice) setTimeout(() => { if(streams[rid] && !streams[rid].any && !streams[rid].acked){ streams[rid].acked = true; queueSpeech(agent, ackFor(agent)); } }, 700);
-  pendingCmds++;
+  pendingCmds++; window.__jarvisBusy = true;
   try {
     const r = await fetch("/api/command", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, agent, voice, rid, source: ME})});
     const data = await r.json();
     finishStream(rid, data.agent || agent, data.reply, queueSpeech);
   } catch(err){ logLine("JARVIS", "Can't reach JARVIS on the laptop right now (it may be restarting). Try again in a moment.", "error"); }
-  finally { pendingCmds--; if(speaking === 0) resumeListening(); }   // muted: the follow-up window still opens
+  finally { pendingCmds--; window.__jarvisBusy = pendingCmds > 0; if(speaking === 0) resumeListening(); }   // muted: the follow-up window still opens
   refresh();
 }
 let nextIsVoice = false;
@@ -935,5 +936,17 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
 <script src="/holo.js"></script>
 <script src="/gestures.js"></script>
 <script src="/bargein.js"></script>
+<script src="/vendor/three.min.js"></script>
+<script src="/core3d.js"></script>
+<script>
+// the 3D particle core (#18) inside the orb; it follows the real voice level the dashboard already measures
+(() => { const orb = document.getElementById("orb"); if (!orb || !window.JarvisCore) return;
+  const host = document.createElement("div"); host.style.cssText = "position:absolute;inset:-48px;pointer-events:none;z-index:1"; orb.appendChild(host);
+  const c = window.JarvisCore.mount(host, {distance: 14.5, read: () => ({
+    state: orb.classList.contains("speak") ? "speak" : document.querySelector("#mic.rec") ? "listen" : window.__jarvisBusy ? "think" : "idle",
+    amp: orb.classList.contains("speak") ? +getComputedStyle(orb).getPropertyValue("--amp") || null : null,
+    color: getComputedStyle(document.documentElement).getPropertyValue("--c").trim() || "#ffd23f"})});
+  if (c) orb.classList.add("core3d-on"); })();
+</script>
 </body>
 </html>

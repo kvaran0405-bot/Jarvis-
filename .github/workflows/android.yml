@@ -17,6 +17,7 @@ on:
       - "web/holo.js"
       - "web/trailer.html"
       - "web/transitions.js"
+      - "web/core3d.js"
       - ".github/workflows/android.yml"
   workflow_dispatch:
 

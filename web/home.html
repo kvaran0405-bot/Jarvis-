@@ -5,6 +5,8 @@
 <meta name="theme-color" content="#03060a"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png">
 <script src="/native-bridge.js"></script>
 <script src="/bargein.js"></script>
+<script src="/vendor/three.min.js"></script>
+<script src="/core3d.js"></script>
 <script src="/transitions.js" data-boot defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -98,7 +100,10 @@ function draw(t){
   for(let i = 0; i < 10; i++){ const a = i / 10 * Math.PI * 2 + t * .4 * sp; x.save(); x.translate(m + Math.cos(a) * s * .19, m + Math.sin(a) * s * .19); x.rotate(a); x.fillStyle = "#5fd8ff"; x.fillRect(-6, -2, 12, 4); x.restore(); }
   requestAnimationFrame(draw);
 }
-requestAnimationFrame(draw);
+// the 3D particle core (#18); the 2D reactor above stays as the fallback where 3D isn't available
+let thinking = false;
+const core3d = window.JarvisCore?.mount($("#core"), {distance: 13.5, read: () => ({state: speaking ? "speak" : listening ? "listen" : thinking ? "think" : "idle", color: agentColor})});
+if (core3d) cv.style.display = "none"; else requestAnimationFrame(draw);
 
 // talk
 function setState(t){ $("#state").textContent = t; }
@@ -113,7 +118,7 @@ function play(agent, text, blobP, g){
     if(g !== gen) return done();
     speaking = true; setState(`${agent} SPEAKING`);
     const b = await blobP; if(g !== gen) return done();
-    if(b){ const a = window._a = new Audio(URL.createObjectURL(b)); a.onended = a.onerror = done; a.play().catch(done); setTimeout(done, 9000 + text.length * 120); }
+    if(b){ const a = window._a = new Audio(URL.createObjectURL(b)); window.JarvisCore?.attachAudio(a); a.onended = a.onerror = done; a.play().catch(done); setTimeout(done, 9000 + text.length * 120); }
     else { try { const u = new SpeechSynthesisUtterance(text.replace(/\[\w+\]\s*/g, "")); u.onend = u.onerror = done; speechSynthesis.speak(u); setTimeout(done, 3000 + text.length * 80); } catch { done(); } }
   });
 }
@@ -171,14 +176,14 @@ function whoFor(text){
 }
 async function ask(text){
   const [agent, said] = whoFor(text); if (agent !== "JARVIS") text = said;
-  show("YOU", text); setState("THINKING"); myRid = Math.random().toString(36).slice(2); streamBuf = ""; streamAny = false; convo = true;
+  show("YOU", text); setState("THINKING"); thinking = true; myRid = Math.random().toString(36).slice(2); streamBuf = ""; streamAny = false; convo = true;
   const ack = setTimeout(() => { if(!speaking && speakerWhere === "phone") speak("JARVIS", "One moment Sir."); }, 1500);
   try { const r = await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, agent, voice: true, rid: myRid, source: "phone"})});
     if(r.status === 401){ location.href = "/login.html?next=/home.html"; return; }
-    const d = await r.json(); clearTimeout(ack);
+    const d = await r.json(); clearTimeout(ack); thinking = false;
     if(streamAny){ show(d.agent || "JARVIS", d.reply || ""); feed("", true); }   // already being spoken as it streamed
     else answer(d.agent || "JARVIS", d.reply || "Done."); }
-  catch { clearTimeout(ack); show("JARVIS", "I can't reach your laptop right now, Sir."); setState("OFFLINE"); }
+  catch { clearTimeout(ack); thinking = false; show("JARVIS", "I can't reach your laptop right now, Sir."); setState("OFFLINE"); }
 }
 function listen(follow){
   if(!SR || speaking || listening) return; const rec = new SR(); rec.lang = "en-SG"; rec.interimResults = false; listening = true; setState(follow ? "GO AHEAD…" : "LISTENING");

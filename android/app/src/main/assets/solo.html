@@ -4,6 +4,8 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JARVIS Solo</title>
 <meta name="theme-color" content="#03060a">
+<script src="file:///android_asset/vendor/three.min.js"></script>
+<script src="file:///android_asset/core3d.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box}
@@ -435,7 +437,7 @@ function speak(agent, text){
   return new Promise(res => {
     const fin = () => { speaking = false; setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); res(); if (hands) setTimeout(listen, 300); };
     premiumVoice(agent, clean).then(url => {
-      if (url){ const a = new Audio(url); window._soloAudio = a; a.onended = a.onerror = fin; a.play().catch(() => robot()); setTimeout(fin, 12000 + clean.length * 120); return; }
+      if (url){ const a = new Audio(url); window._soloAudio = a; window.JarvisCore?.attachAudio(a); a.onended = a.onerror = fin; a.play().catch(() => robot()); setTimeout(fin, 12000 + clean.length * 120); return; }
       robot();
     });
     function robot(){
@@ -667,7 +669,10 @@ function draw(t){
   for (let i = 0; i < 10; i++){ const a = i / 10 * Math.PI * 2 + t * .4 * sp; x.save(); x.translate(m + Math.cos(a) * s * .19, m + Math.sin(a) * s * .19); x.rotate(a); x.fillStyle = "#5fd8ff"; x.fillRect(-6, -2, 12, 4); x.restore(); }
   requestAnimationFrame(draw);
 }
-requestAnimationFrame(draw);
+// the 3D particle core (#18), bundled in the app; the 2D reactor stays as the fallback
+const core3d = window.JarvisCore?.mount($("#core"), {distance: 13.5, read: () => ({state: speaking ? "speak" : listening ? "listen" : busy ? "think" : "idle",
+  color: getComputedStyle(document.documentElement).getPropertyValue("--c").trim() || color})});
+if (core3d) cv.style.display = "none"; else requestAnimationFrame(draw);
 
 // ---------------------------------------------------------------- status
 function cards(){
