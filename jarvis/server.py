@@ -713,8 +713,12 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
 FAST_RE = re.compile(_J + r"(?:fast|quick|speed|turbo) (?:voice |reply |replies |response )?mode (on|off)\s*[.!]?\s*$|"
                      r"^\s*(?:jarvis[,\s]+)?(?:turn (on|off) fast (?:voice|mode|replies))\s*[.!]?\s*$", re.I)
 PRONOUNCE_RE = re.compile(_J + r"(?:pronounce|say)\s+[\"“']?(.{2,40}?)[\"”']?\s+(?:as|like)\s+[\"“']?(.{2,60}?)[\"”']?\s*[.!]?\s*$", re.I)
+TRIPS_RE = re.compile(_J + r"(?:trip|where.?to|departure) (?:questions?|asking|alerts?)\s+(on|off)\s*[.!]?\s*$", re.I)
 CHATTER_RE = re.compile(_J + r"(?:location|place|area) (?:chat|chatter|messages|comments)\s+(on|off)\s*[.!]?\s*$", re.I)
 MAP_RE = re.compile(_J + r"(?:show me |open |pull up |display )?(?:the |my )?(?:map|explorer(?: map)?|side ?quests?|places i'?ve been|where i'?ve been)\s*[.!?]?\s*$", re.I)
+NAV_RE = re.compile(_J + r"(?:navigate to|take me to|bring me to|guide me to|directions to|how (?:do|can|should) i get to|"
+                    r"how to get to|how long to (?:get to|reach)|route to|get me to|plan a route to|plan my route to|"
+                    r"i(?:'m| am) going to|heading to|going to)\s+(.+?)(?:\s+by\s+(\d{1,2}[:.]\d{2}))?\s*[.!?]*$", re.I)
 ROUTE_RE = re.compile(_J + r"(?:plan|show|make|map)(?: me)? (?:my |a |the )?route(?: for (?:today|my day))?"
                       r"(?:\s+(?:to|via|for)\s+(.+?))?\s*[.!?]?\s*$", re.I)
 TUTORIAL_RE = re.compile(_J + r"(?:show me |start |open |run |replay )?(?:the )?(?:tutorial|training(?: mode)?|walkthrough|tour)\s*[.!?]?\s*$", re.I)
@@ -832,6 +836,10 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
     if m := PRONOUNCE_RE.match(text):
         voice.teach(m.group(1), m.group(2))
         return f"Noted, Sir. From now on I'll say {m.group(1)} as “{m.group(2)}”.", None, None
+    if m := TRIPS_RE.match(text):
+        store.set("trips:on", m.group(1).lower())
+        return ("I'll ask where you're heading when you set off, Sir." if m.group(1).lower() == "on"
+                else "I won't ask where you're going any more."), None, None
     if m := CHATTER_RE.match(text):
         store.set("chatter:on", m.group(1).lower())
         return ("Location chat on. When you're out and about, the team will drop you a line about where you are, Sir."
@@ -862,14 +870,25 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         bus.publish({"type": "brain", **brain.describe(store)})
         return (f"Fast mode on, Sir. Gemini answered in {secs:.1f} seconds. Everything you ask now gets the quickest "
                 "brain, and if it ever stumbles I quietly use the main one."), None, None
+    if (m := NAV_RE.match(text)) and not re.search(r"\b(then|and then|->|→)\b|,", m.group(1)):
+        from . import navigate, phonelink
+        import urllib.parse as _up
+        dest = m.group(1).strip()
+        o = navigate.options(store, dest, arrive=(m.group(2) or "").replace(".", ":"))
+        if "error" not in o:
+            bus.publish({"type": "open_page", "url": "/map.html?nav=" + _up.quote(dest)})
+            if phonelink.online(store):
+                phonelink.queue(store, "open", url="/map.html?nav=" + _up.quote(dest), title="JARVIS · route ready",
+                                text=f"Tap for directions to {dest}")
+        return navigate.say_options(o), None, None
     if m := ROUTE_RE.match(text):
         from . import explore, phonelink
         extra = [x for x in re.split(r"\s*(?:,|\bthen\b|\band\b|->|→)\s*", m.group(1) or "") if x.strip()]
         route = explore.plan(store, extra=extra)
+        went = explore.send_route(store, route)
         if route["link"]:
-            phonelink.queue(store, "link", url=route["link"])
             bus.publish({"type": "open_page", "url": "/map.html"})
-        return explore.describe(route), None, None
+        return explore.describe(route, went), None, None
     if TUTORIAL_RE.match(text):
         bus.publish({"type": "tutorial"})
         return "Training mode, Sir. Each mission ticks off when it works.", None, None
@@ -1393,6 +1412,23 @@ async def hear(request: Request):
 
 
 # ---------------------------------------------------------------- explorer map (laptop and phone)
+@app.get("/api/nav")
+def nav_api(to: str, arrive: str = "", lat: float | None = None, lon: float | None = None):
+    """Navigation inside JARVIS: options (walk, bus/MRT, Grab, drive), routes with turn-by-turn steps, leave-by."""
+    from . import navigate
+    origin = (lat, lon) if lat is not None and lon is not None else None
+    return navigate.options(store, to[:120], origin, arrive)
+
+
+@app.get("/api/day")
+def day_api(date: str = ""):
+    """One day's movement for the map's glowing replay: path with times, km, km walked, steps, places."""
+    from datetime import date as _d
+    from . import explore
+    d = _d.fromisoformat(date) if re.match(r"^\d{4}-\d{2}-\d{2}$", date or "") else None
+    return explore.day_summary(store, d)
+
+
 @app.get("/api/map")
 def map_api():
     from . import quests
@@ -1409,8 +1445,7 @@ def route_api(r: RouteIn):
     """Plan a route: today's calendar stops (optional) plus the stops picked on the map; directions go to the phone."""
     from . import explore, phonelink
     route = explore.plan(store, extra=[x[:120] for x in r.stops[:10]], include_calendar=r.today)
-    if route["link"] and phonelink.online(store):
-        phonelink.queue(store, "link", url=route["link"])
+    route["sent_to"] = explore.send_route(store, route)
     return route
 
 

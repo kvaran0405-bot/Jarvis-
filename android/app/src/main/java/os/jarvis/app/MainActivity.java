@@ -42,6 +42,7 @@ public class MainActivity extends Activity {
     private static final int REQ_FILE = 43;
     private ValueCallback<Uri[]> fileCallback;
     private static final String PREFS = "jarvis";
+    static volatile boolean visible = false;   // on screen: JARVIS may open other apps directly
 
     private WebView web;
     private SpeechRecognizer recognizer;
@@ -92,7 +93,15 @@ public class MainActivity extends Activity {
             }
         });
 
+        web.getSettings().setGeolocationEnabled(true);   // live navigation on JARVIS's own map
         web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String origin, android.webkit.GeolocationPermissions.Callback cb) {
+                boolean ok = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+                if (!ok) requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 45);
+                cb.invoke(origin, ok, false);
+            }
+
             @Override
             public void onPermissionRequest(PermissionRequest request) {
                 ui.post(() -> {
@@ -221,12 +230,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        visible = true;
         js("window.onNativeResume && window.onNativeResume()");   // the setup page re-checks what's allowed
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        visible = false;
         CookieManager.getInstance().flush();
     }
 
@@ -361,6 +372,18 @@ public class MainActivity extends Activity {
                     requestPermissions(new String[]{"android.permission.ACCESS_BACKGROUND_LOCATION"}, 45);
                 }
             });
+        }
+
+        @JavascriptInterface
+        public boolean hasSteps() {
+            return android.os.Build.VERSION.SDK_INT < 29
+                    || checkSelfPermission("android.permission.ACTIVITY_RECOGNITION") == PackageManager.PERMISSION_GRANTED;
+        }
+
+        @JavascriptInterface
+        public void askSteps() {
+            if (android.os.Build.VERSION.SDK_INT >= 29)
+                ui.post(() -> requestPermissions(new String[]{"android.permission.ACTIVITY_RECOGNITION"}, 45));
         }
 
         @JavascriptInterface

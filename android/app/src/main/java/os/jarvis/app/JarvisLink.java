@@ -40,7 +40,7 @@ import org.json.JSONObject;
  * asks: ring (find my phone), silent mode, clipboard, notifications, open a page, and approved autopilot steps.
  * Its notification is the live JARVIS card on the lock screen.
  */
-public class JarvisLink extends Service implements LocationListener {
+public class JarvisLink extends Service implements LocationListener, android.hardware.SensorEventListener {
     static final String CHANNEL = "jarvis_link", ALERTS = "jarvis_alerts", URGENT = "jarvis_urgent";
     private volatile boolean running = true;
     private volatile Location lastLoc;
@@ -72,6 +72,7 @@ public class JarvisLink extends Service implements LocationListener {
         }
         else startForeground(8, n);
         startLocation();
+        startSteps();
         new Thread(this::loop).start();
     }
 
@@ -139,6 +140,32 @@ public class JarvisLink extends Service implements LocationListener {
             while (pending.size() > 2000) pending.removeFirst();
         }
     }
+    // ------------------------------------------------------------ steps (the phone's own step counter)
+    private volatile int stepsToday = -1;
+
+    private void startSteps() {
+        if (Build.VERSION.SDK_INT >= 29 && checkSelfPermission("android.permission.ACTIVITY_RECOGNITION") != PackageManager.PERMISSION_GRANTED) return;
+        try {
+            android.hardware.SensorManager sm = getSystemService(android.hardware.SensorManager.class);
+            android.hardware.Sensor counter = sm.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_COUNTER);
+            if (counter != null) sm.registerListener(this, counter, android.hardware.SensorManager.SENSOR_DELAY_NORMAL);
+        } catch (Exception ignored) {}
+    }
+
+    @Override public void onSensorChanged(android.hardware.SensorEvent e) {
+        // The counter counts since the phone booted; keep a daily baseline (and survive reboots).
+        float v = e.values[0];
+        android.content.SharedPreferences p = getSharedPreferences("jarvis_steps", MODE_PRIVATE);
+        String day = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+        float base = p.getFloat("base", v), last = p.getFloat("last", v), acc = p.getFloat("acc", 0);
+        if (!day.equals(p.getString("day", ""))) { base = v; acc = 0; last = v; }
+        if (v < last) { acc += last - base; base = 0; }   // the phone restarted
+        p.edit().putString("day", day).putFloat("base", base).putFloat("last", v).putFloat("acc", acc).apply();
+        stepsToday = Math.round(acc + v - base);
+    }
+
+    @Override public void onAccuracyChanged(android.hardware.Sensor s, int a) {}
+
     @Override public void onProviderEnabled(String p) {}
     @Override public void onProviderDisabled(String p) {}
     @Override public void onStatusChanged(String p, int s, Bundle b) {}
@@ -153,6 +180,7 @@ public class JarvisLink extends Service implements LocationListener {
                 r.put("battery", bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY));
                 r.put("charging", bm.isCharging());
                 r.put("screen_on", screenOn);
+                if (stepsToday >= 0) r.put("steps", stepsToday);
                 Location l = lastLoc;
                 if (l != null && System.currentTimeMillis() - l.getTime() < 15 * 60_000L) {
                     r.put("lat", l.getLatitude()); r.put("lon", l.getLongitude());
@@ -213,8 +241,13 @@ public class JarvisLink extends Service implements LocationListener {
             case "open":
                 Intent o = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
                         .putExtra("jarvis_url", c.optString("url", "/home.html"));
-                try { startActivity(o); done(id, "opened"); }
-                catch (Exception e) { notifyOwner("JARVIS", "Tap to open", c.optString("url", "/home.html"), false); done(id, "notified"); }
+                // Android only lets JARVIS pop up by itself while it's on screen or with "display over other apps";
+                // otherwise a tap-to-open notification, so it never fails silently.
+                if (MainActivity.visible || android.provider.Settings.canDrawOverlays(this)) {
+                    try { startActivity(o); done(id, "opened"); break; } catch (Exception ignored) {}
+                }
+                notifyOwner(c.optString("title", "JARVIS"), c.optString("text", "Tap to open"), c.optString("url", "/home.html"), false);
+                done(id, "notified");
                 break;
             case "autopilot":
                 JarvisAccessibility a = JarvisAccessibility.instance;

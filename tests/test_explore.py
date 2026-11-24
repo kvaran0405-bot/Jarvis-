@@ -24,7 +24,8 @@ def test_checkin_records_the_trail():
     assert explore.stats(s)["squares"] == 1
 
 
-def test_route_plan_and_phrase():
+def test_route_plan_and_phrase(monkeypatch):
+    monkeypatch.setattr(explore, "geocode", lambda store, q: None)   # no internet in tests
     s = Store(":memory:")
     today = datetime.now(settings.tz).date().isoformat()
     s.add_event("Dinner", today + "T19:30", None, "Marina Bay Sands", "life")
@@ -33,7 +34,7 @@ def test_route_plan_and_phrase():
     r = explore.plan(s, extra=["Ah Hock Kopitiam"])
     assert [x["name"] for x in r["stops"]] == ["Kaplan City Campus", "Marina Bay Sands", "Ah Hock Kopitiam"]
     assert r["stops"][0]["lat"] and r["stops"][2]["lat"] is None
-    assert r["link"].startswith("https://www.google.com/maps/dir/?api=1") and "Ah%20Hock" in r["link"]
+    assert r["link"].endswith("/map.html?route=today") and "google" not in r["link"]   # stays inside JARVIS
     assert explore.current_route(s)["stops"][1]["time"] == "19:30"
     assert "1. Kaplan City Campus (10:00)" in explore.describe(r)
     from jarvis import server
@@ -52,7 +53,7 @@ def test_quests_and_map_api():
     d = c.get("/api/map").json()
     assert d["total"] == len(quests.QUESTS) and set(d["kinds"]) == {"food", "nature", "heritage", "views", "night"}
     r = c.post("/api/route", json={"stops": ["1.2816,103.8636", "Pulau Ubin"], "today": False}).json()
-    assert [s["lat"] for s in r["stops"]] == [1.2816, 1.4045] and "google.com/maps/dir" in r["link"]
+    assert [s["lat"] for s in r["stops"]] == [1.2816, 1.4045] and "google" not in r["link"]
     assert c.get("/map.html").status_code == 200 and c.get("/vendor/leaflet/leaflet.js").status_code == 200
 
 

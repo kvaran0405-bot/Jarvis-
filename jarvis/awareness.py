@@ -91,6 +91,9 @@ def situation(store) -> str:
             lines.append(f"- Phone screen time (last report): {scr.get('total_minutes', 0) // 60}h"
                          f"{scr.get('total_minutes', 0) % 60:02d}m; top: "
                          + ", ".join(f"{a['app']} {a['minutes']}m" for a in scr["apps"][:3]))
+        from . import trips
+        if (tc := trips.context(store)):
+            lines.append(tc)
         urgent = store.query("SELECT COUNT(*) AS n FROM phone_notes WHERE urgent = 1 AND created >= ?",
                              ((now - timedelta(hours=3)).isoformat(),))
         if urgent and urgent[0]["n"]:

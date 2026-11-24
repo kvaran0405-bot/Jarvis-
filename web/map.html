@@ -14,7 +14,7 @@
 *{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:"JetBrains Mono",monospace;overflow:hidden}
 #map{position:fixed;inset:0;background:#05080d}
 .leaflet-container{background:#05080d;font-family:inherit}
-.leaflet-tile-pane{filter:saturate(.6) brightness(.85) hue-rotate(-8deg)}
+.leaflet-tile-pane{filter:invert(1) hue-rotate(200deg) brightness(.78) contrast(1.15) saturate(.45)}   /* OpenStreetMap, made dark-neon */
 .leaflet-control-attribution{background:rgba(3,6,10,.6)!important;color:#55606f!important;font-size:9px}.leaflet-control-attribution a{color:#7a8899!important}
 .leaflet-control-zoom{display:none}
 /* top: title + chips */
@@ -53,23 +53,46 @@
 .toast{position:fixed;left:50%;top:calc(100px + env(safe-area-inset-top));transform:translateX(-50%);z-index:600;background:#081019;border:1px solid var(--go);color:var(--txt);padding:9px 14px;border-radius:18px;font-size:12px;opacity:0;transition:.3s;pointer-events:none;max-width:90vw;text-align:center}
 .toast.on{opacity:1}
 @media(min-width:900px){.legend{bottom:auto;top:110px}}
-.far .q:not(.near) .qlbl{display:none}   /* zoomed out: names only for nearby quests */
+.far .q:not(.near) .qlbl{display:none}
+.where{position:fixed;left:12px;right:12px;top:calc(96px + env(safe-area-inset-top));z-index:500;display:flex;gap:6px;max-width:560px}
+.where input{flex:1;min-width:0;background:rgba(5,9,15,.9);border:1px solid var(--line);color:var(--txt);padding:11px 14px;border-radius:22px;font:13px "JetBrains Mono",monospace;outline:none}
+.where input:focus{border-color:var(--ac);box-shadow:0 0 14px #ffd23f44}
+.where button{flex:none;background:rgba(8,13,20,.9);color:var(--ac);border:1px solid var(--ac);border-radius:22px;padding:0 14px;font:700 10px Orbitron,sans-serif;letter-spacing:.12em;cursor:pointer}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:520;max-height:62vh;overflow:auto;background:linear-gradient(#050a12f2,#03060afa);border-top:1px solid var(--line);
+  border-radius:18px 18px 0 0;padding:14px 14px max(16px,env(safe-area-inset-bottom));transform:translateY(105%);transition:.35s;box-shadow:0 -10px 40px #000a}
+.sheet.on{transform:none}.sheet h3{margin:0 0 4px;font:700 12px Orbitron,sans-serif;letter-spacing:.2em;color:var(--ac)}.sheet .sub{color:var(--muted);font-size:11px;margin-bottom:10px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.opt{border:1px solid var(--line);border-radius:12px;padding:10px;background:#081019;cursor:pointer;transition:.2s}.opt.on,.opt:hover{border-color:var(--c);box-shadow:0 0 14px color-mix(in srgb,var(--c) 40%,transparent)}
+.opt b{display:block;font:700 18px Orbitron,sans-serif;color:var(--c)}.opt span{font-size:11px;color:var(--muted)}.opt i{font-style:normal;font-size:18px}
+.steps{margin-top:10px;font-size:12px;line-height:1.7;color:#c9d6e3;max-height:24vh;overflow:auto}.steps div{display:flex;gap:8px}.steps em{color:var(--muted);font-style:normal;margin-left:auto}
+.sheet .row{display:flex;gap:8px;margin-top:10px}.sheet .row button{flex:1;height:44px;border-radius:22px;border:1px solid var(--line);background:#0a1119;color:var(--txt);font:700 11px Orbitron,sans-serif;letter-spacing:.14em;cursor:pointer}
+.sheet .row button:disabled{opacity:.35;box-shadow:none}.sheet .row button.go2{background:var(--go);color:#03060a;border-color:var(--go);box-shadow:0 0 18px #3dff9a66}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0 10px}.stats div{background:#081019;border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+.stats b{display:block;font:700 16px Orbitron,sans-serif;color:var(--ac)}.stats span{font-size:10px;color:var(--muted)}
+.turn{position:fixed;left:12px;right:12px;top:calc(96px + env(safe-area-inset-top));z-index:530;display:none;background:#050b13f2;border:1px solid var(--go);border-radius:16px;padding:12px 14px;box-shadow:0 0 24px #3dff9a44}
+.turn.on{display:block}.turn b{display:block;font:700 17px Orbitron,sans-serif;color:var(--go);text-shadow:0 0 12px #3dff9a88}.turn small{color:var(--muted)}
+.turn button{float:right;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:14px;padding:4px 10px;font:700 9px Orbitron,sans-serif;cursor:pointer}
+.comet{width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 12px #fff,0 0 30px #ff5cf0,0 0 60px #4fd8ff}
+@media(max-width:700px){.legend{display:none}}   /* zoomed out: names only for nearby quests */
 </style></head><body>
 <div id="map"></div>
 <div class="top"><div class="title"><b>EXPLORER</b><a href="/command-centre.html">← JARVIS</a></div><div class="chips" id="chips"></div></div>
 <div class="legend" id="legend"></div>
+<div class="where"><input id="where" placeholder="Where to, Sir?" autocomplete="off"><button id="whereGo">GO</button><button id="dayBtn" title="Your day: route, steps, places">📅 MY DAY</button></div>
+<div class="sheet" id="sheet"></div>
+<div class="turn" id="turn"></div>
 <div class="bar"><div class="stat"><b id="km">—</b><small id="sub">Loading your map…</small></div>
   <button class="btn" id="meBtn" title="Where am I">◎</button><button class="btn" id="todayBtn">TODAY</button><button class="btn go" id="goBtn" disabled>ROUTE</button></div>
 <div class="toast" id="toast"></div>
 <script>
 const $ = s => document.querySelector(s), esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-let pathLine = null, D = null, filter = "all", picked = [], routeLine = null, stopLayer = L.layerGroup(), questLayer = L.layerGroup(), placeLayer = L.layerGroup(), meMarker = null;
+let pathLine = null, D = null, filter = "none", picked = [], routeLine = null, stopLayer = L.layerGroup(), questLayer = L.layerGroup(), placeLayer = L.layerGroup(), meMarker = null;
 const toast = t => { const el = $("#toast"); el.textContent = t; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2600); };
 
 const map = L.map("map", {zoomControl: false, attributionControl: true, minZoom: 10, maxZoom: 18, worldCopyJump: false})
   .setView([1.3521, 103.8198], 12);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {subdomains: "abcd", maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
 placeLayer.addTo(map); questLayer.addTo(map); stopLayer.addTo(map);
 
 // ---- fog of war: the city sits in shadow; everywhere your phone has been is cleared and glows
@@ -111,7 +134,7 @@ function questIcon(q){
 }
 function drawQuests(){
   questLayer.clearLayers();
-  D.quests.filter(q => filter === "all" || filter === q.kind).forEach(q => {
+  D.quests.filter(q => filter !== "none" && (filter === "all" || filter === q.kind)).forEach(q => {
     const k = D.kinds[q.kind];
     const body = q.done ? `<b>${esc(q.name)}</b><br><span style="color:${k[1]}">${k[2]} ${k[0]} · discovered ✓</span><br>${esc(q.why)}`
       : `<b>${k[2]} A ${k[0].toLowerCase()} side quest</b><br>${q.km != null ? q.km + " km away. " : ""}Go there to reveal it.<br><span style="color:#8a95a7">Hint: ${esc(q.why.split(/[,;(]/)[0])}</span>`;
@@ -139,14 +162,14 @@ const fcss = document.createElement("style"); fcss.textContent = `.flow{animatio
 
 // ---- chips + legend
 function ui(){
-  const chips = [["all", "✨ All", "#ffd23f"], ...Object.entries(D.kinds).map(([k, v]) => [k, `${v[2]} ${v[0]}`, v[1]])];
+  const chips = [["none", "📍 Live", "#4f8dff"], ["all", "✨ Side quests", "#ffd23f"], ...(filter === "none" ? [] : Object.entries(D.kinds).map(([k, v]) => [k, `${v[2]} ${v[0]}`, v[1]]))];
   $("#chips").innerHTML = chips.map(([k, t, c]) => `<div class="chip ${filter === k ? "on" : ""}" data-k="${k}" style="--c:${c}">${t}</div>`).join("");
   $("#chips").onclick = e => { const c = e.target.closest("[data-k]"); if(!c) return; filter = c.dataset.k; ui(); drawQuests(); };
   const count = k => D.quests.filter(q => q.kind === k), lg = $("#legend");
   lg.innerHTML = `<h4>SIDE QUESTS · ${D.done}/${D.total}</h4>` + Object.entries(D.kinds).map(([k, v]) =>
     `<div style="--c:${v[1]}"><i></i>${v[2]} ${v[0]}<span>${count(k).filter(q => q.done).length}/${count(k).length}</span></div>`).join("") +
     `<div class="fog">Lit areas = where your phone has been. Tap a ? to see a hint.</div>`;
-  lg.onclick = () => lg.classList.toggle("min");
+  lg.onclick = () => lg.classList.toggle("min"); lg.style.display = filter === "none" ? "none" : "";
   if(!ui.done){ ui.done = true; if(innerWidth < 700) lg.classList.add("min"); }
   const st = D.stats || {};
   $("#km").textContent = st.squares ? `${st.km2} km² explored` : "Start exploring";
@@ -162,9 +185,7 @@ async function load(first){
   if(D.here){ if(!meMarker) meMarker = L.marker(D.here, {icon: L.divIcon({className: "", iconSize: [22, 22], iconAnchor: [11, 11], html: `<div class="me"></div>`}), zIndexOffset: 1000}).addTo(map);
     else meMarker.setLatLng(D.here);
     if(first) map.setView(D.here, 14); }
-  if(pathLine){ pathLine.forEach(l => map.removeLayer(l)); pathLine = null; }
-  if((D.path || []).length > 1) pathLine = [L.polyline(D.path, {color: "#4f8dff", weight: 8, opacity: .15}).addTo(map),
-    L.polyline(D.path, {color: "#8fb6ff", weight: 2.5, opacity: .9}).addTo(map)];   // where you've been today
+  if(!dayMode) drawTrail(D.path || []);
   ui(); drawQuests(); drawRoute(); drawFog();
 }
 $("#meBtn").onclick = () => D?.here ? map.flyTo(D.here, 15) : toast("No phone location yet: open the JARVIS app with location allowed");
@@ -178,10 +199,115 @@ $("#todayBtn").onclick = async () => {
 $("#goBtn").onclick = async () => {
   const r = await (await fetch("/api/route", {method: "POST", headers: {"Content-Type": "application/json"},
     body: JSON.stringify({stops: picked.map(p => p.ll), today: true})})).json();
-  if(!r.link) return toast("Add a stop first");
-  if(window.JarvisNative || matchMedia("(max-width: 700px)").matches) location.href = r.link;   // phone: straight into Google Maps
-  else { window.open(r.link, "_blank"); toast("Directions sent to your phone too"); }
+  if(!picked.length && !(r.stops || []).length) return toast("Add a stop first");
+  const last = picked.length ? picked[picked.length - 1].ll : `${r.stops[0].lat},${r.stops[0].lon}`;
+  navTo(last, picked.length ? picked[picked.length - 1].name : r.stops[0].name);
 };
-load(true); setInterval(load, 15000);   // live: the blue dot follows you
+// ---------------------------------------------------------------- glowing trail (colour = time of day)
+let trailLayers = [], dayMode = false;
+const timeColour = f => { const a = [[79, 216, 255], [61, 255, 154], [255, 210, 63], [255, 92, 240]], x = Math.max(0, Math.min(.999, f)) * 3, i = Math.floor(x), t = x - i;
+  return `rgb(${a[i].map((v, k) => Math.round(v + (a[i + 1][k] - v) * t)).join(",")})`; };
+function drawTrail(pts){
+  trailLayers.forEach(l => map.removeLayer(l)); trailLayers = [];
+  const ll = pts.map(p => p.length === 3 ? [p[1], p[2]] : p);
+  if(ll.length < 2) return;
+  trailLayers.push(L.polyline(ll, {color: "#4fd8ff", weight: 16, opacity: .08, lineCap: "round"}).addTo(map));
+  trailLayers.push(L.polyline(ll, {color: "#7fe8ff", weight: 7, opacity: .18, lineCap: "round"}).addTo(map));
+  for(let i = 0; i < ll.length - 1; i++){
+    const f = pts[i].length === 3 ? ((pts[i][0] % 86400) + 8 * 3600) % 86400 / 86400 : i / ll.length;   // Singapore time of day
+    trailLayers.push(L.polyline([ll[i], ll[i + 1]], {color: timeColour(f), weight: 3, opacity: .95, lineCap: "round", className: "glowline"}).addTo(map)); }
+}
+const gcss = document.createElement("style"); gcss.textContent = `.glowline{filter:drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor)}`; document.head.appendChild(gcss);
+
+// ---------------------------------------------------------------- navigation inside JARVIS
+let NAV = null, navLayers = [], live = null, stepIx = 0, watchId = null;
+const say = t => { try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.rate = 1.02; speechSynthesis.speak(u); } catch {} };
+async function here(){ return new Promise(res => { if(!navigator.geolocation) return res(null);
+  navigator.geolocation.getCurrentPosition(p => res([p.coords.latitude, p.coords.longitude]), () => res(null), {enableHighAccuracy: true, timeout: 6000, maximumAge: 20000}); }); }
+async function navTo(to, label){
+  const me = await here(), q = new URLSearchParams({to}); if(me){ q.set("lat", me[0]); q.set("lon", me[1]); }
+  $("#sheet").innerHTML = `<h3>FINDING THE WAY…</h3>`; $("#sheet").classList.add("on");
+  let o; try { o = await (await fetch("/api/nav?" + q)).json(); } catch { o = {error: "Can't reach JARVIS on the laptop."}; }
+  if(o.error){ $("#sheet").innerHTML = `<h3>HMM</h3><div class="sub">${esc(o.error)}</div><div class="row"><button onclick="document.querySelector('#sheet').classList.remove('on')">CLOSE</button></div>`; return; }
+  NAV = o; NAV.label = label || to; showOptions(o.best);
+}
+function showOptions(mode){
+  const o = NAV, col = {walk: "#3dff9a", transit: "#4fd8ff", grab: "#3dff9a", drive: "#ffd23f"};
+  $("#sheet").innerHTML = `<h3>TO ${esc(NAV.label).toUpperCase()}</h3>
+    <div class="sub">${o.km} km away · traffic ${o.traffic}${o.rain ? " · ☂ raining" : ""}${o.leave_by ? ` · leave by <b style="color:#fff">${o.leave_by}</b>` : ""}</div>
+    <div class="opts">${o.options.map(x => `<div class="opt ${x.mode === mode ? "on" : ""}" data-m="${x.mode}" style="--c:${col[x.mode]}"><i>${x.icon}</i><b>${x.min} min</b>
+      <span>${x.label}${x.price ? ` · $${x.price[0]}–${x.price[1]}` : ""}${x.note ? " · " + esc(x.note) : ""}</span></div>`).join("")}</div>
+    <div class="steps" id="steps"></div>
+    <div class="row"><button onclick="document.querySelector('#sheet').classList.remove('on')">CLOSE</button><button class="go2" id="startNav">▶ START</button></div>`;
+  $("#sheet").querySelectorAll(".opt").forEach(e => e.onclick = () => showOptions(e.dataset.m));
+  const rt = routeFor(mode); drawNav(rt, col[mode]);
+  $("#steps").innerHTML = rt && rt.steps ? rt.steps.filter(s => s.text).map(s => `<div>▸ ${esc(s.text)}<em>${s.m >= 1000 ? (s.m / 1000).toFixed(1) + " km" : s.m + " m"}</em></div>`).join("")
+    : `<div style="color:var(--muted)">${mode === "transit" ? "Bus/MRT time is an estimate; JARVIS shows the walking and road route around it." : "Route line shown."}</div>`;
+  $("#startNav").onclick = () => startNav(rt || routeFor("walk") || routeFor("drive"));
+}
+const routeFor = m => (m === "walk" ? NAV.routes.walk : NAV.routes.drive) || NAV.routes.walk || NAV.routes.drive;
+function drawNav(rt, c){
+  navLayers.forEach(l => map.removeLayer(l)); navLayers = [];
+  const line = rt ? rt.line : [NAV.from_at, NAV.to_at];
+  navLayers.push(L.polyline(line, {color: c, weight: 14, opacity: .12}).addTo(map), L.polyline(line, {color: c, weight: 4, opacity: .95, dashArray: "10 8", className: "flow glowline"}).addTo(map));
+  navLayers.push(L.marker(NAV.to_at, {icon: L.divIcon({className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: `<div class="stop">★</div>`})}).addTo(map));
+  map.fitBounds(L.latLngBounds(line), {padding: [70, 70]});
+}
+function startNav(rt){
+  if(!rt || !rt.steps){ return toast("Live turn-by-turn needs the road route; try Walk or Drive."); }
+  live = rt; stepIx = 0; $("#sheet").classList.remove("on");
+  const showTurn = () => { const s = live.steps[Math.min(stepIx, live.steps.length - 1)];
+    $("#turn").innerHTML = `<button id="stopNav">END</button><b>${esc(s.text)}</b><small>${stepIx + 1} / ${live.steps.length} · ${esc(NAV.label)}</small>`;
+    $("#stopNav").onclick = endNav; };
+  $("#turn").classList.add("on"); showTurn(); say(live.steps[0].text + ".");
+  if(navigator.geolocation) watchId = navigator.geolocation.watchPosition(p => {
+    const me = [p.coords.latitude, p.coords.longitude]; if(meMarker) meMarker.setLatLng(me); map.panTo(me, {animate: true});
+    const next = live.steps[stepIx + 1]; if(!next) return;
+    const d = map.distance(me, next.at);
+    if(d < 120 && !next.warned){ next.warned = true; say(`In ${Math.round(d / 10) * 10} metres, ${next.text.toLowerCase()}.`); }
+    if(d < 25){ stepIx++; showTurn(); say(next.text + "."); if(/arrived/i.test(next.text)) setTimeout(endNav, 4000); }
+  }, () => toast("Allow location for live navigation"), {enableHighAccuracy: true, maximumAge: 2000});
+}
+function endNav(){ if(watchId != null) navigator.geolocation.clearWatch(watchId); watchId = null; live = null; $("#turn").classList.remove("on"); }
+$("#whereGo").onclick = () => { const v = $("#where").value.trim(); if(v) navTo(v, v); };
+$("#where").addEventListener("keydown", e => { if(e.key === "Enter") $("#whereGo").click(); });
+
+// ---------------------------------------------------------------- my day: the glowing route, steps, places, replay
+let dayDate = null, comet = null, replayT = null;
+async function showDay(d){
+  dayMode = true; const iso = d || new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); dayDate = iso;
+  navLayers.forEach(l => map.removeLayer(l)); navLayers = []; endNav();
+  let o; try { o = await (await fetch("/api/day?date=" + iso)).json(); } catch { return toast("Can't reach JARVIS"); }
+  drawTrail(o.path);
+  if(o.path.length > 1) map.fitBounds(L.latLngBounds(o.path.map(p => [p[1], p[2]])), {padding: [70, 70]});
+  const nice = new Date(iso + "T12:00").toLocaleDateString([], {weekday: "long", day: "numeric", month: "short"});
+  $("#sheet").innerHTML = `<h3>📅 ${esc(nice).toUpperCase()}</h3><div class="sub">Colour = time of day (morning cyan → night pink). Steps: ${esc(o.steps_source)}.</div>
+    <div class="stats"><div><b>${o.steps.toLocaleString()}</b><span>steps</span></div><div><b>${o.walk_km}</b><span>km walked</span></div><div><b>${o.km}</b><span>km travelled</span></div><div><b>${o.moving_min}</b><span>min moving</span></div></div>
+    <div class="steps">${o.places.length ? o.places.map(p => `<div>${p.time} · ${esc(p.place)}</div>`).join("") : `<div style="color:var(--muted)">${o.path.length ? "No named places today (save places like home and gym to see them here)." : "No movement recorded this day. Is location on in the JARVIS app (all the time)?"}</div>`}</div>
+    <div class="row"><button id="dPrev">◀</button><button class="go2" id="dPlay" ${o.path.length > 1 ? "" : "disabled"}>▶ REPLAY</button><button id="dNext">▶</button><button id="dClose">CLOSE</button></div>`;
+  $("#sheet").classList.add("on");
+  const shift = n => { const t = new Date(dayDate + "T12:00"); t.setDate(t.getDate() + n); showDay(t.toISOString().slice(0, 10)); };
+  $("#dPrev").onclick = () => shift(-1); $("#dNext").onclick = () => shift(1);
+  $("#dClose").onclick = () => { $("#sheet").classList.remove("on"); dayMode = false; stopReplay(); drawTrail(D?.path || []); };
+  $("#dPlay").onclick = () => replay(o.path);
+}
+function stopReplay(){ cancelAnimationFrame(replayT); if(comet){ map.removeLayer(comet); comet = null; } }
+function replay(pts){
+  stopReplay(); const ll = pts.map(p => [p[1], p[2]]), t0 = performance.now(), dur = Math.min(30000, 6000 + ll.length * 40);
+  comet = L.marker(ll[0], {icon: L.divIcon({className: "", iconSize: [16, 16], iconAnchor: [8, 8], html: `<div class="comet"></div>`}), zIndexOffset: 2000}).addTo(map);
+  const step = now => { const f = Math.min(1, (now - t0) / dur), x = f * (ll.length - 1), i = Math.floor(x), k = x - i, a = ll[i], b = ll[Math.min(ll.length - 1, i + 1)];
+    comet.setLatLng([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]);
+    const ts = pts[i][0]; $("#dPlay").textContent = new Date(ts * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+    drawTrail(pts.slice(0, i + 2));
+    if(f < 1) replayT = requestAnimationFrame(step); else { $("#dPlay").textContent = "▶ REPLAY"; drawTrail(pts); } };
+  replayT = requestAnimationFrame(step);
+}
+$("#dayBtn").onclick = () => showDay();
+
+load(true); setInterval(() => { if(!dayMode) load(); }, 15000);   // live: the blue dot follows you
+const P0 = new URLSearchParams(location.search);
+if(P0.get("nav")) setTimeout(() => navTo(P0.get("nav"), P0.get("nav")), 1200);
+if(P0.get("day")) setTimeout(() => showDay(P0.get("day") === "today" ? null : P0.get("day")), 1200);
+if(P0.get("route") === "today") setTimeout(() => $("#todayBtn").click(), 1500);
 </script>
 </body></html>

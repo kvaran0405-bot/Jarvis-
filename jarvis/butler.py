@@ -256,6 +256,35 @@ def travel_minutes(place: str | None) -> int:
     return base
 
 
+def _trip_estimate(store, event: dict, loc: str, now: datetime) -> dict | None:
+    """Travel time from where the owner is now (live route, traffic, rain), remembered for 20 minutes per event."""
+    import json as _json
+    key = f"leave_est:{event['id']}"
+    try:
+        cached = _json.loads(store.get(key) or "null")
+        if cached and now - datetime.fromisoformat(cached["at"]) < timedelta(minutes=20):
+            return cached
+    except (ValueError, KeyError):
+        pass
+    try:
+        from . import navigate
+        o = navigate.options(store, loc)
+    except Exception:  # noqa: BLE001
+        return None
+    if "error" in o:
+        return None
+    best = next(x for x in o["options"] if x["mode"] == o["best"])
+    grab = next((x for x in o["options"] if x["mode"] == "grab"), None)
+    how = f"{best['label'].lower()} ~{best['min']} min"
+    if grab and best["mode"] != "grab":
+        how += f" (Grab ~{grab['min']} min, ${grab['price'][0]}–{grab['price'][1]})"
+    elif grab:
+        how += f" (${grab['price'][0]}–{grab['price'][1]})"
+    out = {"at": now.isoformat(), "min": best["min"], "how": how}
+    store.set(key, _json.dumps(out))
+    return out
+
+
 def leave_now_check(store, bus) -> list[str]:
     """Telegram + spoken 'leave now' alerts for upcoming events that have a place (including just after midnight). Once per event."""
     from . import telegram as tg
@@ -272,8 +301,11 @@ def leave_now_check(store, bus) -> list[str]:
         if store.get(key):
             continue
         place = place_of(f"{e['title']} {loc}")
-        mins = travel_minutes(place)
         start = datetime.fromisoformat(e["start"]).replace(tzinfo=settings.tz)
+        if start - now > timedelta(hours=3):
+            continue
+        est = _trip_estimate(store, e, loc, now)   # real route from where you are, traffic, rain, Grab price
+        mins = est["min"] if est else travel_minutes(place)
         leave_at = start - timedelta(minutes=mins + 10)
         if not (leave_at <= now < start):
             continue
@@ -288,8 +320,9 @@ def leave_now_check(store, bus) -> list[str]:
         except Exception:  # noqa: BLE001
             pass
         left = max(0, int((start - now).total_seconds() // 60) - mins)
+        how = f" Best: {est['how']}." if est and est.get("how") else ""
         msg = (f"Time to leave{' in ' + str(left) + ' min' if left > 2 else ''} for {e['title']} at {start:%H:%M} "
-               f"({loc}).{rain}")
+               f"({loc}).{how}{rain}")
         if tg.ready():
             try:
                 tg.send(f"🚗 {msg}")
@@ -297,7 +330,8 @@ def leave_now_check(store, bus) -> list[str]:
                 pass
         announce(bus, "JARVIS", f"Sir, {msg}", phone=False)
         from . import phonelink
-        phonelink.queue(store, "notify", title="🚗 Time to leave", text=msg, url="/car.html")
+        import urllib.parse as _up
+        phonelink.queue(store, "notify", title="🚗 Time to leave", text=msg, url="/map.html?nav=" + _up.quote(loc))
         sent.append(msg)
     return sent
 

@@ -58,6 +58,8 @@ def checkin(store, bus, report: dict) -> list[dict]:
     elif "lat" in st:
         st["loc_at"] = now.isoformat()
     store.set("phone:state", json.dumps(st))
+    if isinstance(report.get("steps"), (int, float)) and 0 <= report["steps"] < 200000:   # the phone's step counter
+        store.set(f"steps:{now.date().isoformat()}", str(int(report["steps"])))
     if report.get("points"):   # the phone's location history since the last check-in (catches up after being offline)
         from . import explore as _ex
         try:
@@ -69,6 +71,11 @@ def checkin(store, bus, report: dict) -> list[dict]:
         try:
             explore.record(store, float(report["lat"]), float(report["lon"]))
         except Exception:  # noqa: BLE001 - the map is a nicety
+            pass
+        try:
+            from . import trips
+            trips.on_location(store, bus, float(report["lat"]), float(report["lon"]))
+        except Exception:  # noqa: BLE001
             pass
         try:
             from . import chatter
@@ -434,10 +441,12 @@ def phone_shop(ctx: ToolContext, store: str, query: str) -> dict:
     return _send(ctx, "link", url=SHOPS[key].format(q=q))
 
 
-@tool("phone_navigate", "Start Google Maps navigation on the phone. mode: d (drive), w (walk), b (bike), l (motorbike).",
-      {"to": S, "mode": S}, ["to"])
-def phone_navigate(ctx: ToolContext, to: str, mode: str = "d") -> dict:
-    return _send(ctx, "navigate", to=to.strip()[:200], mode=mode if mode in ("d", "w", "b", "l") else "d")
+@tool("phone_navigate", "Show directions to a place on JARVIS's own map in the phone app (never Google Maps).",
+      {"to": S}, ["to"])
+def phone_navigate(ctx: ToolContext, to: str) -> dict:
+    from urllib.parse import quote
+    return _send(ctx, "open", url="/map.html?nav=" + quote(to.strip()[:120]), title="JARVIS · route ready",
+                 text=f"Tap for directions to {to.strip()[:60]}")
 
 
 @tool("phone_email", "Open a ready-written email on the phone for the owner to check and send (never sent by you).",

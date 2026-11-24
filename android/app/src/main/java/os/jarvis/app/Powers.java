@@ -45,9 +45,27 @@ import java.util.Map;
 final class Powers {
     private Powers() {}
 
+    /** Open something for the owner. Android only lets an app open things by itself while it's on screen (or with
+     *  "display over other apps"); otherwise a tap-to-open notification appears, so nothing fails silently. */
     private static String start(Context c, Intent i, String ok) {
-        try { c.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return ok; }
-        catch (Exception e) { return "couldn't: " + e.getMessage(); }
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        boolean canOpen = MainActivity.visible || (Build.VERSION.SDK_INT >= 23 && Settings.canDrawOverlays(c));
+        if (canOpen) {
+            try { c.startActivity(i); return ok; } catch (Exception e) { /* fall through to the notification */ }
+        }
+        try {
+            JarvisLink.channels(c);
+            android.app.PendingIntent pi = android.app.PendingIntent.getActivity(c, (ok + System.nanoTime()).hashCode(), i,
+                    android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT);
+            android.app.Notification n = new android.app.Notification.Builder(c, JarvisLink.ALERTS)
+                    .setSmallIcon(android.R.drawable.ic_menu_directions)
+                    .setContentTitle("JARVIS · tap to open")
+                    .setContentText(ok.substring(0, 1).toUpperCase() + ok.substring(1))
+                    .setColor(android.graphics.Color.parseColor("#FFD23F"))
+                    .setContentIntent(pi).setAutoCancel(true).build();
+            c.getSystemService(android.app.NotificationManager.class).notify(ok.hashCode(), n);
+            return ok + " (notification: tap to open)";
+        } catch (Exception e) { return "couldn't: " + e.getMessage(); }
     }
 
     private static boolean has(Context c, String perm) {

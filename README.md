@@ -293,6 +293,15 @@ it stays silent unless the alert is critical.
   texts you a tip, e.g. FRIDAY for food, STEVE for nature walks, ATHENA for heritage, HERALD for views and nights
   out ("Hi Sir, I see you're at City Hall! Lau Pa Sat is 8 minutes away..."). Never at home, driving, in quiet hours
   or focus; once per area a day, max 4 a day. "Location chat off/on".
+- **Navigation inside JARVIS (no Google Maps):** "take me to Odeon Towers", "how do I get to Jewel by 18:30", or type
+  in "Where to, Sir?" on the map. You get walk, bus/MRT, Grab (with a price range) and drive, timed for the usual
+  traffic and the rain, plus a leave-by time; the route glows on JARVIS's map with turn-by-turn steps, and ▶ START
+  gives live navigation with JARVIS speaking the turns. Places come from OneMap (free, official Singapore map);
+  routes from the free OpenStreetMap routing servers. Bus/MRT times and Grab prices are estimates.
+- **Your day, glowing:** 📅 MY DAY on the map replays where you went (colour = time of day) with steps (the phone's
+  step counter), km walked, km travelled, time moving and places. When you set off somewhere, JARVIS asks where
+  you're heading ("trip questions off" to stop). "Leave now" alerts use your live location, traffic, rain, and
+  bus/MRT vs Grab options.
 - **Explorer map** (`/map.html`, or say "show me my map"; works on the phone too): a dark street map where the places
   you've been glow and the rest stays in shadow, 40 Singapore side quests (food, nature, heritage, views, night) that
   unlock when you visit, and your route for the day. Tap a quest → + ADD TO ROUTE → ROUTE opens Google Maps.

@@ -56,6 +56,35 @@ def stats(store) -> dict:
 
 
 # ------------------------------------------------------------------ route planning
+def geocode(store, query: str):
+    """Any Singapore place, building, address or postal code -> (lat, lon), via OneMap (the free official
+    Singapore map, no key needed). Answers are remembered, so each place is looked up once."""
+    import json as _json
+    import urllib.parse
+    import urllib.request
+    q = re.sub(r"\s+", " ", (query or "")).strip()
+    if len(q) < 3:
+        return None
+    key = "geo:" + q.lower()
+    if (hit := store.get(key)) is not None:
+        try:
+            v = _json.loads(hit)
+            return tuple(v) if v else None
+        except ValueError:
+            pass
+    url = ("https://www.onemap.gov.sg/api/common/elastic/search?returnGeom=Y&getAddrDetails=Y&pageNum=1&searchVal="
+           + urllib.parse.quote(q))
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "JARVIS personal assistant"}),
+                                    timeout=10) as r:
+            res = _json.loads(r.read()).get("results") or []
+    except Exception:  # noqa: BLE001 - offline: try again next time
+        return None
+    out = (float(res[0]["LATITUDE"]), float(res[0]["LONGITUDE"])) if res else None
+    store.set(key, _json.dumps(list(out) if out else None))
+    return out
+
+
 def _coords(store, name: str):
     from .phonelink import places
     from .holo import place_of
@@ -66,7 +95,7 @@ def _coords(store, name: str):
     known = places(store)
     known.update({q[0]: (q[2], q[3]) for q in QUESTS})
     key = next((k for k in known if k.lower() == (name or "").lower().strip()), None) or place_of(name or "")
-    return known.get(key) if key else None
+    return known.get(key) if key else geocode(store, name)
 
 
 def plan(store, day: date | None = None, extra: list[str] | None = None, include_calendar: bool = True) -> dict:
@@ -87,12 +116,8 @@ def plan(store, day: date | None = None, extra: list[str] | None = None, include
         c = _coords(store, s["name"]) or _coords(store, s["address"])
         s["lat"], s["lon"] = (c[0], c[1]) if c else (None, None)
     link = ""
-    if stops:
-        dest = stops[-1]
-        dq = f"{dest['lat']},{dest['lon']}" if dest["lat"] is not None else dest["address"]
-        way = "|".join(f"{s['lat']},{s['lon']}" if s["lat"] is not None else s["address"] for s in stops[:-1])
-        link = ("https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=" + quote(dq)
-                + (f"&waypoints={quote(way)}" if way else ""))
+    if stops:   # JARVIS's own map shows today's route (never Google Maps)
+        link = (settings.app_url or "").rstrip("/") + "/map.html?route=today"
     out = {"date": day.isoformat(), "stops": stops, "link": link}
     store.set("route:plan", json.dumps(out))
     return out
@@ -106,12 +131,38 @@ def current_route(store) -> dict | None:
     return r if r and r.get("date") == datetime.now(settings.tz).date().isoformat() else None
 
 
-def describe(route: dict) -> str:
+def send_route(store, route: dict) -> list[str]:
+    """Get the directions to the owner's phone for real: Telegram (always reaches the phone) + the phone app.
+    Returns where it actually went, so JARVIS never claims "sent" when it wasn't."""
+    from . import phonelink
+    from . import telegram as tg
+    went = []
+    if not route.get("link"):
+        return went
+    if tg.ready():
+        try:
+            tg.send("🧭 " + " → ".join(s["name"] for s in route["stops"])
+                    + ("\nOpen it on JARVIS's map:\n" + route["link"] if route["link"].startswith("http") else ""))
+            went.append("Telegram")
+        except Exception:  # noqa: BLE001
+            pass
+    if phonelink.online(store):
+        phonelink.queue(store, "open", url="/map.html?route=today", title="JARVIS · today's route",
+                        text=" → ".join(s["name"] for s in route["stops"]))
+        went.append("phone")
+    return went
+
+
+def describe(route: dict, went: list[str] | None = None) -> str:
     if not route["stops"]:
         return ("Nothing with a place on your calendar today, Sir. Tell me the stops: “plan a route to Orchard, "
                 "then Tampines Mall”.")
     parts = [f"{i + 1}. {s['name']}" + (f" ({s['time']})" if s["time"] else "") for i, s in enumerate(route["stops"])]
-    return "Your route, Sir: " + " → ".join(parts) + ". It's on the Singapore map, and I've sent the directions to your phone."
+    lost = [s["name"] for s in route["stops"] if s.get("lat") is None]
+    where_to = (" It's on JARVIS's map, and I've sent it to your " + " and ".join(went) + "." if went else
+                " It's on JARVIS's map.")
+    return ("Your route, Sir: " + " → ".join(parts) + "." + where_to
+            + (f" (I couldn't find {', '.join(lost)} on the map; try the building name or postal code.)" if lost else ""))
 
 
 @tool("plan_route", "Plan the owner's route for a day: their calendar stops in time order (plus any extra stops, "
@@ -121,10 +172,9 @@ def plan_route(ctx: ToolContext, extra_stops: list | None = None, day: str = "")
     from . import phonelink
     d = date.fromisoformat(day) if re.match(r"^\d{4}-\d{2}-\d{2}$", day or "") else None
     route = plan(ctx.store, d, [str(x) for x in (extra_stops or [])])
-    if route["link"]:
-        phonelink.queue(ctx.store, "link", url=route["link"])
-        if ctx.bus:
-            ctx.bus.publish({"type": "holo", "view": "singapore"})
+    route["sent_to"] = send_route(ctx.store, route)
+    if ctx.bus and route["link"]:
+        ctx.bus.publish({"type": "open_page", "url": "/map.html"})
     return route
 
 
@@ -239,3 +289,60 @@ def my_day_path(ctx: ToolContext, day: str = "") -> dict:
             stops.append({"time": datetime.fromtimestamp(ts, settings.tz).strftime("%H:%M"), "place": name})
             last = name
     return {"day": d.isoformat(), "points": len(path(ctx.store, d)), "places": stops}
+
+
+# ------------------------------------------------------------------ the day in review (map replay + nightly stats)
+def _m(a, b) -> float:
+    import math
+    la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 6371000 * 2 * math.asin(math.sqrt(h))
+
+
+def steps_on(store, day: date) -> int | None:
+    """Real steps from the phone's step counter, if it reported them that day."""
+    v = store.get(f"steps:{day.isoformat()}")
+    return int(v) if v and v.isdigit() else None
+
+
+def day_summary(store, day: date | None = None) -> dict:
+    """Everything about one day's movement: the path (with times), km travelled, km walked, steps, minutes on the
+    move, and the places in order. Walking = moving at under 8 km/h; faster is a vehicle."""
+    from .phonelink import where
+    day = day or datetime.now(settings.tz).date()
+    pts = path(store, day)
+    total = walk = moving_s = 0.0
+    for (t1, la1, lo1), (t2, la2, lo2) in zip(pts, pts[1:]):
+        dt = t2 - t1
+        if dt <= 0 or dt > 30 * 60:   # a long gap is not one journey
+            continue
+        d = _m((la1, lo1), (la2, lo2))
+        if d < 25:   # GPS wobble while standing still
+            continue
+        total += d
+        speed = d / dt
+        if speed < 2.2:
+            walk += d
+        moving_s += dt
+    places, last = [], None
+    for ts, lat, lon in pts:
+        name = where(store, lat, lon, 0.35)
+        if name and name != last:
+            places.append({"time": datetime.fromtimestamp(ts, settings.tz).strftime("%H:%M"), "place": name})
+            last = name
+    real = steps_on(store, day)
+    return {"date": day.isoformat(), "path": [[p[0], p[1], p[2]] for p in pts],
+            "km": round(total / 1000, 1), "walk_km": round(walk / 1000, 1),
+            "steps": real if real is not None else int(walk / 0.75),
+            "steps_source": "phone step counter" if real is not None else "estimated from GPS",
+            "moving_min": round(moving_s / 60), "places": places}
+
+
+@tool("my_day_review", "The owner's day of movement: where they went (in order, with times), km travelled, km walked, "
+      "steps and minutes on the move. day: 'today', 'yesterday' or YYYY-MM-DD.", {"day": S})
+def my_day_review(ctx: ToolContext, day: str = "today") -> dict:
+    d = date.fromisoformat(day) if re.match(r"^\d{4}-\d{2}-\d{2}$", day or "") else \
+        (parse_when(day + " 12:00") or datetime.now(settings.tz)).date() if day and day != "today" else None
+    out = day_summary(ctx.store, d)
+    out.pop("path")
+    return out
