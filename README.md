@@ -472,23 +472,31 @@ particles:
 
 It takes each agent's colour and your suit theme. On a device without 3D graphics, the classic reactor shows instead.
 
-## The trailer: show off (#8 to #14)
+## The trailer: show off (#8 to #14), version 2
 
-A one-minute 3D film starring you, for showing friends and family:
+A beat-synced 3D film starring you. Every cut lands on the beat of an original track that's synthesised live:
+drums, bass, arpeggios, risers, braams, a silence before every drop. There are no copyrighted tracks, so you can
+post it.
 
-- a cold open, then the J.A.R.V.I.S logo assembling from 16,000 particles
-- the core, the team flying past, your city map with the places you go (home shows as "HQ")
-- your week in numbers, a warp-speed jump, and a "STARRING <your name>" finale
+- **The film:**
+  - a data-rain cold open, then a drop where the J.A.R.V.I.S logo slams in with a shockwave
+  - a montage: "I LISTEN" (the core), "I LEARN" (your city with light trails), "I PLAN" (life sims), "I PROTECT"
+    (a body scan), "I'M NEVER ALONE" (the team flying in), "WHEREVER YOU GO" (phone ⇄ laptop ⇄ cloud data
+    beams), and your photos or "I RUN THE NUMBERS"
+  - stats strobing on the beat, warp speed, and a slow-motion moment
+  - the final drop: **STARRING** with your name in particles, then a post-credits scene with FRIDAY
+- **The look:** real bloom glow, chromatic aberration that pumps with the kick, glitch slices on cuts, camera
+  shake, film grain, widescreen bars, and kinetic titles that slam in with an RGB split. JARVIS narrates.
+- **Styles:** ⚡ EPIC (gold, 120 BPM), 🔥 HYPE (neon magenta, 140 BPM), 🖤 NOIR (silver and red, 96 BPM).
+- **Cuts:** 🎬 FULL (about a minute) or 📱 REEL (30 seconds, always vertical 9:16, for Instagram and TikTok).
+- **Make it yours:** add up to 6 of your photos (they appear as floating holograms) and a dedication
+  ("for Mum"), which JARVIS says at the end.
+- **⬇ PLAY & SAVE VIDEO** records it, and the laptop sends it to your phone on Telegram, ready to post.
+- It only shows safe-to-share things: counts, places (home shows as "HQ") and the team. Never messages, tasks or
+  money.
+- **Phone:** tap **🎬 SHOW OFF** (works with the laptop off too). **Laptop:** say "show off mode".
 
-JARVIS narrates in his own voice over an original score that's synthesised live: drones, impacts, risers, whooshes
-and a closing chord. There are no copyrighted tracks. It has widescreen bars, film grain, flashes and glitch cuts.
-It only shows safe-to-share things (counts, places, the team), never messages, tasks or money.
-
-- **Phone:** tap **🎬 SHOW OFF** (works in solo mode too). **Laptop:** say "show off mode" or "play the trailer".
-- **⬇ PLAY & SAVE VIDEO** records it while it plays. The laptop keeps it in `data/trailers`, converts it to MP4 when
-  it can, and sends it to your phone on Telegram, ready to post.
-- **Transitions everywhere:** pages open with a holographic iris and scan line, and close the same way.
-- **Boot sequence:** opening the app plays a 2-second reactor ignition with sound and a little vibration. Tap to skip.
+Also: pages open and close with a holographic iris (#13), and the app opens with a 2-second boot sequence (#14).
 
 ## The phone is the full JARVIS
 
