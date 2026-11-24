@@ -1,4 +1,4 @@
-"""Clap to summon JARVIS: two sharp claps near the laptop and he answers ("Yes Sir?") and listens.
+"""Clap or snap to summon JARVIS (two finger snaps work too): two sharp claps near the laptop and he answers ("Yes Sir?") and listens.
 The first double clap after you've been away for a while gets the full welcome-home instead.
 
 Runs on the laptop's microphone (needs `sounddevice`). Turn off with JARVIS_CLAP=off.
@@ -14,7 +14,8 @@ from typing import Callable
 
 RATE = 16000
 BLOCK = 320                    # 20 ms
-MIN_GAP, MAX_GAP = 0.15, 0.8   # seconds between the two claps
+MIN_GAP, MAX_GAP = 0.15, 1.0   # seconds between the two claps / snaps
+SNAP_SHARP = 0.75              # how "crisp" a sound must be to count as a snap (voices and music are far below)
 SETTLE = 0.8                   # no third burst within this time after the second clap
 COOLDOWN = 4.0
 
@@ -30,12 +31,15 @@ class ClapDetector:
         self.on_double = on_double
         self.noise = 0.01                         # running background loudness (rms)
         self.threshold = max(0.1, 0.3 / max(sensitivity, 0.1))
+        self.snap_threshold = max(0.03, 0.09 / max(sensitivity, 0.1))   # snaps are quieter, but very crisp
         self.cur_start, self.cur_len = 0.0, 0     # the loud burst in progress
         self.events: list[tuple[float, bool]] = []  # finished bursts: (start time, short enough to be a clap)
         self.last_fire = -COOLDOWN
 
-    def feed(self, t: float, peak: float, rms: float) -> None:
-        loud = peak > self.threshold and peak > 8 * self.noise
+    def feed(self, t: float, peak: float, rms: float, sharp: float = 0.0) -> None:
+        clap = peak > self.threshold and peak > 8 * self.noise
+        snap = peak > self.snap_threshold and sharp > SNAP_SHARP and peak > 6 * self.noise
+        loud = clap or snap
         if loud:
             if self.cur_len == 0:
                 self.cur_start = t
@@ -51,6 +55,15 @@ class ClapDetector:
                     and t - self.last_fire > COOLDOWN):
                 self.last_fire = t
                 self.on_double()
+
+
+def features(x) -> tuple[float, float, float]:
+    """(peak, rms, sharpness) of a 20 ms block. Sharpness = how much of the sound is fast, high-pitched change:
+    a finger snap or clap is ~1, a voice or music is well under 0.5."""
+    import numpy as np
+    a = np.abs(x)
+    sharp = float(np.abs(np.diff(x)).mean() / (a.mean() + 1e-6)) if len(x) > 1 else 0.0
+    return float(a.max()), float(np.sqrt((x ** 2).mean())), sharp
 
 
 _thread: threading.Thread | None = None
@@ -84,8 +97,7 @@ def start(on_double: Callable[[], None]) -> str:
                         if _paused.is_set():
                             break
                         data, _ = stream.read(BLOCK)
-                        x = np.abs(data[:, 0])
-                        det.feed(time.monotonic() - t0, float(x.max()), float(np.sqrt((data[:, 0] ** 2).mean())))
+                        det.feed(time.monotonic() - t0, *features(data[:, 0]))
             except Exception:  # noqa: BLE001 - mic busy or unplugged: try again shortly
                 pass
             _stop.wait(5 if not _paused.is_set() else 2)

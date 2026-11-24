@@ -676,7 +676,8 @@ def welcome_home() -> None:
 def on_double_clap() -> None:
     last = store.get("owner:last_seen")
     away = not last or datetime.fromisoformat(last) < datetime.now(settings.tz) - timedelta(hours=AWAY_HOURS)
-    bus.log("YOU", "👏👏", "command")
+    bus.log("YOU", "👏👏 / 🫰🫰", "command")
+    bus.publish({"type": "wake", "by": "snap"})
     if away:
         threading.Thread(target=welcome_home, daemon=True).start()
     else:

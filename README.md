@@ -442,8 +442,9 @@ are ignored.
 
 ## Stark mode
 
-- **Clap twice** near the laptop and JARVIS answers "Yes Sir?" and listens. If you've been away 3+ hours, he
-  gives you the welcome-home briefing instead. Say **"Jarvis, I'm home"** for the same briefing any time.
+- **Snap twice** (or clap twice) near the laptop and JARVIS answers "Yes Sir?" and listens. If you've been away 3+ hours, he
+  gives you the welcome-home briefing instead. Snaps are picked out by their crisp "tick", so talking and music
+  don't trigger it (`JARVIS_CLAP_SENSITIVITY` above 1 makes it more eager, below 1 calmer). Say **"Jarvis, I'm home"** for the same briefing any time.
 - **Wake-up:** the morning brief includes the weather (rain timing too), and can open your music
   (`JARVIS_WAKE_MUSIC`).
 - **Job hunter:** every night at 01:30 ZEUS searches for new roles that fit your profile, tracks the best few,
