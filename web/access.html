@@ -50,6 +50,7 @@ const saveSkips = () => { try { localStorage.setItem("jarvis-setup-skip", JSON.s
 const PHONE = [
   ["Notifications", "Messages, reminders and alerts from your agents", () => call("hasNotifyPermission") !== false, () => call("askNotifyPermission")],
   ["Microphone & camera", "Talk to JARVIS, video calls, Vision", () => call("hasMicCam"), () => call("askMicCam")],
+  ["On-time reminders (solo)", "Reminders ring on the dot even when the laptop is off", () => call("exactReminders") !== false, () => call("askExactReminders")],
   ["Calls, contacts & photos", "“Call Mum”, “what's in my last photo?”", () => call("hasPowers"), id => asked[id] ? call("openAppSettings") : call("askPowers")],
   ["Location", "Location magic: home, gym, class, leave-now alerts", () => call("hasLocation"), id => asked[id] ? call("openAppSettings") : call("askLocation")],
   ["Location: all the time", "Live location & history on the explorer map, even on mobile data (keep Tailscale on). Pick “Allow all the time”.", () => call("hasLocationAlways"), id => asked[id] ? call("openAppSettings") : call("askLocationAlways"), "If it only offers “While using the app”: App settings → Permissions → Location → Allow all the time."],

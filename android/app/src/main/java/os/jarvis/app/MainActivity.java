@@ -2,6 +2,7 @@ package os.jarvis.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -65,6 +66,7 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);   // JARVIS may speak without a tap
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         s.setUserAgentString(s.getUserAgentString() + " JarvisApp/1");
+        s.setAllowFileAccess(true);   // the phone's own JARVIS page (solo mode) lives in the app's files
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -88,8 +90,15 @@ public class MainActivity extends Activity {
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
                     String why = error.getDescription() == null ? "" : error.getDescription().toString();
-                    view.loadUrl("file:///android_asset/offline.html?why=" + Uri.encode(why));
+                    Solo.lastFail = System.currentTimeMillis();
+                    openSolo(why);   // laptop out of reach: the phone is JARVIS by itself
                 }
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                String a = address();
+                if (a != null && url != null && url.startsWith(a)) laptopLoaded = true;
             }
         });
 
@@ -158,6 +167,11 @@ public class MainActivity extends Activity {
         intent.removeExtra("jarvis_action");
         String a = address();
         if (a == null) return;
+        String cur0 = web.getUrl();
+        if (cur0 != null && cur0.startsWith("file:") && cur0.contains("solo") && Solo.laptopDown()) {   // solo mode
+            if (act.equals("talk")) ui.postDelayed(() -> web.evaluateJavascript("window.jarvisTalk ? jarvisTalk() : 0", null), 400);
+            return;
+        }
         if (act.equals("call")) { web.loadUrl(a + "/call.html"); return; }
         if (act.equals("open")) { web.loadUrl(a + "/home.html"); return; }
         if (act.equals("talk")) {
@@ -201,10 +215,25 @@ public class MainActivity extends Activity {
         return getSharedPreferences(PREFS, MODE_PRIVATE).getString("url", null);
     }
 
+    private volatile boolean laptopLoaded = false;
+
     private void openHome() {
         String a = address();
-        if (a == null || a.isEmpty()) web.loadUrl("file:///android_asset/setup.html");
-        else web.loadUrl(a + "/home.html");
+        if (a == null || a.isEmpty()) { web.loadUrl("file:///android_asset/setup.html"); return; }
+        if (Solo.laptopDown()) { openSolo("laptop out of reach"); return; }   // don't make the owner wait
+        laptopLoaded = false;
+        web.loadUrl(a + "/home.html");
+        // A sleeping laptop can take ages to time out: after 8 seconds with no answer, go solo.
+        ui.postDelayed(() -> {
+            if (!laptopLoaded && !Solo.laptopUp()) { web.stopLoading(); Solo.lastFail = System.currentTimeMillis(); openSolo("laptop not answering"); }
+        }, 8000);
+    }
+
+    /** The phone's own JARVIS: thinks with Gemini over Wi-Fi or mobile data, no laptop needed. */
+    private void openSolo(String why) {
+        String cur = web.getUrl();
+        if (cur != null && cur.startsWith("file:") && cur.contains("solo")) return;
+        web.loadUrl(Solo.pageUrl(this) + "?why=" + Uri.encode(why == null ? "" : why));
     }
 
     @Override
@@ -599,5 +628,80 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void changeAddress() { ui.post(() -> web.loadUrl("file:///android_asset/setup.html")); }
+
+        // ---- Solo JARVIS (the phone by itself)
+        @JavascriptInterface
+        public String soloPack() { return Solo.packForPage(MainActivity.this); }
+
+        @JavascriptInterface
+        public boolean laptopUp() { return Solo.laptopUp(); }
+
+        @JavascriptInterface
+        public void openLaptop() { ui.post(() -> { laptopLoaded = false; String a = address(); if (a != null) web.loadUrl(a + "/home.html"); }); }
+
+        @JavascriptInterface
+        public void soloSave(String itemJson) { Solo.save(MainActivity.this, itemJson); }
+
+        @JavascriptInterface
+        public String soloRemind(String uid, double atMillis, String text) { return Solo.remind(MainActivity.this, uid, (long) atMillis, text, false); }
+
+        @JavascriptInterface
+        public boolean exactReminders() { return Solo.exactAllowed(MainActivity.this); }
+
+        @JavascriptInterface
+        public void askExactReminders() {
+            if (android.os.Build.VERSION.SDK_INT >= 31) ui.post(() -> {
+                try { startActivity(new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + getPackageName()))); }
+                catch (Exception ignored) {}
+            });
+        }
+
+        @JavascriptInterface
+        public void soloFetch(String id, String url, String method, String headersJson, String body) {
+            new Thread(() -> {
+                String[] r = Solo.fetch(MainActivity.this, url, method, headersJson, body);
+                js("window.__soloFetch && window.__soloFetch(" + JSONObject.quote(id) + "," + r[0] + "," + JSONObject.quote(r[1]) + ")");
+            }).start();
+        }
+
+        @JavascriptInterface
+        public String soloLocation() {
+            try {
+                android.location.LocationManager lm = getSystemService(android.location.LocationManager.class);
+                android.location.Location best = null;
+                for (String p : lm.getProviders(true)) {
+                    android.location.Location l = lm.getLastKnownLocation(p);
+                    if (l != null && (best == null || l.getTime() > best.getTime())) best = l;
+                }
+                if (best == null) return "";
+                return new JSONObject().put("lat", best.getLatitude()).put("lon", best.getLongitude())
+                        .put("accuracy", best.getAccuracy()).put("age", (System.currentTimeMillis() - best.getTime()) / 1000).toString();
+            } catch (SecurityException e) { return ""; } catch (Exception e) { return ""; }
+        }
+
+        /** Phone powers in solo mode: the same ones the laptop can ask for. */
+        @JavascriptInterface
+        public String soloPower(String kind, String argsJson) {
+            try {
+                JSONObject c = new JSONObject(argsJson == null || argsJson.isEmpty() ? "{}" : argsJson);
+                Context ctx = MainActivity.this;
+                switch (kind) {
+                    case "call": return Powers.call(ctx, c.optString("number"), c.optString("name"));
+                    case "contacts": return Powers.contacts(ctx, c.optString("name"));
+                    case "alarm": return Powers.alarm(ctx, c.optInt("hour"), c.optInt("minute"), c.optString("label"));
+                    case "timer": return Powers.timer(ctx, c.optInt("seconds", 60), c.optString("label"));
+                    case "torch": return Powers.torch(ctx, c.optBoolean("on", true));
+                    case "volume": return Powers.volume(ctx, c.optInt("level", 50));
+                    case "media": return Powers.media(ctx, c.optString("action", "toggle"));
+                    case "play": return Powers.play(ctx, c.optString("query"), c.optString("app"));
+                    case "app": return Powers.openApp(ctx, c.optString("name"));
+                    case "link": return Powers.link(ctx, c.optString("url"));
+                    case "camera": return Powers.camera(ctx, c.optBoolean("video"));
+                    case "email": return Powers.email(ctx, c.optString("to"), c.optString("subject"), c.optString("body"));
+                    case "screentime": return Powers.screenTime(ctx);
+                    default: return "unknown";
+                }
+            } catch (Exception e) { return "couldn't: " + e.getMessage(); }
+        }
     }
 }

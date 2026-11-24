@@ -1,0 +1,484 @@
+<!doctype html>
+<!-- SOLO-JARVIS: the phone's own JARVIS. Runs inside the app when the laptop is off or far away. -->
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Solo</title>
+<meta name="theme-color" content="#03060a">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+:root{--c:#ffd23f;--c2:#5fd8ff;--bg:#03060a;--line:#16212d;--dim:#7d8899;--ink:#dce7f2;--panel:rgba(12,18,26,.78)}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:"JetBrains Mono",ui-monospace,monospace;-webkit-tap-highlight-color:transparent}
+body{padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  background:radial-gradient(520px 520px at 50% 24%,color-mix(in srgb,var(--c) 12%,transparent),transparent 70%),
+             radial-gradient(420px 300px at 50% 100%,color-mix(in srgb,var(--c2) 8%,transparent),transparent 70%),var(--bg);
+  max-width:640px;margin:0 auto;min-height:100vh}
+html{background:var(--bg)}
+button{font-family:inherit;cursor:pointer}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+header b{font:900 13px Orbitron,sans-serif;letter-spacing:.34em;color:var(--c);text-shadow:0 0 12px var(--c)}
+.r{display:flex;align-items:center;gap:8px}
+#clock{font:500 11px "JetBrains Mono",monospace;color:var(--dim)}
+.badge{font:700 9px Orbitron,sans-serif;letter-spacing:.16em;padding:7px 10px;border-radius:999px;border:1px solid var(--c2);color:var(--c2);
+  box-shadow:0 0 14px color-mix(in srgb,var(--c2) 30%,transparent);animation:pulse 2.6s ease-in-out infinite;white-space:nowrap}
+@keyframes pulse{50%{box-shadow:0 0 22px color-mix(in srgb,var(--c2) 55%,transparent)}}
+#back{display:none;margin:10px 0 0;width:100%;padding:11px;border:1px solid var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);
+  color:var(--c);font:700 10px Orbitron,sans-serif;letter-spacing:.2em;border-radius:10px}
+#back.on{display:block}
+.core{position:relative;width:min(58vw,250px);aspect-ratio:1;margin:12px auto 2px;cursor:pointer}
+.core canvas{width:100%;height:100%;display:block}
+#state{text-align:center;font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);min-height:14px}
+#said{text-align:center;font:600 15px/1.45 "JetBrains Mono",monospace;min-height:44px;margin:8px auto 0;max-width:520px;word-wrap:break-word}
+#said small{display:block;font:700 9px Orbitron,sans-serif;letter-spacing:.3em;color:var(--c);margin-bottom:3px}
+#heard{text-align:center;color:var(--c2);font-size:12px;min-height:16px;margin-top:4px;opacity:.85}
+#note{display:none;margin:10px 0;padding:10px 12px;border:1px solid #6b4b14;background:rgba(60,40,8,.45);color:#ffdf8a;font-size:12px;line-height:1.5;border-radius:10px}
+#note.on{display:block}
+form{display:flex;gap:8px;margin:12px 0 10px}
+#q{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);color:var(--ink);padding:12px;font:500 14px "JetBrains Mono",monospace;border-radius:10px;outline:none}
+#q:focus{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 18px color-mix(in srgb,var(--c) 25%,transparent)}
+form button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:0 14px;font-size:18px}
+form button.on{border-color:var(--c);color:var(--c);box-shadow:0 0 14px color-mix(in srgb,var(--c) 35%,transparent)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;background:var(--panel);border:1px solid var(--line);color:var(--ink);font:600 10px Orbitron,sans-serif;letter-spacing:.1em;padding:9px 11px;border-radius:999px}
+.chips button:active{border-color:var(--c);color:var(--c)}
+h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin:16px 0 8px;display:flex;justify-content:space-between}
+h2 span{color:var(--c2);letter-spacing:.1em}
+#log{display:grid;gap:8px}
+.m{padding:9px 11px;border:1px solid var(--line);background:var(--panel);border-radius:10px;font-size:13px;line-height:1.45}
+.m small{display:block;font:700 8px Orbitron,sans-serif;letter-spacing:.24em;color:var(--dim);margin-bottom:3px}
+.m.you{border-color:#1f3343;margin-left:18%}
+.m.you small{color:var(--c2)}
+.m.j small{color:var(--c)}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cards div{border:1px solid var(--line);background:var(--panel);padding:9px 6px;text-align:center;border-radius:10px;min-width:0}
+.cards b{display:block;font:700 13px Orbitron,sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cards small{font:600 8px Orbitron,sans-serif;letter-spacing:.2em;color:var(--dim)}
+#mapbox{display:none;position:fixed;inset:0;z-index:20;background:var(--bg)}
+#mapbox.on{display:block}
+#map{position:absolute;inset:0;background:#05080c}
+.leaflet-tile-pane{filter:invert(1) hue-rotate(195deg) brightness(.85) contrast(.95) saturate(.6)}
+.leaflet-control-attribution{background:rgba(0,0,0,.5)!important;color:#567!important;font-size:9px!important}
+.leaflet-control-attribution a{color:#789!important}
+#mapcard{position:absolute;left:12px;right:12px;bottom:max(14px,env(safe-area-inset-bottom));z-index:500;background:rgba(5,10,16,.9);
+  border:1px solid var(--c);border-radius:14px;padding:12px 14px;box-shadow:0 0 26px color-mix(in srgb,var(--c) 25%,transparent);backdrop-filter:blur(6px)}
+#mapcard b{font:700 12px Orbitron,sans-serif;letter-spacing:.14em;color:var(--c)}
+#mapcard p{margin:6px 0 0;font-size:12px;line-height:1.5;color:var(--ink)}
+#mapclose{position:absolute;top:max(14px,env(safe-area-inset-top));right:14px;z-index:500;border:1px solid var(--c);background:rgba(5,10,16,.85);
+  color:var(--c);font:700 10px Orbitron,sans-serif;letter-spacing:.2em;padding:10px 14px;border-radius:999px}
+.foot{margin-top:16px;text-align:center;color:#4d5a6a;font-size:10px;line-height:1.6}
+@media (min-width:700px){body{padding-top:28px}.core{width:240px}}
+</style></head><body>
+<header><b>JARVIS</b><div class="r"><span class="badge" id="badge">📱 SOLO</span><span id="clock">--:--</span></div></header>
+<button id="back">💻 LAPTOP IS BACK · SWITCH</button>
+<div class="core" id="core" role="button" aria-label="Tap to talk to JARVIS"><canvas id="rx"></canvas></div>
+<div id="state">TAP TO TALK</div>
+<div id="said" aria-live="polite"></div>
+<div id="heard"></div>
+<div id="note"></div>
+<form id="f"><input id="q" placeholder="Ask JARVIS anything…" autocomplete="off" enterkeyhint="send"><button type="button" id="mic" aria-label="Talk">🎙</button><button type="button" id="hands" aria-label="Hands-free">👂</button></form>
+<div class="chips" id="chips">
+  <button data-q="What's next for me today?">📅 NEXT</button>
+  <button data-q="Take me home">🏠 HOME</button>
+  <button data-q="What's the weather like?">🌦 WEATHER</button>
+  <button data-q="What are my tasks?">✅ TASKS</button>
+  <button data-q="Where am I?">📍 WHERE AM I</button>
+  <button data-q="Remind me in 30 minutes to ">⏰ REMIND</button>
+</div>
+<div class="cards"><div><small>NEXT</small><b id="cNext">—</b></div><div><small>TASKS</small><b id="cTasks">—</b></div><div><small>TO SYNC</small><b id="cSync">0</b></div></div>
+<h2>CONVERSATION <span id="synced"></span></h2>
+<div id="log"></div>
+<div class="foot">Solo mode: JARVIS runs on this phone by itself over Wi-Fi or mobile data.<br>Everything here syncs to your laptop the next time it's on.</div>
+<div id="mapbox"><div id="map"></div><button id="mapclose">✕ CLOSE</button><div id="mapcard"><b id="mapT">ROUTE</b><p id="mapP"></p></div></div>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const N = window.JarvisNative || null;
+const LS = {get(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+            set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }};
+
+// ---------------------------------------------------------------- what JARVIS knows (pack from the laptop + what was added here)
+let PACK = {};
+try { PACK = JSON.parse(N?.soloPack?.() || "{}"); } catch { PACK = {}; }
+if (!N && window.__TEST_PACK) PACK = window.__TEST_PACK;
+const made = PACK.made ? new Date(PACK.made) : null;
+let LOCAL = LS.get("solo:local", {memories: [], tasks: [], done: [], events: [], reminders: [], notes: []});
+if (made) for (const k of Object.keys(LOCAL)) LOCAL[k] = (LOCAL[k] || []).filter(x => !x.at || new Date(x.at) > made);   // already on the laptop
+const saveLocal = () => LS.set("solo:local", LOCAL);
+saveLocal();
+const OWNER = PACK.owner || "Sir";
+const TEAM = PACK.team || [];
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function queue(item){ item.uid = item.uid || uid(); item.at = item.at || new Date().toISOString(); try { N?.soloSave?.(JSON.stringify(item)); } catch {} bumpSync(); }
+let toSync = PACK.queued || 0;
+function bumpSync(){ toSync++; $("#cSync").textContent = toSync; }
+
+const memories = () => [...(PACK.memories || []), ...LOCAL.memories.map(m => m.fact)];
+const tasks = () => [...(PACK.tasks || []), ...LOCAL.tasks].filter(t => !LOCAL.done.some(d => d.title.toLowerCase() === t.title.toLowerCase()));
+const events = () => [...(PACK.events || []), ...LOCAL.events].sort((a, b) => (a.start > b.start ? 1 : -1));
+const pad = n => String(n).padStart(2, "0");
+const hm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const localISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${hm(d)}`;
+function ago(d){ const m = Math.round((Date.now() - d) / 60000); return m < 2 ? "just now" : m < 60 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; }
+
+// ---------------------------------------------------------------- internet (through the app, which adds the keys)
+const pending = {};
+window.__soloFetch = (id, status, text) => { const p = pending[id]; if (p){ delete pending[id]; p({status, text}); } };
+async function net(url, {method = "GET", headers = {}, body = ""} = {}){
+  if (N?.soloFetch){
+    const id = uid();
+    const r = await new Promise(res => { pending[id] = res; N.soloFetch(id, url, method, JSON.stringify(headers), body || ""); setTimeout(() => pending[id] && window.__soloFetch(id, 0, "timeout"), 60000); });
+    return r;
+  }
+  try { const r = await fetch(url, {method, headers: method === "GET" ? headers : {"Content-Type": "application/json", ...headers}, body: method === "GET" ? undefined : body});
+    return {status: r.status, text: await r.text()}; } catch (e) { return {status: 0, text: String(e)}; }
+}
+async function json(url, opts){ const r = await net(url, opts); if (r.status < 200 || r.status >= 300) throw new Error(`HTTP ${r.status}: ${r.text.slice(0, 160)}`); return JSON.parse(r.text); }
+
+// ---------------------------------------------------------------- where the owner is
+function here(){
+  try { const l = JSON.parse(N?.soloLocation?.() || ""); if (l && l.lat) return l; } catch {}
+  return LS.get("solo:lastloc", null);
+}
+async function hereFresh(){
+  const viaGps = await new Promise(res => { if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => res({lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy, age: 0}), () => res(null), {enableHighAccuracy: true, timeout: 7000, maximumAge: 60000}); });
+  const l = viaGps || here(); if (l) LS.set("solo:lastloc", l); return l;
+}
+const inSG = l => l && l.lat > 1.15 && l.lat < 1.48 && l.lon > 103.6 && l.lon < 104.1;
+const dist = (a, b) => { const R = 6371, t = x => x * Math.PI / 180, dl = t(b.lat - a.lat), dn = t(b.lon - a.lon);
+  const h = Math.sin(dl / 2) ** 2 + Math.cos(t(a.lat)) * Math.cos(t(b.lat)) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+
+async function geocode(q, near){
+  const saved = PACK.places || {};
+  const key = Object.keys(saved).find(k => k.toLowerCase() === q.toLowerCase().replace(/^(my |the )/, ""));
+  if (key) return {name: key, lat: saved[key][0], lon: saved[key][1]};
+  if (!near || inSG(near)){
+    try { const d = await json(`https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(q)}&returnGeom=Y&getAddrDetails=Y&pageNum=1`);
+      const r = (d.results || [])[0]; if (r) return {name: r.BUILDING && r.BUILDING !== "NIL" ? r.BUILDING : r.SEARCHVAL, lat: +r.LATITUDE, lon: +r.LONGITUDE}; } catch {}
+  }
+  const vb = near ? `&viewbox=${near.lon - 1},${near.lat + 1},${near.lon + 1},${near.lat - 1}` : "";
+  const d = await json(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}${vb}`);
+  if (!d[0]) throw new Error(`I couldn't find ${q}`);
+  return {name: d[0].name || d[0].display_name.split(",")[0], lat: +d[0].lat, lon: +d[0].lon};
+}
+
+// ---------------------------------------------------------------- tools JARVIS can use on the phone by itself
+function decodePolyline(s){ const pts = []; let i = 0, lat = 0, lon = 0;
+  while (i < s.length){ for (const w of [0, 1]){ let sh = 0, r = 0, b; do { b = s.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32);
+    const d = r & 1 ? ~(r >> 1) : r >> 1; if (w) lon += d; else lat += d; } pts.push([lat / 1e5, lon / 1e5]); } return pts; }
+function grabFare(km, min, when, rain){ let base = 3 + .75 * km + .22 * min + .9, surge = 1; const h = when.getHours();
+  if ((h >= 7 && h < 10) || (h >= 17 && h < 20)) surge += .3; if (rain) surge += .35; if (h < 6) surge += .25;
+  const lo = Math.max(6, base * surge * .9); return [Math.round(lo), Math.round(Math.max(lo + 2, base * surge * 1.2))]; }
+async function osrm(a, b, mode){
+  const prof = {walk: ["foot", "foot"], drive: ["car", "driving"]}[mode];
+  try { const d = await json(`https://routing.openstreetmap.de/routed-${prof[0]}/route/v1/${prof[1]}/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson`);
+    const r = d.routes?.[0]; return r ? {min: Math.round(r.duration / 60), km: r.distance / 1000, line: r.geometry.coordinates.map(c => [c[1], c[0]])} : null; } catch { return null; }
+}
+async function busLive(stop, svc){
+  if (!PACK.has?.lta || !stop) return [];
+  try { const d = await json(`https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival?BusStopCode=${stop}`, {headers: {accept: "application/json"}});
+    const s = (d.Services || []).find(x => x.ServiceNo === svc); if (!s) return [];
+    return ["NextBus", "NextBus2", "NextBus3"].map(k => s[k]?.EstimatedArrival).filter(Boolean).map(t => Math.max(0, Math.round((new Date(t) - Date.now()) / 60000))); } catch { return []; }
+}
+async function transit(a, b, arrive){
+  if (!PACK.has?.onemap || !inSG(a) || !inSG(b)) return null;
+  const w = arrive || new Date();
+  const q = new URLSearchParams({start: `${a.lat},${a.lon}`, end: `${b.lat},${b.lon}`, routeType: "pt", mode: "TRANSIT", maxWalkDistance: 1000, numItineraries: 3,
+    date: `${pad(w.getMonth() + 1)}-${pad(w.getDate())}-${w.getFullYear()}`, time: `${hm(w)}:00`, arriveBy: arrive ? "true" : "false"});
+  let plan; try { plan = (await json(`https://www.onemap.gov.sg/api/public/routingsvc/route?${q}`)).plan; } catch { return null; }
+  const its = plan?.itineraries || []; if (!its.length) return null;
+  const it = its.reduce((x, y) => (y.duration < x.duration ? y : x));
+  const legs = [], line = []; let firstBus = null;
+  for (const lg of it.legs || []){
+    const leg = {mode: lg.mode, min: Math.round(lg.duration / 60), from: lg.from?.name || "", to: lg.to?.name || "", route: lg.route || lg.routeShortName || ""};
+    if (lg.mode === "BUS"){ leg.live = await busLive(lg.from?.stopCode, leg.route); firstBus = firstBus || leg; }
+    if (lg.legGeometry?.points) line.push(...decodePolyline(lg.legGeometry.points));
+    legs.push(leg);
+  }
+  let leave = new Date(it.startTime);
+  if (firstBus?.live?.length && !arrive){ const walk = legs.slice(0, legs.indexOf(firstBus)).filter(x => x.mode === "WALK").reduce((s, x) => s + x.min, 0);
+    const nx = firstBus.live.find(m => m >= walk + 1); if (nx != null) leave = new Date(Date.now() + (nx - walk - 1) * 60000); }
+  const say = legs.map(l => l.mode === "WALK" ? (l.min >= 2 ? `walk ${l.min} min${l.to ? " to " + l.to : ""}` : "") :
+    l.mode === "BUS" ? `bus ${l.route} from ${l.from}${l.live?.length ? ` (live: ${l.live.join(", ")} min)` : ""}` : `${l.route || "MRT"} from ${l.from} to ${l.to}`).filter(Boolean).join(", ");
+  return {min: Math.round(it.duration / 60), leave: hm(leave), arrive: hm(new Date(it.endTime)), fare: it.fare || "", say, line};
+}
+async function weatherAt(l){
+  const d = await json(`https://api.open-meteo.com/v1/forecast?latitude=${l.lat}&longitude=${l.lon}&current=temperature_2m,apparent_temperature,precipitation,weather_code&hourly=precipitation_probability&forecast_hours=6&timezone=auto`);
+  const code = d.current.weather_code, words = code >= 95 ? "thunderstorms" : code >= 80 ? "showers" : code >= 61 ? "rain" : code >= 51 ? "drizzle" : code >= 45 ? "fog" : code >= 3 ? "cloudy" : code >= 1 ? "partly cloudy" : "clear";
+  const probs = d.hourly?.precipitation_probability || [], rainAt = probs.findIndex(p => p >= 60);
+  return {now: words, temp: Math.round(d.current.temperature_2m), feels: Math.round(d.current.apparent_temperature), raining: d.current.precipitation > 0.1,
+          rain_in_hours: rainAt >= 0 ? rainAt : null, next_hours_rain_chance: probs};
+}
+
+const TOOLS = {
+  async remember({fact}){ LOCAL.memories.push({fact, at: new Date().toISOString()}); saveLocal(); queue({kind: "remember", fact}); return {ok: true}; },
+  async add_task({title, due}){ LOCAL.tasks.push({title, due: due || "", at: new Date().toISOString()}); saveLocal(); queue({kind: "task", title, due: due || null}); cards(); return {ok: true}; },
+  async complete_task({title}){ const t = tasks().find(x => x.title.toLowerCase().includes(String(title).toLowerCase()));
+    if (!t) return {error: "no open task like that"}; LOCAL.done.push({title: t.title, at: new Date().toISOString()}); saveLocal();
+    queue(t.id ? {kind: "task_done", id: t.id} : {kind: "note", title: "Task done (phone)", body: t.title}); cards(); return {done: t.title}; },
+  async my_tasks(){ return {tasks: tasks().slice(0, 25)}; },
+  async set_reminder({text, at, in_minutes}){
+    const when = in_minutes ? new Date(Date.now() + in_minutes * 60000) : new Date(at);
+    if (isNaN(when)) return {error: "unclear time"};
+    const id = uid(), r = N?.soloRemind ? N.soloRemind(id, when.getTime(), text) : "reminder set (test)";
+    LOCAL.reminders.push({text, when: when.toISOString(), at: new Date().toISOString()}); saveLocal();
+    queue({kind: "reminder", text, at_ms: when.getTime()});
+    return {result: r, rings_at: `${when.toDateString()} ${hm(when)}`, exact: N?.exactReminders ? N.exactReminders() : true};
+  },
+  async my_reminders(){ const now = Date.now();
+    return {laptop: (PACK.reminders || []).filter(r => new Date(r.at) > now).slice(0, 15), phone: LOCAL.reminders.filter(r => new Date(r.when) > now)}; },
+  async calendar({days = 2}){ const now = new Date(), end = new Date(now.getTime() + days * 86400000);
+    return {events: events().filter(e => new Date(e.end || e.start) >= now && new Date(e.start) <= end).slice(0, 20)}; },
+  async add_event({title, start, end, location}){ LOCAL.events.push({title, start, end: end || "", location: location || "", at: new Date().toISOString()}); saveLocal();
+    queue({kind: "event", title, start: new Date(start).toISOString(), end: end ? new Date(end).toISOString() : null, location: location || ""}); cards(); return {ok: true}; },
+  async save_note({title, body}){ LOCAL.notes.push({title, body, at: new Date().toISOString()}); saveLocal(); queue({kind: "note", title, body}); return {ok: true}; },
+  async search_notes({query}){ const q = String(query).toLowerCase(); return {notes: LOCAL.notes.filter(n => (n.title + " " + n.body).toLowerCase().includes(q)).slice(0, 8)}; },
+  async where_am_i(){ const l = await hereFresh(); if (!l) return {error: "no location yet (is location on?)"};
+    let place = ""; try { const d = await json(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&lat=${l.lat}&lon=${l.lon}`); place = d.display_name; } catch {}
+    const saved = Object.entries(PACK.places || {}).map(([k, v]) => ({k, d: dist(l, {lat: v[0], lon: v[1]})})).sort((a, b) => a.d - b.d)[0];
+    return {lat: l.lat, lon: l.lon, place, near_saved_place: saved && saved.d < .4 ? saved.k : ""}; },
+  async weather({place}){ const l = place ? await geocode(place, here()) : await hereFresh(); if (!l) return {error: "no location"}; return {place: place || "here", ...(await weatherAt(l))}; },
+  async directions({to, arrive_by}){
+    const a = await hereFresh(); if (!a) return {error: "I need your location for directions (location off?)"};
+    const b = await geocode(to, a), arrive = arrive_by ? new Date(arrive_by) : null;
+    const [walk, drive, tr, wx] = await Promise.all([osrm(a, b, "walk"), osrm(a, b, "drive"), transit(a, b, arrive), weatherAt(a).catch(() => null)]);
+    const km = drive?.km || dist(a, b) * 1.3, dmin = drive?.min || Math.round(km * 2.2);
+    const fare = inSG(a) ? grabFare(km, dmin, arrive || new Date(), wx?.raining) : null;
+    const out = {to: b.name, km: +km.toFixed(1), walk_min: walk?.min, drive_min: dmin, grab_fare_sgd: fare ? `$${fare[0]}–${fare[1]}` : "",
+                 transit: tr ? {min: tr.min, leave: tr.leave, arrive: tr.arrive, fare: tr.fare, steps: tr.say} : null,
+                 transit_setup: !PACK.has?.onemap && inSG(a) ? "real bus/MRT journeys need /onemap (set up once from Telegram)" : "", raining: wx?.raining};
+    if (arrive){ const best = tr?.min || dmin + 5; out.leave_by = hm(new Date(arrive - best * 60000)); }
+    showRoute(b, (tr?.line?.length ? tr.line : (km < 2.5 ? walk : drive)?.line) || [[a.lat, a.lon], [b.lat, b.lon]],
+              tr ? `Leave ${tr.leave} · ${tr.min} min · ${tr.say}` : `${walk ? `Walk ${walk.min} min · ` : ""}Drive ${dmin} min${fare ? ` · Grab ~$${fare[0]}–${fare[1]}` : ""}`);
+    return out; },
+  async phone({action, name, number, hour, minute, label, seconds, on, level, query, app, video, to, subject, body}){
+    if (!N?.soloPower) return {result: "phone powers work inside the app"};
+    const args = {name, number, hour, minute, label, seconds, on, level, query, app, video, to, subject, body};
+    const kind = {open_app: "app", music: "play", flashlight: "torch"}[action] || action;
+    return {result: N.soloPower(kind, JSON.stringify(args))}; },
+  async look_up({question}){
+    const d = await gemini({contents: [{role: "user", parts: [{text: question + "\nAnswer in 2-3 short sentences."}]}], tools: [{google_search: {}}]});
+    return {answer: (d.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join(" ").trim()}; },
+};
+const S = (props, req = []) => ({type: "OBJECT", properties: props, required: req});
+const str = d => ({type: "STRING", description: d}), num = d => ({type: "NUMBER", description: d});
+const DECL = [
+  {name: "remember", description: "Remember a fact about the owner for good.", parameters: S({fact: str("the fact")}, ["fact"])},
+  {name: "add_task", description: "Add a task to the owner's list.", parameters: S({title: str("task"), due: str("optional ISO date")}, ["title"])},
+  {name: "complete_task", description: "Mark a task done.", parameters: S({title: str("words from the task title")}, ["title"])},
+  {name: "my_tasks", description: "The owner's open tasks.", parameters: S({})},
+  {name: "set_reminder", description: "Remind the owner at a time (rings on the phone even offline). Use in_minutes for 'in 20 minutes', else at.",
+   parameters: S({text: str("what to remind"), at: str("local time YYYY-MM-DDTHH:MM"), in_minutes: num("minutes from now")}, ["text"])},
+  {name: "my_reminders", description: "Upcoming reminders.", parameters: S({})},
+  {name: "calendar", description: "The owner's events (classes, plans).", parameters: S({days: num("how many days ahead, default 2")})},
+  {name: "add_event", description: "Put something in the owner's calendar.", parameters: S({title: str("what"), start: str("local YYYY-MM-DDTHH:MM"), end: str("optional"), location: str("optional")}, ["title", "start"])},
+  {name: "save_note", description: "Save a note.", parameters: S({title: str("title"), body: str("text")}, ["body"])},
+  {name: "search_notes", description: "Find notes saved on the phone.", parameters: S({query: str("words")}, ["query"])},
+  {name: "where_am_i", description: "Where the owner is right now.", parameters: S({})},
+  {name: "weather", description: "Weather now and rain in the next hours.", parameters: S({place: str("optional place, default here")})},
+  {name: "directions", description: "How to get somewhere: when to leave, walk/bus/MRT/drive times, live bus, Grab price. Shows a glowing map.",
+   parameters: S({to: str("destination, e.g. home, Jewel, a street"), arrive_by: str("optional local YYYY-MM-DDTHH:MM")}, ["to"])},
+  {name: "phone", description: "Do something on the phone: call (name or number), contacts, alarm (hour, minute), timer (seconds), torch (on), volume (level 0-100), media (play/pause/next), play (query, app), open_app (name), camera, email (opens a draft for the owner to send), screentime. Never bank or finance apps.",
+   parameters: S({action: str("call|contacts|alarm|timer|torch|volume|media|play|open_app|link|camera|email|screentime"), name: str(""), number: str(""), hour: num(""), minute: num(""),
+     label: str(""), seconds: num(""), on: {type: "BOOLEAN"}, level: num(""), query: str(""), app: str(""), video: {type: "BOOLEAN"}, to: str(""), subject: str(""), body: str("")}, ["action"])},
+  {name: "look_up", description: "Look something up on the web (news, opening hours, facts, prices).", parameters: S({question: str("the question")}, ["question"])},
+];
+
+// ---------------------------------------------------------------- the brain: Gemini, straight from the phone
+const MODEL = () => PACK.model || "gemini-flash-latest";
+async function gemini(body){
+  return json(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`, {method: "POST", body: JSON.stringify(body)});
+}
+function systemPrompt(){
+  const now = new Date(), l = here();
+  const ev = events().filter(e => new Date(e.end || e.start) >= now).slice(0, 12).map(e => `${e.start.slice(0, 16).replace("T", " ")} ${e.title}${e.location ? " @ " + e.location : ""}`);
+  const team = TEAM.map(t => `${t.name} (${t.title}): ${t.style}`).join("\n");
+  return `You are JARVIS, the personal AI of ${OWNER === "Sir" ? "the owner" : OWNER} (call them "Sir"). Iron Man's JARVIS: dry British wit, warm, loyal, quick.
+Right now you are running on the owner's phone by yourself (the laptop is off or far away), over Wi-Fi or mobile data. You can still do nearly everything with your tools. If something truly needs the laptop (its files, its screen), say it's queued for when the laptop is back.
+Your replies are spoken aloud: 1-3 short sentences, natural, no markdown, no lists, no emojis. Singapore English is normal for the owner (lah, aite, can).
+Use tools whenever they help; never invent times, routes, weather or events.
+House rules: never touch bank or finance apps or sites. Never message other people by yourself: you can only open a draft for the owner to send. Ask before calling someone the owner didn't name.
+If the owner addresses a team member by name, answer as them in their style and start the reply with "NAME:". Team:
+${team || "JARVIS only"}
+Now: ${now.toDateString()} ${hm(now)} (phone's local time${Intl.DateTimeFormat().resolvedOptions().timeZone ? ", " + Intl.DateTimeFormat().resolvedOptions().timeZone : ""}). Location: ${l ? `${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}` : "unknown"}.
+Saved places: ${Object.keys(PACK.places || {}).join(", ") || "none"}.
+Coming up: ${ev.join("; ") || "nothing in the calendar"}.
+Open tasks: ${tasks().slice(0, 15).map(t => t.title).join("; ") || "none"}.
+What you know about the owner:
+${memories().slice(-120).map(m => "- " + m).join("\n") || "- (nothing yet)"}`;
+}
+let HISTORY = LS.get("solo:history", []);
+async function think(text){
+  if (!PACK.has?.gemini && N) return basic(text);
+  const contents = [...HISTORY.slice(-14), {role: "user", parts: [{text}]}];
+  const body = {systemInstruction: {parts: [{text: systemPrompt()}]}, tools: [{functionDeclarations: DECL}],
+                generationConfig: {temperature: .7, maxOutputTokens: 600}};
+  for (let round = 0; round < 6; round++){
+    const d = await gemini({...body, contents});
+    const msg = d.candidates?.[0]?.content; if (!msg?.parts) break;
+    contents.push(msg);
+    const calls = msg.parts.filter(p => p.functionCall);
+    if (!calls.length){
+      const reply = msg.parts.map(p => p.text || "").join(" ").trim() || "Done, Sir.";
+      HISTORY = [...HISTORY, {role: "user", parts: [{text}]}, {role: "model", parts: [{text: reply}]}].slice(-16); LS.set("solo:history", HISTORY);
+      return reply;
+    }
+    const parts = [];
+    for (const c of calls){ const {name, args} = c.functionCall; setState(`⚙ ${name.replace(/_/g, " ").toUpperCase()}`);
+      let res; try { res = await (TOOLS[name] ? TOOLS[name](args || {}) : {error: "unknown tool"}); } catch (e) { res = {error: String(e.message || e)}; }
+      parts.push({functionResponse: {name, response: res}}); }
+    contents.push({role: "user", parts});
+  }
+  return "I got a bit tangled there, Sir. Try me once more?";
+}
+
+// Without a brain key: the essentials still work (reminders, directions, weather, calls, apps, tasks).
+async function basic(t){
+  let m;
+  if ((m = t.match(/remind me (?:in (\d+)\s*(min|minute|minutes|hour|hours|h)\b|at (\d{1,2})(?::(\d\d))?\s*(am|pm)?)\s*(?:to )?(.*)/i))){
+    let at; if (m[1]) at = new Date(Date.now() + (+m[1]) * (/^h/i.test(m[2]) ? 60 : 1) * 60000);
+    else { at = new Date(); let h = +m[3] % 12 + (/pm/i.test(m[5] || "") || (!m[5] && +m[3] < 8) ? 12 : 0); at.setHours(h, +(m[4] || 0), 0, 0); if (at < new Date()) at.setDate(at.getDate() + 1); }
+    await TOOLS.set_reminder({text: m[6] || "reminder", at: localISO(at)}); return `Reminder set for ${hm(at)}, Sir.`; }
+  if ((m = t.match(/(?:take me|directions|how (?:do i|to) get|go) (?:to |home)(.*)/i))){ const r = await TOOLS.directions({to: /home/i.test(t) && !m[1].trim() ? "home" : m[1].trim() || "home"});
+    return r.error || (r.transit ? `Leave at ${r.transit.leave}: ${r.transit.steps}. Arrive ${r.transit.arrive}.` : `About ${r.walk_min ? r.walk_min + " minutes walking or " : ""}${r.drive_min} minutes by car${r.grab_fare_sgd ? ", Grab about " + r.grab_fare_sgd : ""}.`); }
+  if (/weather|rain/i.test(t)){ const w = await TOOLS.weather({}); return w.error || `${w.temp}°, ${w.now}${w.rain_in_hours != null ? `, rain likely in about ${w.rain_in_hours} hours` : ""}.`; }
+  if ((m = t.match(/^call (.+)/i))) return (await TOOLS.phone({action: "call", name: m[1]})).result;
+  if ((m = t.match(/^(?:open|launch) (.+)/i))) return (await TOOLS.phone({action: "open_app", name: m[1]})).result;
+  if ((m = t.match(/^play (.+?)(?: on (spotify|youtube music|youtube))?$/i))) return (await TOOLS.phone({action: "play", query: m[1], app: m[2] || ""})).result;
+  if (/torch|flashlight/i.test(t)) return (await TOOLS.phone({action: "torch", on: !/off/i.test(t)})).result;
+  if ((m = t.match(/^(?:add (?:a )?task|todo)[:\s]+(.+)/i))){ await TOOLS.add_task({title: m[1]}); return "Added, Sir."; }
+  if (/tasks|to ?do/i.test(t)){ const ts = tasks(); return ts.length ? `You have ${ts.length}: ${ts.slice(0, 4).map(x => x.title).join(", ")}.` : "Nothing open, Sir."; }
+  if (/next|today|schedule|calendar/i.test(t)){ const e = (await TOOLS.calendar({days: 1})).events[0]; return e ? `Next: ${e.title} at ${e.start.slice(11, 16)}${e.location ? " at " + e.location : ""}.` : "Nothing else in the calendar today, Sir."; }
+  if ((m = t.match(/^remember (?:that )?(.+)/i))){ await TOOLS.remember({fact: m[1]}); return "Noted, Sir."; }
+  if (/where am i/i.test(t)){ const w = await TOOLS.where_am_i(); return w.error || `You're at ${w.place.split(",").slice(0, 2).join(",")}.`; }
+  return "My thinking needs the free Gemini key, Sir: send /gemini to your JARVIS bot once while the laptop is on. Reminders, directions, weather, calls and apps work already.";
+}
+
+// ---------------------------------------------------------------- voice: Android's recogniser and voice
+let speaking = false, listening = false, hands = false, amp = 0, color = "#ffd23f";
+const voiceOf = n => ({FRIDAY: [1.25, 1.08], VERONICA: [1.1, 1.0], ZEUS: [.8, 1.0], BANNER: [.9, .92], ORACLE: [1.05, .98], ATHENA: [1.15, 1.0]}[n] || [.92, 1.02]);
+window.__jarvisTTS = {wait: {}, done(id){ const f = this.wait[id]; if (f){ delete this.wait[id]; f(); } }};
+function speak(agent, text){
+  const clean = String(text).replace(/\[\w+\]\s*/g, "").replace(/[*_#`]/g, "");
+  speaking = true; setState(`${agent} SPEAKING`);
+  return new Promise(res => {
+    const fin = () => { speaking = false; setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); res(); if (hands) setTimeout(listen, 300); };
+    if (N?.ttsAvailable?.()){ const id = uid(), [p, r] = voiceOf(agent); __jarvisTTS.wait[id] = fin; N.speak(id, clean, p, r); setTimeout(() => __jarvisTTS.done(id), 4000 + clean.length * 90); return; }
+    try { const u = new SpeechSynthesisUtterance(clean); u.lang = "en-GB"; u.onend = u.onerror = fin; speechSynthesis.speak(u); setTimeout(fin, 3000 + clean.length * 80); } catch { fin(); }
+  });
+}
+window.__jarvisSR = {emit(type, text, isFinal){
+  if (type === "result" && !isFinal) $("#heard").textContent = text;
+  else if (type === "result"){ listening = false; $("#heard").textContent = ""; heard(text); }
+  else if (type === "error"){ listening = false; $("#mic").classList.remove("on"); if (text === "no-speech" || text === "no-match"){ if (!hands){ setState("I DIDN'T CATCH THAT"); speak("JARVIS", "Sorry Sir, I didn't catch that. Once more?"); } } else if (!hands) setState("TAP TO TALK"); }
+  else if (type === "end"){ listening = false; $("#mic").classList.remove("on"); if (hands && !speaking && !busy) setTimeout(listen, 500); }
+}};
+function listen(){
+  if (speaking || listening || busy) return;
+  listening = true; setState("LISTENING"); $("#mic").classList.add("on");
+  if (N?.listen){ N.listen("en-SG", true); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR){ listening = false; setState("TYPE BELOW"); return; }
+  const r = new SR(); r.lang = "en-SG"; r.interimResults = true;
+  r.onresult = e => { const x = e.results[e.results.length - 1]; __jarvisSR.emit("result", x[0].transcript, x.isFinal); };
+  r.onerror = e => __jarvisSR.emit("error", e.error, true); r.onend = () => __jarvisSR.emit("end", "", true); r.start();
+}
+function heard(t){
+  $("#mic").classList.remove("on"); t = t.trim(); if (!t) return;
+  if (hands){ const m = t.match(/^(?:hey |ok |okay )?jarvis[,\s]*(.*)$/i); if (!m){ setTimeout(listen, 300); return; } if (!m[1]){ speak("JARVIS", "Yes Sir?"); return; } t = m[1]; }
+  ask(t);
+}
+
+// ---------------------------------------------------------------- the conversation
+let busy = false;
+function setState(t){ $("#state").textContent = t; }
+function show(who, text){ const s = String(text).replace(/[<>&]/g, ""); $("#said").innerHTML = `<small>${who}</small>${s.slice(0, 500)}`; }
+function logLine(who, text, save = true){
+  const d = document.createElement("div"); d.className = "m " + (who === "YOU" ? "you" : "j");
+  d.innerHTML = `<small>${who}</small>`; d.append(document.createTextNode(text)); $("#log").prepend(d);
+  while ($("#log").children.length > 30) $("#log").lastChild.remove();
+  if (save){ const keep = LS.get("solo:log", []); keep.push([who, text, Date.now()]); LS.set("solo:log", keep.slice(-30)); }
+}
+async function ask(text){
+  if (busy) return; busy = true;
+  show("YOU", text); logLine("YOU", text); queue({kind: "chat", who: "you", text}); setState("THINKING");
+  const ack = setTimeout(() => { if (busy && !speaking) setState("STILL THINKING…"); }, 2500);
+  let reply;
+  try { reply = await think(text); }
+  catch (e) { reply = /HTTP 4(29|03)/.test(e.message) ? "Google's free limit is used up for a moment, Sir. Try again in a minute." :
+                      /HTTP 0|timeout|Unable|resolve|network/i.test(e.message) ? "I've no internet right now, Sir. Reminders and alarms still work offline." : `That didn't work, Sir: ${e.message.slice(0, 120)}`; }
+  clearTimeout(ack); busy = false;
+  let agent = "JARVIS"; const m = reply.match(/^([A-Z]{3,10}):\s*/);
+  if (m && TEAM.some(t => t.name === m[1])){ agent = m[1]; reply = reply.slice(m[0].length); }
+  color = (TEAM.find(t => t.name === agent) || {}).color || "#ffd23f"; document.documentElement.style.setProperty("--c", color);
+  show(agent, reply); logLine(agent, reply); queue({kind: "chat", who: "jarvis", agent, text: reply});
+  await speak(agent, reply);
+}
+window.jarvisTalk = () => { hands = false; $("#hands").classList.remove("on"); listen(); };
+$("#core").onclick = () => { if (speaking){ try { N?.stopSpeaking?.(); speechSynthesis.cancel(); } catch {} speaking = false; setState("TAP TO TALK"); } else window.jarvisTalk(); };
+$("#mic").onclick = () => window.jarvisTalk();
+$("#hands").onclick = () => { hands = !hands; $("#hands").classList.toggle("on", hands); try { N?.keepAwake?.(hands); } catch {}
+  if (hands){ setState("SAY “JARVIS…”"); listen(); } else { setState("TAP TO TALK"); try { N?.abortListening?.(); } catch {} } };
+$("#f").onsubmit = e => { e.preventDefault(); const t = $("#q").value.trim(); if (!t) return; $("#q").value = ""; $("#q").blur(); ask(t); };
+document.querySelectorAll("[data-q]").forEach(b => b.onclick = () => { const q = b.dataset.q; if (q.endsWith(" ")){ $("#q").value = q; $("#q").focus(); } else ask(q); });
+
+// ---------------------------------------------------------------- map: the route, glowing, inside JARVIS
+let map, layers = [];
+function loadLeaflet(){ return new Promise((res, rej) => { if (window.L) return res();
+  const c = document.createElement("link"); c.rel = "stylesheet"; c.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.append(c);
+  const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; s.onload = res; s.onerror = rej; document.head.append(s); }); }
+async function showRoute(dest, line, summary){
+  try { await loadLeaflet(); } catch { return; }
+  $("#mapbox").classList.add("on"); $("#mapT").textContent = "→ " + String(dest.name).toUpperCase(); $("#mapP").textContent = summary;
+  if (!map){ map = L.map("map", {zoomControl: false, attributionControl: true});
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "© OpenStreetMap"}).addTo(map); }
+  layers.forEach(l => l.remove()); layers = [];
+  const c = getComputedStyle(document.documentElement).getPropertyValue("--c").trim() || "#ffd23f";
+  layers.push(L.polyline(line, {color: c, weight: 14, opacity: .18}).addTo(map), L.polyline(line, {color: c, weight: 6, opacity: .45}).addTo(map),
+              L.polyline(line, {color: "#fff", weight: 2, opacity: .95}).addTo(map));
+  const dot = (p, col) => L.circleMarker(p, {radius: 7, color: col, weight: 3, fillColor: "#03060a", fillOpacity: 1}).addTo(map);
+  layers.push(dot(line[0], "#5fd8ff"), dot(line[line.length - 1], c));
+  setTimeout(() => { map.invalidateSize(); map.fitBounds(L.latLngBounds(line), {padding: [40, 40], paddingBottomRight: [40, 160]}); }, 60);
+  let i = 0; const comet = L.circleMarker(line[0], {radius: 5, color: "#fff", weight: 2, fillColor: c, fillOpacity: 1}).addTo(map); layers.push(comet);
+  (function run(){ if (!$("#mapbox").classList.contains("on")) return; i = (i + Math.max(1, line.length / 180)) % line.length; comet.setLatLng(line[Math.floor(i)]); requestAnimationFrame(run); })();
+}
+$("#mapclose").onclick = () => $("#mapbox").classList.remove("on");
+
+// ---------------------------------------------------------------- reactor
+const cv = $("#rx"), x = cv.getContext("2d");
+function fit(){ const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2); cv.width = r.width * d; cv.height = r.width * d; x.setTransform(d, 0, 0, d, 0, 0); cv._s = r.width; }
+addEventListener("resize", fit); fit();
+function draw(t){
+  t /= 1000; const s = cv._s, m = s / 2, col = getComputedStyle(document.documentElement).getPropertyValue("--c").trim() || color; x.clearRect(0, 0, s, s);
+  const target = speaking ? .55 + Math.random() * .45 : listening ? .35 + .25 * Math.sin(t * 6) : busy ? .3 + .15 * Math.sin(t * 9) : .12 + .08 * Math.sin(t * 2.2); amp += (target - amp) * .2;
+  const g = x.createRadialGradient(m, m, 0, m, m, s * (.2 + amp * .1)); g.addColorStop(0, "#fff"); g.addColorStop(.35, col); g.addColorStop(1, "transparent");
+  x.fillStyle = g; x.beginPath(); x.arc(m, m, s * .32, 0, Math.PI * 2); x.fill();
+  x.lineCap = "round"; const sp = speaking ? 2.4 : busy ? 1.8 : 1;
+  [[.25, 3, 1.3, 1.4, 1], [.31, 1.6, -.9, 1.8, .7], [.38, 4, .55, 1.1, .9], [.45, 1.2, -.35, .7, .5]].forEach(([r, w, v, len, a]) => {
+    x.strokeStyle = col; x.globalAlpha = a; x.lineWidth = w; x.beginPath(); x.arc(m, m, s * r, t * v * sp, t * v * sp + Math.PI * len); x.stroke(); });
+  x.globalAlpha = 1;
+  for (let i = 0; i < 10; i++){ const a = i / 10 * Math.PI * 2 + t * .4 * sp; x.save(); x.translate(m + Math.cos(a) * s * .19, m + Math.sin(a) * s * .19); x.rotate(a); x.fillStyle = "#5fd8ff"; x.fillRect(-6, -2, 12, 4); x.restore(); }
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// ---------------------------------------------------------------- status
+function cards(){
+  const now = new Date(), e = events().find(v => new Date(v.end || v.start) >= now);
+  $("#cNext").textContent = e ? `${e.start.slice(11, 16)} ${e.title}` : "Free";
+  $("#cTasks").textContent = tasks().length; $("#cSync").textContent = toSync;
+}
+cards();
+$("#synced").textContent = made ? `SYNCED ${ago(made).toUpperCase()}` : "NOT SYNCED YET";
+if (!PACK.has?.gemini && N){ $("#note").classList.add("on");
+  $("#note").textContent = made ? "Basic mode: reminders, directions, weather, calls, apps and tasks work. For full conversations, send /gemini to your JARVIS bot once while the laptop is on."
+                                : "Open JARVIS once while your laptop is on so the phone can copy what it needs to work by itself."; }
+LS.get("solo:log", []).slice(-8).forEach(([w, t]) => logLine(w, t, false));
+setInterval(() => { $("#clock").textContent = hm(new Date()); }, 1000); $("#clock").textContent = hm(new Date());
+setInterval(() => { if (N?.laptopUp?.()) $("#back").classList.add("on"); }, 8000);
+$("#back").onclick = () => N?.openLaptop?.();
+show("JARVIS", PACK.has?.gemini || !N ? "Laptop's out of reach, Sir, so I'm running on your phone. Everything still works." : "Laptop's out of reach, Sir. I'm on your phone in basic mode.");
+hereFresh();
+if (new URLSearchParams(location.search).get("talk") === "1") setTimeout(listen, 600);
+</script>
+</body></html>

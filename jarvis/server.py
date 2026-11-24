@@ -1229,6 +1229,32 @@ def phone_poll(report: dict):
     return {"commands": phonelink.checkin(store, bus, report)}
 
 
+@app.get("/api/phone/solo")
+def phone_solo():
+    """The solo pack: what the phone needs to be JARVIS by itself while the laptop is off (see jarvis/solo.py)."""
+    from . import solo
+    return {"pack": solo.pack(store), "keys": solo.keys()}
+
+
+class SoloSync(BaseModel):
+    items: list[dict] = []
+
+
+@app.post("/api/phone/solo-sync")
+def phone_solo_sync(body: SoloSync):
+    """What the phone did on its own while the laptop was away, merged back so both stay the same JARVIS."""
+    from . import solo
+    return solo.merge(store, bus, body.items)
+
+
+@app.get("/api/phone/solo-page")
+def solo_page():
+    """The phone's own JARVIS page. The app ships with a copy; it fetches this to stay up to date."""
+    from fastapi.responses import FileResponse
+    from .config import ROOT as _ROOT
+    return FileResponse(_ROOT / "android" / "app" / "src" / "main" / "assets" / "solo.html", media_type="text/html")
+
+
 class PhoneDone(BaseModel):
     id: int
     result: str = ""

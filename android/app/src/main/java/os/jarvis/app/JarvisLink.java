@@ -200,9 +200,10 @@ public class JarvisLink extends Service implements LocationListener, android.har
                 JSONArray cmds = new JSONObject(Net.call(this, "/api/phone/poll", r.toString(), 15000)).optJSONArray("commands");
                 synchronized (pending) { for (int i = 0; i < sentPts && !pending.isEmpty(); i++) pending.removeFirst(); }
                 if (cmds != null) for (int i = 0; i < cmds.length(); i++) run(cmds.getJSONObject(i));
+                Solo.whileLinked(this);   // keep the phone's own JARVIS up to date, send back what it did alone
                 if (System.currentTimeMillis() - lastWidget > 60_000L) { lastWidget = System.currentTimeMillis(); refreshCard(); }
             } catch (Exception ignored) {
-                // laptop asleep or offline: try again later
+                Solo.lastFail = System.currentTimeMillis();   // laptop asleep or offline: the phone's own JARVIS takes over
             }
             try { Thread.sleep(screenOn ? 5000 : 60000); } catch (InterruptedException e) { return; }
         }

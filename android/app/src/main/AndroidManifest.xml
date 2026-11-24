@@ -19,6 +19,8 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Solo JARVIS: reminders ring on time on the phone by itself, even with the laptop off -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Mark IV phone powers: calls, contacts, alarms, photos, screen time (never SMS: that's where bank codes arrive) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
@@ -105,6 +107,8 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/jarvis_widget" />
         </receiver>
+
+        <receiver android:name=".Solo$Ring" android:exported="false" />
 
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>

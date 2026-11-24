@@ -440,6 +440,36 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## Solo JARVIS: the phone works without the laptop
+
+When the laptop is off, asleep, in your bag or in another country, the phone app becomes JARVIS by itself, over
+Wi-Fi or mobile data. It switches on its own (within about 8 seconds of the laptop not answering) and shows a
+**📱 SOLO** badge. When the laptop is back, tap **💻 LAPTOP IS BACK · SWITCH**.
+
+What works on the phone alone:
+
+- **Talking:** tap the core or use 👂 Hands-free. It thinks with your free Gemini key straight from the phone, and
+  knows your memories, tasks, calendar (2 weeks ahead), saved places and the team.
+- **Reminders** ring on the phone on time, even with no signal. Your laptop's own reminders are copied to the phone
+  as a backup and only ring there if the laptop is unreachable, so you never get two.
+- **Directions** on a glowing map inside JARVIS, with when to leave, walk and drive times and the Grab price. In
+  Singapore you also get real bus and MRT journeys with live bus arrivals (after `/onemap` and `/lta`). Overseas it
+  uses OpenStreetMap.
+- **Weather, where am I, web look-ups, notes, tasks, calendar.**
+- **Phone powers:** call, alarm, timer, torch, volume, music, open apps, camera, email drafts. Banks and finance apps
+  stay off limits, and it never messages anyone by itself.
+
+Everything it does alone (things to remember, tasks, events, notes, reminders and the conversation) syncs back to
+the laptop the next time it's on, so both stay the same JARVIS.
+
+How it keeps up to date: whenever the laptop is reachable, the app copies a "solo pack" (what JARVIS knows plus the
+free keys its brain needs) every 20 minutes. The keys live only in the app's private storage and are only sent to
+their own services (Google, OneMap, LTA). Without a Gemini key it runs in basic mode (reminders, directions,
+weather, calls, apps, tasks). Send `/gemini` once for full conversations.
+
+What still needs the laptop: anything on the laptop itself (its files, screen and apps), the night shift, and the
+Telegram bot.
+
 ## Talk from your phone, one voice answers
 
 Your phone's mic hears you much better than the laptop's, so use it as JARVIS's ears:
