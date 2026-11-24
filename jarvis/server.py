@@ -776,7 +776,7 @@ ROUTE_RE = re.compile(_J + r"(?:plan|show|make|map)(?: me)? (?:my |a |the )?rout
                       r"(?:\s+(?:to|via|for)\s+(.+?))?\s*[.!?]?\s*$", re.I)
 TUTORIAL_RE = re.compile(_J + r"(?:show me |start |open |run |replay )?(?:the )?(?:tutorial|training(?: mode)?|walkthrough|tour)\s*[.!?]?\s*$", re.I)
 SETUP_RE = re.compile(_J + r"(?:setup|set up|set me up|allow everything|give (?:jarvis |you )?(?:all|full) access|permissions)\s*[.!?]?\s*$", re.I)
-CINEMA_RE = re.compile(_J + r"(?:show me |play |run |start )?(?:the |all the |all )?(?:cinematics?|cinematic mode|movie mode|"
+CINEMA_RE = re.compile(_J + r"(?:show me |play |run |start )?(?:the |all the |all |my )?(?:cinematics?|cinematic mode|movie mode|trailer|show[- ]?off(?: mode)?|"
                        r"the full show|the whole show|showreel|show reel)\s*[.!?]?\s*$", re.I)
 AR_RE = re.compile(_J + r"(?:open |launch |start |show me )?(?:the )?(?:desk ar|ar desk|spatial desk|ar mode|augmented reality)\s*[.!]?\s*$", re.I)
 WAR_RE = re.compile(_J + r"(?:war room|brief me(?: for (.+))?|full briefing)\s*[.!?]?\s*$", re.I)
@@ -1164,6 +1164,24 @@ def bond_thanks(agent: str):
 def orb():
     from . import hud
     return hud.orb_state(store, bus)
+
+
+@app.get("/api/trailer")
+def trailer_data():
+    """What the trailer shows (#10): only safe-to-share highlights, never messages, tasks or money."""
+    from . import trailer
+    return trailer.data(store)
+
+
+@app.post("/api/trailer/video")
+async def trailer_video(request: Request):
+    """An exported trailer (#12): kept on the laptop, converted to MP4 if possible, sent to your phone."""
+    from . import trailer
+    raw = await request.body()
+    if not raw or len(raw) > 200_000_000:
+        raise HTTPException(400, "no video")
+    ext = "mp4" if "mp4" in (request.headers.get("content-type") or "") else "webm"
+    return await asyncio.to_thread(trailer.save_video, raw, ext)
 
 
 @app.get("/api/holo")

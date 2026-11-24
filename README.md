@@ -440,6 +440,24 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## The trailer: show off (#8 to #14)
+
+A one-minute 3D film starring you, for showing friends and family:
+
+- a cold open, then the J.A.R.V.I.S logo assembling from 16,000 particles
+- the core, the team flying past, your city map with the places you go (home shows as "HQ")
+- your week in numbers, a warp-speed jump, and a "STARRING <your name>" finale
+
+JARVIS narrates in his own voice over an original score that's synthesised live: drones, impacts, risers, whooshes
+and a closing chord. There are no copyrighted tracks. It has widescreen bars, film grain, flashes and glitch cuts.
+It only shows safe-to-share things (counts, places, the team), never messages, tasks or money.
+
+- **Phone:** tap **🎬 SHOW OFF** (works in solo mode too). **Laptop:** say "show off mode" or "play the trailer".
+- **⬇ PLAY & SAVE VIDEO** records it while it plays. The laptop keeps it in `data/trailers`, converts it to MP4 when
+  it can, and sends it to your phone on Telegram, ready to post.
+- **Transitions everywhere:** pages open with a holographic iris and scan line, and close the same way.
+- **Boot sequence:** opening the app plays a 2-second reactor ignition with sound and a little vibration. Tap to skip.
+
 ## The phone is the full JARVIS
 
 - **The team:** start with a name ("Friday, …", "Zeus, …") and that agent answers in their own voice, on the laptop

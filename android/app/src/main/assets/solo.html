@@ -108,6 +108,7 @@ h2 span{color:var(--c2);letter-spacing:.1em}
   <button id="labBtn">🌐 HOLO LAB</button>
   <button id="holoBtn">🧪 HOLO SIMS</button>
   <button id="guestBtn">🎭 GUEST</button>
+  <button id="trailerBtn">🎬 SHOW OFF</button>
 </div>
 <div class="cards"><div><small>NEXT</small><b id="cNext">—</b></div><div><small>TASKS</small><b id="cTasks">—</b></div><div><small>TO SYNC</small><b id="cSync">0</b></div></div>
 <h2>CONVERSATION <span id="synced"></span></h2>
@@ -647,6 +648,7 @@ async function showDay(){
   await showRoute({name: "YOUR DAY"}, line, `${r.steps !== "unknown" ? Number(r.steps).toLocaleString() + " steps · " : ""}${r.km_moved} km` + (r.places_in_order.length ? ` · ${r.places_in_order.join(" → ")}` : ""), true);
 }
 $("#dayBtn").onclick = showDay;
+$("#trailerBtn").onclick = () => { location.href = "file:///android_asset/trailer.html?autoplay=1"; };
 $("#labBtn").onclick = () => { location.href = "file:///android_asset/holo.html"; };
 
 // ---------------------------------------------------------------- reactor
@@ -687,4 +689,5 @@ show("JARVIS", PACK.has?.gemini || !N ? "Laptop's out of reach, Sir, so I'm runn
 if (!N?.headless) hereFresh();
 if (new URLSearchParams(location.search).get("talk") === "1") setTimeout(listen, 600);
 </script>
+<script src="file:///android_asset/transitions.js" data-boot defer></script>
 </body></html>

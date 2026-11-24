@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Trailer</title>
+<meta name="theme-color" content="#000000">
+<script src="vendor/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* The JARVIS trailer (#8-#14): a one-minute 3D film starring the owner, with an original score and JARVIS's voice-over.
+   Everything (titles, captions, bars, grain) is drawn into one canvas, so "SAVE VIDEO" records exactly what you see. */
+html,body{margin:0;height:100%;background:#000;overflow:hidden;color:#dce7f2;font-family:"JetBrains Mono",monospace;-webkit-tap-highlight-color:transparent}
+#gl{display:none}
+#out{position:fixed;inset:0;width:100%;height:100%;display:block}
+#start{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,#0c1622,#000 70%);z-index:5;transition:opacity .8s}
+#start.off{opacity:0;pointer-events:none}
+#start .in{text-align:center;display:grid;gap:14px;padding:20px}
+#start b{font:900 clamp(26px,7vw,54px) Orbitron,sans-serif;letter-spacing:.32em;color:#ffd23f;text-shadow:0 0 24px #ffd23f88}
+#start small{font:600 10px Orbitron,sans-serif;letter-spacing:.3em;color:#6d7a8c}
+#start button{font:700 12px Orbitron,sans-serif;letter-spacing:.24em;padding:15px 22px;border-radius:999px;border:1px solid #ffd23f;cursor:pointer;margin:0 auto}
+#play{background:#ffd23f;color:#000;box-shadow:0 0 30px #ffd23f66}
+#rec{background:transparent;color:#ffd23f}
+#status{font-size:11px;color:#8a95a7;min-height:16px}
+#skip{position:fixed;top:max(12px,env(safe-area-inset-top));right:12px;z-index:4;background:rgba(0,0,0,.4);border:1px solid #333;color:#888;font:700 9px Orbitron,sans-serif;letter-spacing:.2em;padding:8px 12px;border-radius:999px;display:none}
+</style></head><body>
+<canvas id="gl"></canvas><canvas id="out"></canvas>
+<button id="skip">✕</button>
+<div id="start"><div class="in">
+  <small>A JARVIS PRODUCTION</small>
+  <b>J.A.R.V.I.S</b>
+  <small>THE TRAILER · TURN YOUR SOUND ON</small>
+  <button id="play">▶ PLAY</button>
+  <button id="rec">⬇ PLAY &amp; SAVE VIDEO</button>
+  <div id="status">Loading your story…</div>
+</div></div>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const N = window.JarvisNative || null;
+const DEMO = {owner: "SIR", team: [["JARVIS", "Chief of staff", "#ffd23f"], ["FRIDAY", "Operations", "#ff5fa2"], ["ZEUS", "Career", "#ff7a3c"], ["ATHENA", "Studies", "#b06bff"],
+  ["ORACLE", "Analyst", "#5fd8ff"], ["STEVE", "Fitness", "#3dff9a"], ["PEPPER", "Business", "#ffb347"], ["VERONICA", "Money", "#ff4d5e"], ["HERALD", "Social", "#8fd3ff"],
+  ["BANNER", "Wellbeing", "#7cffc4"], ["EDITH", "Security", "#c9d3df"], ["SENTINEL", "Watch", "#9aa8ff"]].map(([name, title, color]) => ({name, title, color})),
+  stats: {steps_week: 52440, tasks_done_week: 17, events_week: 12, memories: 64, places_explored: 23, trophies: 5},
+  outline: [[103.615,1.32],[103.64,1.29],[103.68,1.27],[103.72,1.25],[103.76,1.26],[103.8,1.265],[103.84,1.27],[103.86,1.28],[103.88,1.295],[103.92,1.3],[103.96,1.31],[104,1.33],[104.03,1.36],
+    [104.03,1.39],[103.99,1.41],[103.95,1.4],[103.91,1.42],[103.87,1.44],[103.83,1.46],[103.79,1.45],[103.75,1.45],[103.71,1.43],[103.68,1.41],[103.65,1.38],[103.63,1.35],[103.615,1.32]],
+  places: [{name: "HQ", lat: 1.353, lon: 103.944}, {name: "SMU", lat: 1.2966, lon: 103.8502}, {name: "GYM", lat: 1.354, lon: 103.94}], explored: ["TAMPINES", "BUGIS", "ORCHARD"], trail: []};
+let D = DEMO;
+
+// ---------------------------------------------------------------- stage: WebGL scene drawn into a 2D canvas with titles on top
+const GL = $("#gl"), OUT = $("#out"), X = OUT.getContext("2d");
+const R = new THREE.WebGLRenderer({canvas: GL, antialias: true, alpha: false}); R.setClearColor(0x000000);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(50, 1, .1, 600);
+scene.fog = new THREE.FogExp2(0x000000, .012);
+let W = 0, H = 0, DPR = 1;
+function resize(){ DPR = Math.min(1.5, devicePixelRatio || 1); W = Math.round(innerWidth * DPR); H = Math.round(innerHeight * DPR);
+  R.setPixelRatio(1); R.setSize(W, H, false); OUT.width = W; OUT.height = H; cam.aspect = W / H; cam.updateProjectionMatrix(); }
+addEventListener("resize", resize); resize();
+const portrait = () => H > W;
+
+const dot = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.3, "rgba(255,255,255,.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+
+// ---------------------------------------------------------------- the particle swarm, morphing between shapes
+const NP = 16000, pos = new Float32Array(NP * 3), col = new Float32Array(NP * 3), from = new Float32Array(NP * 3), to = new Float32Array(NP * 3), seed = new Float32Array(NP);
+for (let i = 0; i < NP; i++){ seed[i] = Math.random(); const r = 60 + Math.random() * 90, a = Math.random() * 6.283, b = Math.acos(2 * Math.random() - 1);
+  pos.set([r * Math.sin(b) * Math.cos(a), r * Math.cos(b), r * Math.sin(b) * Math.sin(a)], i * 3); col.set([1, .82, .25], i * 3); }
+to.set(pos);
+const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3)); pg.setAttribute("color", new THREE.BufferAttribute(col, 3));
+const pm = new THREE.PointsMaterial({size: .32, map: dot, vertexColors: true, transparent: true, opacity: .95, blending: THREE.AdditiveBlending, depthWrite: false});
+const swarm = new THREE.Points(pg, pm); scene.add(swarm);
+let morph = null, SPIN = .06;   // only round shapes spin; words, the city and the warp hold still
+const still = () => { swarm.rotation.set(0, 0, 0); SPIN = 0; }, spin = v => { SPIN = v; };
+function shape(fn){ for (let i = 0; i < NP; i++){ const p = fn(i, seed[i]); to[i * 3] = p[0]; to[i * 3 + 1] = p[1]; to[i * 3 + 2] = p[2]; } }
+function morphTo(fn, dur, now){ from.set(pos); shape(fn); morph = {t0: now, dur}; }
+function tint(fn){ for (let i = 0; i < NP; i++){ const c = fn(i, seed[i]); col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2]; } pg.attributes.color.needsUpdate = true; }
+const hex = h => { const c = new THREE.Color(h); return [c.r, c.g, c.b]; };
+const sphere = (r) => (i, s) => { const y = 1 - (i / (NP - 1)) * 2, rr = Math.sqrt(1 - y * y), th = i * 2.39996; const k = r * (1 + (s - .5) * .06); return [Math.cos(th) * rr * k, y * k, Math.sin(th) * rr * k]; };
+function textPts(txt, width){
+  const c = document.createElement("canvas"), g = c.getContext("2d"); c.width = 1400; c.height = 300;
+  g.fillStyle = "#fff"; g.font = "900 200px Orbitron, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  let fs = 200; while (g.measureText(txt).width > 1340 && fs > 40){ fs -= 10; g.font = `900 ${fs}px Orbitron, sans-serif`; }
+  g.fillText(txt, 700, 150); const d = g.getImageData(0, 0, 1400, 300).data, out = [];
+  for (let y = 0; y < 300; y += 3) for (let x = 0; x < 1400; x += 3) if (d[(y * 1400 + x) * 4 + 3] > 128) out.push([(x - 700) / 1400 * width, -(y - 150) / 1400 * width]);
+  return out;
+}
+const textShape = (txt, width) => { const pts = textPts(txt, width); return (i, s) => { const p = pts[i % pts.length] || [0, 0]; return [p[0] + (s - .5) * .15, p[1] + ((i * 7.3) % 1 - .5) * .15, (s - .5) * .8]; }; };
+const geoXY = (lon, lat) => [(lon - 103.83) * 95, -(lat - 1.355) * 95];
+function cityShape(){
+  const ol = D.outline.length > 3 ? D.outline : DEMO.outline, edge = [];
+  for (let k = 0; k < ol.length - 1; k++){ const [a, b] = [geoXY(...ol[k]), geoXY(...ol[k + 1])]; for (let t = 0; t < 1; t += .02) edge.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+  const poly = ol.map(p => geoXY(...p)), inside = (x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++){ const [xi, zi] = poly[i], [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
+  const fill = []; while (fill.length < 3000){ const x = (Math.random() - .5) * 46, z = (Math.random() - .5) * 26; if (inside(x, z)) fill.push([x, z]); }
+  const beacons = (D.places || []).map(p => geoXY(p.lon, p.lat));
+  return (i, s) => { if (i < NP * .35){ const e = edge[i % edge.length]; return [e[0], (s - .5) * .2, e[1]]; }
+    if (i < NP * .85 || !beacons.length){ const f = fill[i % fill.length]; return [f[0] + (s - .5) * .3, -.2 + Math.random() * .15, f[1] + (s - .5) * .3]; }
+    const b = beacons[i % beacons.length]; return [b[0] + (s - .5) * .25, s * 9, b[1] + ((i * .37) % 1 - .5) * .25]; };
+}
+const tunnel = (i, s) => { const a = s * 6.283 * 7 + i, r = 7 + (i % 5) * .7; return [Math.cos(a) * r, Math.sin(a) * r, 20 - (i / NP) * 220]; };
+const ringShape = (r) => (i, s) => { const a = (i / NP) * 6.283 * 3, rr = r + Math.sin(i * 12.9898) * 1.2; return [Math.cos(a) * rr, Math.sin(i * 78.233) * .9, Math.sin(a) * rr]; };
+const scatter = (i, s) => { const r = 80 + s * 120, a = s * 999, b = (i * 1.7) % 3.14; return [r * Math.sin(b) * Math.cos(a), r * Math.cos(b), r * Math.sin(b) * Math.sin(a)]; };
+
+// extra props: orbit rings, team cards, beacons, ribbons
+const props = new THREE.Group(); scene.add(props);
+function clearProps(){ while (props.children.length) props.remove(props.children[0]); }
+function ring(r, c, w, rot){ const m = new THREE.Mesh(new THREE.TorusGeometry(r, w, 6, 160, Math.PI * 1.4), new THREE.MeshBasicMaterial({color: c, transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false}));
+  m.rotation.set(...rot); props.add(m); return m; }
+function card(a){ const c = document.createElement("canvas"); c.width = 512; c.height = 160; const g = c.getContext("2d");
+  g.strokeStyle = a.color; g.lineWidth = 4; g.shadowColor = a.color; g.shadowBlur = 18; g.strokeRect(10, 10, 492, 140); g.fillStyle = "rgba(5,10,16,.7)"; g.fillRect(12, 12, 488, 136);
+  g.shadowBlur = 22; g.fillStyle = a.color; g.font = "900 58px Orbitron, sans-serif"; g.fillText(a.name, 34, 84); g.shadowBlur = 0; g.fillStyle = "#c9d6e3"; g.font = "600 26px JetBrains Mono, monospace"; g.fillText(a.title.toUpperCase(), 36, 124);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false})); s.scale.set(6.4, 2, 1); return s; }
+
+// ---------------------------------------------------------------- the score: original, synthesised live (and recorded with the video)
+let AC = null, MASTER = null, REC_DEST = null, REVERB = null;
+function audio(){
+  AC = new (window.AudioContext || window.webkitAudioContext)(); MASTER = AC.createGain(); MASTER.gain.value = .9;
+  const comp = AC.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; MASTER.connect(comp); comp.connect(AC.destination);
+  REC_DEST = AC.createMediaStreamDestination(); comp.connect(REC_DEST);
+  REVERB = AC.createConvolver(); const len = AC.sampleRate * 3.2, ir = AC.createBuffer(2, len, AC.sampleRate);
+  for (let c = 0; c < 2; c++){ const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+  REVERB.buffer = ir; const rv = AC.createGain(); rv.gain.value = .45; REVERB.connect(rv); rv.connect(MASTER);
+}
+const out = (node, wet = .4) => { node.connect(MASTER); if (wet){ const g = AC.createGain(); g.gain.value = wet; node.connect(g); g.connect(REVERB); } };
+function env(g, t, a, peak, d, end){ g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(.0001, t + a + d); if (end) g.gain.setValueAtTime(0, end); }
+function noiseBuf(sec){ const b = AC.createBuffer(1, AC.sampleRate * sec, AC.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return b; }
+const SFX = {
+  drone(t, dur, f = 55){ [f, f * 1.5, f * 2.01].forEach((fr, k) => { const o = AC.createOscillator(), g = AC.createGain(), lp = AC.createBiquadFilter(); o.type = "sawtooth"; o.frequency.value = fr; o.detune.value = (k - 1) * 7;
+    lp.type = "lowpass"; lp.frequency.setValueAtTime(180, t); lp.frequency.linearRampToValueAtTime(900, t + dur * .8); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.07 / (k + 1), t + 3); g.gain.linearRampToValueAtTime(0, t + dur);
+    o.connect(lp); lp.connect(g); out(g, .5); o.start(t); o.stop(t + dur + .1); }); },
+  braam(t, big = 1){ [36.7, 41.2, 55, 73.4].forEach((fr, k) => { const o = AC.createOscillator(), g = AC.createGain(), lp = AC.createBiquadFilter(), sh = AC.createWaveShaper();
+    const curve = new Float32Array(256); for (let i = 0; i < 256; i++){ const x = i / 128 - 1; curve[i] = Math.tanh(x * 3); } sh.curve = curve;
+    o.type = "sawtooth"; o.frequency.setValueAtTime(fr, t); o.frequency.exponentialRampToValueAtTime(fr * .97, t + 3); lp.type = "lowpass"; lp.frequency.setValueAtTime(200, t); lp.frequency.exponentialRampToValueAtTime(1600 * big, t + .25); lp.frequency.exponentialRampToValueAtTime(220, t + 3.5);
+    env(g, t, .04, .22 * big / (1 + k * .3), 3.8); o.connect(sh); sh.connect(lp); lp.connect(g); out(g, .6); o.start(t); o.stop(t + 4.2); }); SFX.hit(t, 1.4 * big); },
+  hit(t, k = 1){ const o = AC.createOscillator(), g = AC.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(38, t + .35); env(g, t, .005, .9 * k, .5); o.connect(g); out(g, .3); o.start(t); o.stop(t + .7);
+    const n = AC.createBufferSource(), ng = AC.createGain(), hp = AC.createBiquadFilter(); n.buffer = noiseBuf(.5); hp.type = "highpass"; hp.frequency.value = 900; env(ng, t, .002, .35 * k, .25); n.connect(hp); hp.connect(ng); out(ng, .5); n.start(t); },
+  riser(t, dur){ const n = AC.createBufferSource(), bp = AC.createBiquadFilter(), g = AC.createGain(); n.buffer = noiseBuf(dur + .2); bp.type = "bandpass"; bp.Q.value = 4;
+    bp.frequency.setValueAtTime(200, t); bp.frequency.exponentialRampToValueAtTime(6000, t + dur); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.35, t + dur); g.gain.setValueAtTime(0, t + dur + .02);
+    n.connect(bp); bp.connect(g); out(g, .5); n.start(t); n.stop(t + dur + .1);
+    const o = AC.createOscillator(), og = AC.createGain(); o.type = "sine"; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(880, t + dur); og.gain.setValueAtTime(.0001, t); og.gain.exponentialRampToValueAtTime(.08, t + dur); og.gain.setValueAtTime(0, t + dur);
+    o.connect(og); out(og, .4); o.start(t); o.stop(t + dur + .05); },
+  whoosh(t, dur = .8){ const n = AC.createBufferSource(), bp = AC.createBiquadFilter(), g = AC.createGain(); n.buffer = noiseBuf(dur); bp.type = "bandpass"; bp.Q.value = 2;
+    bp.frequency.setValueAtTime(400, t); bp.frequency.exponentialRampToValueAtTime(3500, t + dur * .5); bp.frequency.exponentialRampToValueAtTime(500, t + dur); env(g, t, dur * .45, .5, dur * .5); n.connect(bp); bp.connect(g); out(g, .5); n.start(t); },
+  tick(t, f = 1800){ const o = AC.createOscillator(), g = AC.createGain(); o.type = "square"; o.frequency.value = f; env(g, t, .001, .08, .05); o.connect(g); out(g, .2); o.start(t); o.stop(t + .08); },
+  chord(t, dur){ [130.8, 196, 261.6, 329.6, 392].forEach((f, k) => { const o = AC.createOscillator(), g = AC.createGain(); o.type = k % 2 ? "triangle" : "sawtooth"; o.frequency.value = f; o.detune.value = (k - 2) * 4;
+    const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.05, t + 1.2); g.gain.linearRampToValueAtTime(0, t + dur);
+    o.connect(lp); lp.connect(g); out(g, .7); o.start(t); o.stop(t + dur + .1); }); },
+  pulse(t, n, gap){ for (let i = 0; i < n; i++) SFX.hit(t + i * gap, .35 + i / n * .4); },
+};
+
+// ---------------------------------------------------------------- JARVIS's voice-over
+let VO = [];
+const voLines = () => [
+  [1.2, "Every hero needs someone watching their back."],
+  [15.2, "Twelve minds. One mission. You."],
+  [21.4, "Meet the team."],
+  [28.4, "It knows your city. Every street you've conquered."],
+  [37.2, "It remembers everything, so you don't have to."],
+  [45.2, "And it sees what's coming."],
+  [55.6, D.owner && D.owner !== "SIR" ? `All systems online, ${D.owner}. Shall we begin?` : "All systems online, Sir. Shall we begin?"],
+];
+async function loadVoice(){
+  const lines = voLines(); if (location.protocol === "file:") { VO = lines.map(([t, s]) => ({t, s, buf: null})); return; }
+  VO = await Promise.all(lines.map(async ([t, s]) => { try { const r = await fetch("/api/tts", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent: "JARVIS", text: "[proud] " + s})});
+    if (!r.ok) throw 0; return {t, s, buf: await AC.decodeAudioData(await r.arrayBuffer())}; } catch { return {t, s, buf: null}; } }));
+}
+function sayAt(v, t0){
+  if (v.buf){ const src = AC.createBufferSource(), g = AC.createGain(); src.buffer = v.buf; g.gain.value = 1.25; src.connect(g); out(g, .12); src.start(t0 + v.t); return; }
+  setTimeout(() => { try { if (N?.speak && N.ttsAvailable?.()) N.speak("vo" + v.t, v.s, .9, .95); else { const u = new SpeechSynthesisUtterance(v.s); u.lang = "en-GB"; u.rate = .95; u.pitch = .85; speechSynthesis.speak(u); } } catch {} }, v.t * 1000);
+}
+
+// ---------------------------------------------------------------- titles and effects (drawn on the canvas, so they're in the video)
+let FX = {title: "", sub: "", cap: "", flash: 0, glitch: 0, bars: 0, fade: 1, counters: null, small: ""};
+const titleAt = (title, sub = "") => { FX.title = title; FX.sub = sub; FX.titleT = performance.now(); };
+const grain = (() => { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256);
+  for (let i = 0; i < im.data.length; i += 4){ const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 22; } g.putImageData(im, 0, 0); return c; })();
+function draw2d(now){
+  X.globalCompositeOperation = "source-over"; X.globalAlpha = 1;
+  if (FX.glitch > .02){ const sl = 14; for (let i = 0; i < sl; i++){ const y = i * H / sl, off = (Math.random() - .5) * W * .06 * FX.glitch; X.drawImage(GL, 0, y, W, H / sl, off, y, W, H / sl); }
+    X.globalCompositeOperation = "lighter"; X.globalAlpha = .35 * FX.glitch; X.drawImage(GL, 8 * FX.glitch * DPR, 0); X.globalAlpha = 1; X.globalCompositeOperation = "source-over"; }
+  else X.drawImage(GL, 0, 0);
+  // vignette
+  const vg = X.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .3, W / 2, H / 2, Math.max(W, H) * .75); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.7)"); X.fillStyle = vg; X.fillRect(0, 0, W, H);
+  // grain + scanlines
+  X.save(); X.translate(-Math.random() * 256, -Math.random() * 256); X.fillStyle = X.createPattern(grain, "repeat"); X.fillRect(0, 0, W + 256, H + 256); X.restore();
+  const u = Math.min(W, H) / 100;
+  // title card
+  if (FX.title){ const age = (now - FX.titleT) / 1000, a = Math.min(1, age * 2.2) * (FX.titleOut ? Math.max(0, 1 - (now - FX.titleOut) / 400) : 1);
+    X.save(); X.globalAlpha = a; X.textAlign = "center"; X.fillStyle = FX.titleColor || "#ffd23f"; X.shadowColor = FX.titleColor || "#ffd23f"; X.shadowBlur = 24 * DPR;
+    const track = (s2) => s2.split("").join(String.fromCharCode(8202));
+    let size = Math.min(W * .085, u * (portrait() ? 8 : 9)) * (FX.big || 1); X.font = `900 ${size}px Orbitron, sans-serif`;
+    while (X.measureText(track(FX.title)).width > W * .9 && size > 8){ size *= .92; X.font = `900 ${size}px Orbitron, sans-serif`; } X.fillText(track(FX.title), W / 2, H * (FX.titleY || .5) + size * .35);
+    if (FX.sub){ X.shadowBlur = 0; X.fillStyle = "#c9d6e3"; X.font = `600 ${Math.max(11 * DPR, size * .22)}px JetBrains Mono, monospace`; X.fillText(FX.sub, W / 2, H * (FX.titleY || .5) + size * 1.15); }
+    X.restore(); }
+  // counters
+  if (FX.counters){ const list = FX.counters, rows = list.length, sz = u * (portrait() ? 6.4 : 5.2); X.save(); X.textAlign = "center";
+    list.forEach((c, i) => { const k = Math.min(1, Math.max(0, (now - c.t0) / 1300)), e = 1 - Math.pow(1 - k, 3), v = Math.round(c.v * e), y = H * .5 + (i - (rows - 1) / 2) * sz * 2.1;
+      X.globalAlpha = Math.min(1, k * 3); X.fillStyle = c.color; X.shadowColor = c.color; X.shadowBlur = 20 * DPR; X.font = `900 ${sz}px Orbitron, sans-serif`; X.fillText(v.toLocaleString(), W / 2, y);
+      X.shadowBlur = 0; X.fillStyle = "#9fb0c3"; X.font = `600 ${sz * .3}px Orbitron, sans-serif`; X.fillText(c.label, W / 2, y + sz * .55); }); X.restore(); }
+  // letterbox bars
+  const bh = H * .1 * FX.bars; X.fillStyle = "#000"; X.fillRect(0, 0, W, bh); X.fillRect(0, H - bh, W, bh);
+  // captions (the voice-over)
+  if (FX.cap){ X.save(); X.textAlign = "center"; X.font = `600 ${Math.max(13 * DPR, u * 2.4)}px JetBrains Mono, monospace`; X.fillStyle = "#fff"; X.shadowColor = "#000"; X.shadowBlur = 8;
+    wrap(FX.cap, W * .86).forEach((ln, i, all) => X.fillText(ln, W / 2, H - bh - u * 3 - (all.length - 1 - i) * u * 3.2)); X.restore(); }
+  if (FX.small){ X.save(); X.textAlign = "left"; X.font = `700 ${Math.max(9 * DPR, u * 1.3)}px Orbitron, sans-serif`; X.fillStyle = "#6d7a8c"; X.fillText(FX.small, u * 3, bh + u * 4); X.restore(); }
+  // flash + fade
+  if (FX.flash > .01){ X.fillStyle = `rgba(255,255,255,${FX.flash})`; X.fillRect(0, 0, W, H); }
+  if (FX.fade > .01){ X.fillStyle = `rgba(0,0,0,${FX.fade})`; X.fillRect(0, 0, W, H); }
+}
+function wrap(s, max){ const words = s.split(" "), lines = []; let cur = ""; words.forEach(w => { const t = cur ? cur + " " + w : w; if (X.measureText(t).width > max && cur){ lines.push(cur); cur = w; } else cur = t; }); if (cur) lines.push(cur); return lines; }
+
+// ---------------------------------------------------------------- the film
+const team = () => (D.team && D.team.length ? D.team : DEMO.team).slice(0, 12);
+let T0 = 0, AT0 = 0, playing = false, camPath = null, cues = [], done = false;
+const ease = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+function at(sec, fn){ cues.push({sec, fn, fired: false}); }
+function camTo(p, look, dur, now, fit = true){ const k = fit && portrait() ? 1.6 : 1; camPath = {from: cam.position.clone(), to: new THREE.Vector3(...p).multiplyScalar(k), lf: (camPath ? camPath.look.clone() : new THREE.Vector3()), look: new THREE.Vector3(...look), t0: now, dur}; }
+function film(){
+  cues = [];
+  const goldish = (i, s) => { const k = s; return [1, .7 + k * .25, .2 + k * .3]; };
+  // ACT 0 · cold open
+  at(0, now => { FX.fade = 1; tint((i, s) => [.5 + s * .5, .6 + s * .3, 1]); cam.position.set(0, 0, 60); camPath = null; cam.lookAt(0, 0, 0); morphTo((i, s) => { const p = scatter(i, s); return [p[0] * .5, p[1] * .5, p[2] * .5]; }, 6, now); });
+  at(.3, () => { FX.bars = 1; });
+  at(1.2, () => { FX.cap = VO[0]?.s || ""; });
+  at(5.5, () => { FX.cap = ""; });
+  // ACT 1 · the name
+  at(6, now => { morphTo((i, s) => { const a = s * 30 + i * .01, r = 4 + s * 30; return [Math.cos(a) * r, (s - .5) * 6, Math.sin(a) * r]; }, 3, now); tint(goldish); camTo([0, 6, 40], [0, 0, 0], 3, now); });
+  at(9, now => { FX.flash = 1; FX.glitch = 1; still(); morphTo(textShape("J.A.R.V.I.S", portrait() ? 22 : 34), 1.4, now); camTo([0, 0, portrait() ? 46 : 32], [0, 0, 0], 4, now, false); });
+  at(10.6, () => { FX.titleY = portrait() ? .66 : .7; FX.big = .45; FX.titleColor = "#9fb0c3"; titleAt("JUST A RATHER VERY INTELLIGENT SYSTEM"); });
+  at(13.6, now => { FX.titleOut = now; });
+  // ACT 2 · the system (the core)
+  at(14, now => { FX.title = ""; FX.titleOut = 0; FX.big = 1; FX.titleY = .5; FX.titleColor = ""; FX.glitch = .8; spin(.12); morphTo(sphere(5), 1.6, now); tint((i, s) => s > .85 ? [.37, .85, 1] : [1, .75 + s * .2, .25]);
+    clearProps(); ring(8, 0xffd23f, .05, [1.1, .3, 0]); ring(9.4, 0x5fd8ff, .025, [-.5, .8, .2]); ring(10.8, 0xffd23f, .08, [.2, -.4, .9]); camTo([0, 4, 26], [0, 0, 0], 6, now); });
+  at(15.2, () => { FX.cap = VO[1]?.s || ""; FX.small = "SYSTEM · MARK IV"; });
+  at(19.6, () => { FX.cap = ""; });
+  // ACT 3 · the team
+  at(20, now => { FX.glitch = .6; spin(.05); morphTo(ringShape(15), 1.6, now); clearProps(); FX.small = "THE TEAM";
+    team().forEach((a, k) => { const c = card(a), ang = k / team().length * Math.PI * 2; c.userData = {ang, k}; c.position.set(Math.cos(ang) * 15, 0, Math.sin(ang) * 15); c.material.opacity = 0; props.add(c); });
+    camTo([0, 7, 30], [0, 0, 0], 7, now); });
+  at(21.4, () => { FX.cap = VO[2]?.s || ""; });
+  for (let k = 0; k < 12; k++) at(21.6 + k * .4, () => { const c = props.children.find(p => p.userData?.k === k); if (c){ c.userData.on = performance.now(); } if (AC) SFX.tick(AC.currentTime, 1400 + k * 80); });
+  at(26.4, () => { FX.cap = ""; });
+  // ACT 4 · your city
+  at(27, now => { FX.flash = .7; clearProps(); still(); morphTo(cityShape(), 2, now); tint((i, s) => i > NP * .85 ? [1, .82, .25] : i < NP * .35 ? [.37, .85, 1] : [.2 + s * .2, .45 + s * .3, .7]);
+    cam.position.set(0, portrait() ? 70 : 40, 4); camTo(portrait() ? [0, 30, 26] : [0, 16, 22], [0, 0, 0], 8, now, false); FX.small = "YOUR CITY";
+    (D.places || []).slice(0, 8).forEach(p => { const [x, z] = geoXY(p.lon, p.lat); const beam = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, 12, 6), new THREE.MeshBasicMaterial({color: 0xffd23f, transparent: true, opacity: .6, blending: THREE.AdditiveBlending, depthWrite: false}));
+      beam.position.set(x, 6, z); props.add(beam); const lab = card({name: p.name.slice(0, 10), title: "LOCATED", color: "#ffd23f"}); lab.scale.set(3.2, 1, 1); lab.position.set(x, 12.8, z); props.add(lab); }); });
+  at(28.4, () => { FX.cap = VO[3]?.s || ""; });
+  at(32.5, () => { FX.counters = [{v: (D.stats || {}).places_explored || 0, label: "PLACES EXPLORED", color: "#5fd8ff", t0: performance.now()}]; FX.countersY = .25; });
+  at(35.4, () => { FX.cap = ""; FX.counters = null; });
+  // ACT 5 · the numbers
+  at(36, now => { FX.glitch = .9; clearProps(); spin(.08); morphTo(ringShape(portrait() ? 13 : 18), 1.5, now); tint((i, s) => hex(["#ffd23f", "#5fd8ff", "#3dff9a", "#b06bff"][i % 4]).map(v => v * (.6 + s * .4)));
+    camTo([0, 2, portrait() ? 44 : 34], [0, 0, 0], 8, now, false); FX.small = "THIS WEEK"; const st = D.stats || {}, t = performance.now();
+    FX.counters = [{v: st.steps_week || 0, label: "STEPS", color: "#3dff9a", t0: t}, {v: st.tasks_done_week || 0, label: "TASKS CRUSHED", color: "#ffd23f", t0: t + 700},
+                   {v: st.memories || 0, label: "MEMORIES KEPT", color: "#b06bff", t0: t + 1400}]; });
+  for (let k = 0; k < 3; k++) at(36.2 + k * .7, () => AC && SFX.hit(AC.currentTime, .5));
+  at(37.2, () => { FX.cap = VO[4]?.s || ""; });
+  at(43.4, () => { FX.cap = ""; FX.counters = null; });
+  // ACT 6 · the future (warp)
+  at(44, now => { FX.flash = .5; FX.small = "WHAT'S NEXT"; still(); morphTo(tunnel, 1.2, now); tint((i, s) => hex(["#ffd23f", "#5fd8ff", "#ff5fa2", "#3dff9a"][i % 4])); cam.position.set(0, 0, 30); camPath = {warp: true, t0: now};
+    clearProps(); const n = 900, g = new THREE.BufferGeometry(), v = new Float32Array(n * 6), c = new Float32Array(n * 6), cols = ["#ffd23f", "#5fd8ff", "#ff5fa2", "#3dff9a", "#ffffff"].map(hex);
+    for (let i = 0; i < n; i++){ const a = Math.random() * 6.283, r = 3 + Math.random() * 10, z = 30 - Math.random() * 260, len = 4 + Math.random() * 16, cc = cols[i % cols.length];
+      v.set([Math.cos(a) * r, Math.sin(a) * r, z, Math.cos(a) * r, Math.sin(a) * r, z - len], i * 6); c.set([...cc, ...cc.map(x => x * .1)], i * 6); }
+    g.setAttribute("position", new THREE.BufferAttribute(v, 3)); g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+    props.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({vertexColors: true, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false}))); });
+  at(45.2, () => { FX.cap = VO[5]?.s || ""; });
+  at(49.4, () => { FX.cap = ""; });
+  // FINALE · starring you
+  at(50, now => { camPath = null; FX.flash = 1; FX.glitch = 1; FX.small = ""; still(); clearProps(); cam.position.set(0, 0, 40); cam.lookAt(0, 0, 0); morphTo(sphere(3), .8, now); tint(goldish); });
+  at(50.6, now => { FX.titleY = .2; FX.big = .4; FX.titleColor = "#9fb0c3"; titleAt("STARRING"); morphTo(textShape(String(D.owner || "SIR").toUpperCase().slice(0, 14), portrait() ? 20 : 30), 1.6, now); camTo([0, 0, portrait() ? 40 : 30], [0, 0, 0], 4, now, false); });
+  at(54.6, now => { FX.titleOut = now; });
+  at(55, now => { FX.title = ""; FX.titleOut = 0; FX.flash = .9; spin(.12); morphTo(sphere(4.5), 1.2, now); tint((i, s) => s > .9 ? [.37, .85, 1] : [1, .78, .25]);
+    clearProps(); ring(7.5, 0xffd23f, .06, [1.2, .2, 0]); ring(8.8, 0x5fd8ff, .03, [-.4, .9, .1]); camTo([0, 1, 24], [0, 0, 0], 6, now); });
+  at(55.6, () => { FX.cap = VO[6]?.s || ""; });
+  at(58.6, () => { FX.cap = ""; FX.titleY = portrait() ? .8 : .82; FX.big = .62; FX.titleColor = "#ffd23f"; titleAt("JARVIS · MARK IV", "ALWAYS ONLINE"); });
+  at(64, () => { FX.fadeOut = performance.now(); });
+  at(66.5, () => finish());
+}
+function scoreAt(t0){
+  SFX.drone(t0 + .2, 14, 41.2); SFX.pulse(t0 + 2, 4, .9); SFX.riser(t0 + 6, 3); SFX.braam(t0 + 9);
+  SFX.drone(t0 + 13.6, 22, 55); SFX.whoosh(t0 + 13.8); SFX.hit(t0 + 14, .8); SFX.whoosh(t0 + 19.8); SFX.hit(t0 + 27, 1.1); SFX.riser(t0 + 24.4, 2.6);
+  SFX.drone(t0 + 26.8, 18, 49); SFX.whoosh(t0 + 35.8); SFX.riser(t0 + 41, 3); SFX.whoosh(t0 + 44, 1.6); SFX.pulse(t0 + 44.2, 8, .7);
+  SFX.riser(t0 + 47.4, 2.6); SFX.braam(t0 + 50, 1.3); SFX.hit(t0 + 55, 1); SFX.chord(t0 + 55, 11); SFX.drone(t0 + 50, 16, 36.7);
+  VO.forEach(v => sayAt(v, t0));
+}
+
+// ---------------------------------------------------------------- frame loop
+let last = 0;
+function frame(nowMs){
+  const now = nowMs, dt = Math.min(.05, Math.max(0, (now - last) / 1000)); last = now;
+  if (playing){
+    const sec = (now - T0) / 1000;
+    cues.forEach(c => { if (!c.fired && sec >= c.sec){ c.fired = true; c.fn(now); } });
+    if (FX.fadeOut) FX.fade = Math.min(1, (now - FX.fadeOut) / 2400); else FX.fade = Math.max(0, FX.fade - dt * .6);
+  }
+  if (morph){ const k = Math.min(1, (now - morph.t0) / 1000 / morph.dur), e = ease(k);
+    for (let i = 0; i < NP * 3; i++) pos[i] = from[i] + (to[i] - from[i]) * e;
+    if (k >= 1) morph = null; }
+  else { const t = now / 1000; for (let i = 0; i < NP; i += 1){ const j = i * 3; pos[j + 1] = to[j + 1] + Math.sin(t * 1.3 + seed[i] * 40) * .05; } }
+  pg.attributes.position.needsUpdate = true;
+  swarm.rotation.y += dt * SPIN;
+  props.children.forEach(p => { if (p.isMesh && p.geometry.type === "TorusGeometry") p.rotation.z += dt * .6;
+    if (p.isSprite && p.userData.ang != null){   // each agent's card flies at the camera, then past it
+      if (!p.userData.on){ p.material.opacity = 0; return; }
+      const k = (now - p.userData.on) / 950, alt = p.userData.k % 2 ? 1 : -1, cp = cam.position, dir = new THREE.Vector3(); cam.getWorldDirection(dir);
+      const near = portrait() ? 19 : 11, d = 46 - (46 - near) * (1 - Math.pow(1 - Math.min(1, k), 3)), c = cp.clone().add(dir.multiplyScalar(d));
+      p.position.set(c.x + (portrait() ? 0 : alt * 3.2), c.y + (portrait() ? alt * 2.4 : alt * .6), c.z);
+      p.scale.set(6.4, 2, 1); p.material.opacity = k < .2 ? k / .2 : k > .75 ? Math.max(0, (1 - k) / .25) : 1; } });
+  if (camPath){
+    if (camPath.warp){ cam.position.z -= dt * 38; cam.position.x = Math.sin(now / 900) * 1.2; cam.lookAt(cam.position.x * .5, 0, cam.position.z - 30); }
+    else { const k = Math.min(1, (now - camPath.t0) / 1000 / camPath.dur), e = ease(k); cam.position.lerpVectors(camPath.from, camPath.to, e); const l = camPath.lf.clone().lerp(camPath.look, e); cam.lookAt(l); }
+  }
+  FX.flash *= Math.pow(.02, dt); FX.glitch *= Math.pow(.01, dt);
+  R.render(scene, cam); draw2d(now);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------------------------------------------------------------- start, record, finish
+let recorder = null, chunks = [];
+async function begin(record){
+  if (!AC) audio(); await AC.resume();
+  $("#status").textContent = "Warming up the voice…"; await loadVoice();
+  try { await document.fonts.load("900 60px Orbitron"); } catch {}
+  $("#start").classList.add("off"); $("#skip").style.display = "block";
+  if (record){ try { const s = OUT.captureStream(30); REC_DEST.stream.getAudioTracks().forEach(t => s.addTrack(t));
+      const type = ["video/mp4;codecs=avc1,mp4a", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find(t => window.MediaRecorder?.isTypeSupported?.(t));
+      recorder = new MediaRecorder(s, {mimeType: type, videoBitsPerSecond: 8e6}); chunks = []; recorder.ondataavailable = e => e.data.size && chunks.push(e.data); recorder.start(500); } catch { recorder = null; } }
+  FX = {title: "", sub: "", cap: "", flash: 0, glitch: 0, bars: 0, fade: 1, counters: null, small: ""};
+  film(); T0 = performance.now(); AT0 = AC.currentTime + .05; scoreAt(AT0); playing = true; done = false;
+  try { navigator.vibrate?.([30, 60, 30]); } catch {}
+}
+async function finish(){
+  if (done) return; done = true; playing = false; $("#skip").style.display = "none";
+  if (recorder){ const r = recorder; recorder = null; await new Promise(res => { r.onstop = res; r.stop(); });
+    const blob = new Blob(chunks, {type: r.mimeType}); $("#status").textContent = "Saving your trailer…";
+    let msg = "";
+    if (location.protocol !== "file:"){ try { const d = await (await fetch("/api/trailer/video", {method: "POST", headers: {"Content-Type": r.mimeType}, body: blob})).json();
+        msg = d.sent ? "Saved, and sent to your phone on Telegram, Sir." : "Saved on the laptop (data/trailers)."; } catch { msg = ""; } }
+    if (!msg && !N){ const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "jarvis-trailer." + (r.mimeType.includes("mp4") ? "mp4" : "webm"); a.click(); msg = "Downloaded."; }
+    $("#status").textContent = msg || "Couldn't save this time, Sir.";
+  } else $("#status").textContent = "";
+  $("#play").textContent = "↻ PLAY AGAIN"; $("#start").classList.remove("off");
+}
+$("#play").onclick = () => begin(false);
+$("#rec").onclick = () => begin(true);
+$("#skip").onclick = () => { try { AC.suspend().then(() => AC.resume()); speechSynthesis.cancel(); } catch {} FX.fadeOut = performance.now() - 2400; setTimeout(finish, 50); if (AC){ MASTER.gain.setValueAtTime(0, AC.currentTime); setTimeout(() => MASTER.gain.setValueAtTime(.9, AC.currentTime), 400); } };
+
+// your story
+(async () => {
+  try {
+    if (location.protocol === "file:" && N?.soloPack){ const p = JSON.parse(N.soloPack()), h = p.holo || {};
+      D = {...DEMO, owner: (p.owner && p.owner !== "Sir") ? p.owner : "SIR", team: (p.team || []).length ? p.team : DEMO.team, outline: h.outline || DEMO.outline,
+           places: Object.entries(p.places || {}).map(([k, v]) => ({name: /^(home|hq|house)$/i.test(k) ? "HQ" : k.toUpperCase(), lat: v[0], lon: v[1]})),
+           stats: {...DEMO.stats, steps_week: (h.steps?.week || []).reduce((a, b) => a + b, 0), memories: (p.memories || []).length, places_explored: (h.explored || []).length, tasks_done_week: 0}}; }
+    else { const r = await fetch("/api/trailer"); if (r.ok) D = {...DEMO, ...(await r.json())}; }
+    $("#status").textContent = `Starring ${D.owner === "SIR" ? "you" : D.owner}. Ready when you are.`;
+  } catch { $("#status").textContent = "Ready."; }
+  if (new URLSearchParams(location.search).get("autoplay") === "1") setTimeout(() => $("#play").click(), 400);
+})();
+</script>
+</body></html>

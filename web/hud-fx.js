@@ -553,7 +553,16 @@ function burst(){ if(!SEASON || reduce) return; const box = $("#seasonFx"); [...
 (async () => { try { applySeason((await (await fetch("/api/season")).json()).season); } catch {} })();
 // ------------------------------------------------------------------ the showreel: every cinematic, back to back, with sound
 let cinemaOn = false;
-async function cinema(){
+// The trailer (#8): full screen over the dashboard; the old showreel stays as a fallback.
+function trailer(){
+  if(document.getElementById("hudTrailer")) return;
+  const f = document.createElement("iframe"); f.id = "hudTrailer"; f.src = "/trailer.html?autoplay=1"; f.allow = "autoplay; fullscreen";
+  f.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0;z-index:9990;background:#000";
+  const x = document.createElement("button"); x.textContent = "✕ CLOSE"; x.style.cssText = "position:fixed;top:12px;left:12px;z-index:9991;background:rgba(0,0,0,.6);color:#ffd23f;border:1px solid #ffd23f;font:700 10px Orbitron,sans-serif;letter-spacing:.2em;padding:8px 12px;border-radius:999px;cursor:pointer";
+  x.onclick = () => { f.remove(); x.remove(); }; document.body.append(f, x);
+}
+function cinema(){ trailer(); }
+async function showreel(){   // the older showreel, kept for reference
   if(cinemaOn) return; cinemaOn = true; ctx();
   const big = $("#hudExpo"), card = async (t, ms = 1800) => { big.textContent = t; big.classList.add("on"); SFX.boom(); await wait(ms); big.classList.remove("on"); await wait(400); };
   try {
