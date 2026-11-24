@@ -512,7 +512,7 @@ async function refresh(){
         <div class="acts"><button class="btn" data-sg="${g.id}" data-op="${i}">Send ${"ABCD"[i]}</button></div>`).join("")}
       <textarea id="sg-${g.id}" placeholder="…or write your own reply" aria-label="Your own reply"></textarea>
       <div class="acts"><button class="btn" data-sgown="${g.id}">Send mine</button><button class="btn no" data-sgno="${g.id}">Ignore</button></div></div>`).join("") : "";
-  const who = m => m.channel === "computer" ? "⌘ Run on laptop" : `${m.channel === "email" ? "✉ Email" : "💬 WhatsApp"} → ${esc(m.recipient_name || m.recipient)}`;
+  const who = m => m.channel === "computer" ? "⌘ Run on laptop" : `${({email: "✉ Email", telegram: "✈ Telegram", sms: "📱 SMS"})[m.channel] || "💬 WhatsApp"} → ${esc(m.recipient_name || m.recipient)}`;
   if(!$("#p-outbox").contains(document.activeElement)) $("#p-outbox").innerHTML = propHtml + suggHtml + `<div class="h">Waiting for your OK</div>` + (pend.length ? pend.map(m => `<div class="item"><div class="t">${who(m)}</div>
       <div class="s"><span class="tag" style="color:${AGENTS[m.agent]?.color}">${m.agent}</span>#${m.id}${m.send_at ? " · scheduled "+fmt(m.send_at) : ""}</div>
       ${m.subject ? `<div class="s">Subject: ${esc(m.subject)}</div>` : ""}

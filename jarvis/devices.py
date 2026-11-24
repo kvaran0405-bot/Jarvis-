@@ -129,7 +129,12 @@ def write_file(name: str, content: str) -> str:
 
 def run_command(command: str, timeout: int = 120) -> str:
     """Only ever called after the owner approved the command."""
-    proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout, cwd=HOME)
+    if SYSTEM == "Windows":   # PowerShell: what agents write, and it understands most old cmd commands too
+        args = ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command]
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=timeout, cwd=HOME,
+                              creationflags=0x08000000)   # no console window popping up
+    else:
+        proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout, cwd=HOME)
     out = (proc.stdout + ("\n" + proc.stderr if proc.stderr else "")).strip()
     return f"exit code {proc.returncode}\n{out[-4000:]}"
 

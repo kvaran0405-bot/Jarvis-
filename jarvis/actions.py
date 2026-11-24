@@ -50,7 +50,7 @@ def _queue(ctx: ToolContext, channel: str, to: str, body: str, *, subject: str =
     if channel == "computer":
         address, name = "this laptop", "this laptop"
     elif channel == "telegram":
-        address, name = "owner", "you (Telegram)"
+        address, name = "owner", "you"
     else:
         address, name = _resolve(ctx, channel, to)
     when = _parse_when(ctx, send_at)
@@ -304,7 +304,8 @@ def send_file_to_phone(ctx: ToolContext, path: str, caption: str = "") -> dict:
     return {"sent_via": via} if via else {"error": "No phone channel connected (Telegram or WhatsApp)"}
 
 
-@tool("run_on_laptop", "Run a terminal command on the owner's laptop. ALWAYS waits for the owner's approval first; "
+@tool("run_on_laptop", "Run a terminal command on the owner's laptop (Windows: it runs in PowerShell, so use "
+      "PowerShell commands like Get-ChildItem, Select-String). ALWAYS waits for the owner's approval first; "
       "you get the output after they approve (see list_outbox). Explain clearly what it does in 'reason'.",
       {"command": S, "reason": S}, ["command", "reason"])
 def run_on_laptop(ctx: ToolContext, command: str, reason: str) -> dict:
