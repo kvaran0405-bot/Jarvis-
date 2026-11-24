@@ -739,8 +739,20 @@ def split_agent(direct: str) -> tuple[str, str]:
     return (m.group(1), direct[m.end():]) if m and m.group(1) in AGENTS else ("JARVIS", direct)
 
 
+def natural(text: str) -> str:
+    """Forgive natural wording around a command: quotes copied from the tutorial, "please", "can you…",
+    "for me", "thanks". "Jarvis, can you preview the Christmas skin please" -> "Jarvis, preview the Christmas skin"."""
+    t = (text or "").strip().strip("“”\"'‘’` ").strip()
+    t = re.sub(r"^((?:(?:hey|ok|okay|yo)\s+)?(?:jarvis[,\s]+)?)(?:(?:can|could|would|will) you\s+|pls\s+|please\s+|kindly\s+)+",
+               r"\1", t, flags=re.I)
+    t = re.sub(r"(?:[\s,]+(?:please|pls|for me|thanks|thank you|lah|leh))+\s*([.!?]*)$", r"\1", t, flags=re.I)
+    t = re.sub(r"\?$", "", t) if re.match(r"^\s*(?:jarvis[,\s]+)?(?:preview|show|open|plan|switch|start|run|turn)", t, re.I) else t
+    return t.strip().strip("“”\"'‘’` ").strip()
+
+
 def special(text: str) -> tuple[str | None, str | None, str | None]:
     """(direct reply, agent, prompt) for phrases with a special meaning, else (None, None, None)."""
+    text = natural(text)
     from .tools import ToolContext as _TC, execute as _exec
     if HOME_RE.match(text):
         return None, "JARVIS", welcome_prompt()

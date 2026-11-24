@@ -25,3 +25,15 @@ def test_hear_endpoint(monkeypatch):
     assert c.post("/api/hear", content=b"").status_code == 400
     v = c.get("/api/voices").json()
     assert v["speech_lang"] == "en-SG" and v["hear"] is True
+
+
+def test_commands_forgive_natural_wording():
+    from jarvis import server
+    n = server.natural
+    assert n("“preview the Christmas skin”") == "preview the Christmas skin"
+    assert n("Jarvis, can you preview the christmas skin please") == "Jarvis, preview the christmas skin"
+    assert n("could you plan my route for me?") == "plan my route"
+    assert n("fast mode on pls") == "fast mode on" and n("show me my map lah") == "show me my map"
+    assert n("what's the weather?") == "what's the weather?"          # real questions keep their question mark
+    assert server.special("can you preview the christmas skin")[0]
+    server.special("seasonal skins auto")
