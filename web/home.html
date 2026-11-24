@@ -14,6 +14,12 @@ body{padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-rig
 header{display:flex;justify-content:space-between;align-items:center}
 header b{font:900 13px Orbitron,sans-serif;letter-spacing:.34em;color:var(--c);text-shadow:0 0 12px var(--c)}
 header span{font:500 11px "JetBrains Mono",monospace;color:var(--dim)}
+header .r{display:flex;align-items:center;gap:10px}
+#spk{background:rgba(12,18,26,.8);border:1px solid var(--line);color:var(--ink);font:700 9px Orbitron,sans-serif;letter-spacing:.16em;
+  padding:8px 10px;border-radius:999px;display:flex;align-items:center;gap:6px;transition:.25s}
+#spk.on{border-color:var(--c);color:var(--c);box-shadow:0 0 14px color-mix(in srgb,var(--c) 35%,transparent)}
+#spk i{font-style:normal;font-size:13px;letter-spacing:0}
+#spk span{color:inherit;font:inherit}
 .core{position:relative;width:min(72vw,300px);aspect-ratio:1;margin:18px auto 4px;cursor:pointer}
 .core canvas{width:100%;height:100%}
 #state{text-align:center;font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);min-height:14px}
@@ -33,7 +39,7 @@ h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin
 .chips button{background:rgba(12,18,26,.8);border:1px solid var(--line);color:var(--ink);font:600 10px Orbitron,sans-serif;letter-spacing:.12em;padding:9px 10px}
 #shot{width:100%;margin-top:10px;border:1px solid var(--line);display:none}
 </style></head><body>
-<header><b>JARVIS</b><span id="clock">--:--</span></header>
+<header><b>JARVIS</b><div class="r"><button id="spk" aria-label="Which device talks"><i>💻</i><span>LAPTOP TALKS</span></button><span id="clock">--:--</span></div></header>
 <div class="core" id="core" role="button" aria-label="Tap to talk to JARVIS"><canvas id="rx"></canvas></div>
 <div id="state">TAP TO TALK</div>
 <div id="said" aria-live="polite"></div>
@@ -61,6 +67,7 @@ h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin
 const $ = s => document.querySelector(s);
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let speaking = false, listening = false, hands = false, amp = 0, agentColor = "#ffd23f";
+let speakerWhere = "laptop", myRid = "";   // one device talks (laptop by default); both show every reply
 
 // reactor
 const cv = $("#rx"), x = cv.getContext("2d");
@@ -86,22 +93,43 @@ function show(who, text){ $("#said").innerHTML = `<small>${who}</small>${String(
 async function speak(agent, text){
   speaking = true; setState(`${agent} SPEAKING`);
   try { const r = await fetch("/api/tts", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent, text})});
-    if(!r.ok) throw 0; const a = new Audio(URL.createObjectURL(await r.blob())); await new Promise(res => { a.onended = a.onerror = res; a.play().catch(res); }); }
+    if(!r.ok) throw 0; const a = window._a = new Audio(URL.createObjectURL(await r.blob())); await new Promise(res => { a.onended = a.onerror = res; a.play().catch(res); }); }
   catch { await new Promise(res => { try { const u = new SpeechSynthesisUtterance(text.replace(/\[\w+\]\s*/g, "")); u.onend = u.onerror = res; speechSynthesis.speak(u); setTimeout(res, 3000 + text.length * 80); } catch { res(); } }); }
   speaking = false; setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); if(hands) listen();
 }
+// Say it here if the phone is the speaker; otherwise just show it (the laptop is saying it) and carry on.
+function answer(agent, text){
+  show(agent, text);
+  if(speakerWhere === "phone") return speak(agent, text);
+  setState(speakerWhere === "laptop" ? "💻 LAPTOP ANSWERING" : "🔇 MUTED");
+  return new Promise(res => setTimeout(() => { setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); if(hands) listen(); res(); },
+    speakerWhere === "laptop" ? 1200 + String(text).length * 60 : 400));   // don't let the phone hear the laptop talking
+}
+function showSpeaker(w){
+  speakerWhere = w || "laptop"; const b = $("#spk");
+  b.classList.toggle("on", speakerWhere === "phone");
+  b.querySelector("i").textContent = {phone: "🔊", laptop: "💻", off: "🔇"}[speakerWhere];
+  b.querySelector("span").textContent = {phone: "PHONE TALKS", laptop: "LAPTOP TALKS", off: "MUTED"}[speakerWhere];
+  if(speakerWhere !== "phone" && speaking){ try { speechSynthesis.cancel(); window._a?.pause(); } catch {} }
+}
+$("#spk").onclick = async () => {
+  const want = speakerWhere === "phone" ? "laptop" : "phone"; showSpeaker(want);
+  try { const d = await (await fetch("/api/speaker", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({where: want})})).json();
+    show("JARVIS", d.say); } catch {}
+  window.dispatchEvent(new CustomEvent("jarvis:speaker", {detail: want}));
+};
 async function ask(text){
-  show("YOU", text); setState("THINKING");
-  const ack = setTimeout(() => { if(!speaking) speak("JARVIS", "One moment Sir."); }, 1500);
-  try { const r = await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, agent: "JARVIS", voice: true, rid: Math.random().toString(36).slice(2)})});
+  show("YOU", text); setState("THINKING"); myRid = Math.random().toString(36).slice(2);
+  const ack = setTimeout(() => { if(!speaking && speakerWhere === "phone") speak("JARVIS", "One moment Sir."); }, 1500);
+  try { const r = await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, agent: "JARVIS", voice: true, rid: myRid, source: "phone"})});
     if(r.status === 401){ location.href = "/login.html?next=/home.html"; return; }
-    const d = await r.json(); clearTimeout(ack); show(d.agent || "JARVIS", d.reply || ""); speak(d.agent || "JARVIS", d.reply || "Done."); }
+    const d = await r.json(); clearTimeout(ack); answer(d.agent || "JARVIS", d.reply || "Done."); }
   catch { clearTimeout(ack); show("JARVIS", "I can't reach your laptop right now, Sir."); setState("OFFLINE"); }
 }
 function listen(){
   if(!SR || speaking || listening) return; const rec = new SR(); rec.lang = "en-SG"; rec.interimResults = false; listening = true; setState("LISTENING");
   rec.onresult = e => { const t = e.results[0][0].transcript.trim(); listening = false;
-    if(hands){ const m = t.match(/^(?:hey |ok )?jarvis[,\s]*(.*)$/i); if(!m){ listen(); return; } if(m[1]) ask(m[1]); else { speak("JARVIS", "Yes Sir?"); } }
+    if(hands){ const m = t.match(/^(?:hey |ok )?jarvis[,\s]*(.*)$/i); if(!m){ listen(); return; } if(m[1]) ask(m[1]); else { answer("JARVIS", "Yes Sir?"); } }
     else ask(t); };
   rec.onerror = () => { listening = false; }; rec.onend = () => { listening = false; if(hands && !speaking) setTimeout(listen, 400); else if(!speaking) setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); };
   try { rec.start(); } catch { listening = false; }
@@ -113,7 +141,7 @@ window.jarvisTalk = () => { hands = false; listen(); };   // the floating orb op
 // remote
 $("#remoteBtn").onclick = () => { $("#remote").classList.toggle("on"); $("#remoteBtn").classList.toggle("on"); };
 document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => fetch("/api/remote", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: b.dataset.r, view: b.dataset.v || ""})}));
-document.querySelectorAll("[data-o]").forEach(b => b.onclick = async () => { const r = await (await fetch("/api/orb/action", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: b.dataset.o})})).json(); if(r.say){ show("JARVIS", r.say); speak("JARVIS", r.say); } });
+document.querySelectorAll("[data-o]").forEach(b => b.onclick = async () => { const r = await (await fetch("/api/orb/action", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: b.dataset.o})})).json(); if(r.say) answer("JARVIS", r.say); });
 $("#peek").onclick = () => { const i = $("#shot"); i.src = "/api/laptop/screenshot?t=" + Date.now(); i.style.display = "block"; };
 
 // status
@@ -124,6 +152,19 @@ async function refresh(){
   try { const t = (await (await fetch("/api/phone/token")).json()).token; window.JarvisNative?.setDeviceToken?.(t); } catch {}
 }
 refresh(); setInterval(refresh, 30000);
+
+// live: the same replies as the laptop, and the speaker switch kept in step
+async function syncSpeaker(){ try { showSpeaker((await (await fetch("/api/speaker")).json()).where); } catch {} }
+function live(){
+  const es = new EventSource("/api/stream");
+  es.onmessage = e => { let ev; try { ev = JSON.parse(e.data); } catch { return; }
+    if(ev.type === "speaker") showSpeaker(ev.where);
+    else if(ev.type === "speak"){ if(ev.rid && ev.rid === myRid) return; show(ev.agent, ev.text); if(speakerWhere === "phone" && !speaking) speak(ev.agent, ev.text); }
+    else if(ev.type === "say" || ev.type === "ask"){ const t = ev.say || ev.text; if(t){ show(ev.agent, t); if(speakerWhere === "phone" && !speaking) speak(ev.agent, t); } }
+  };
+  es.onerror = () => { es.close(); setTimeout(() => { syncSpeaker(); live(); }, 5000); };
+}
+syncSpeaker(); live();
 setInterval(() => $("#clock").textContent = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}), 1000);
 if(new URLSearchParams(location.search).get("talk") === "1") setTimeout(listen, 700);
 </script>

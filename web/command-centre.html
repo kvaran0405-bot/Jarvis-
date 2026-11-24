@@ -220,7 +220,13 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let AGENTS = {}, ORDER = [], voiceOn = true, state = null;
 Object.defineProperty(window, "AGENTS", {get: () => AGENTS}); Object.defineProperty(window, "ORDER", {get: () => ORDER});
-try { voiceOn = localStorage.getItem("jarvis-voice") !== "off"; } catch {}
+// One device talks at a time (the laptop by default); both show every reply. Shared with the phone via /api/speaker.
+const ME = (window.JarvisNative || /Android|iPhone|iPad/i.test(navigator.userAgent)) ? "phone" : "laptop";
+let speakerWhere = "laptop"; voiceOn = ME === "laptop";
+function voiceLabel(){ return voiceOn ? "🔊 Voice" : speakerWhere === "off" ? "🔇 Muted" : ME === "laptop" ? "📱 Phone speaks" : "💻 Laptop speaks"; }
+function applySpeaker(w){ speakerWhere = w || "laptop"; voiceOn = speakerWhere === ME; const b = document.getElementById("voiceBtn");
+  if(b){ b.textContent = voiceLabel(); b.title = voiceOn ? "This screen talks. Tap to mute." : "Tap to make this screen the one that talks."; }
+  if(!voiceOn) stopSpeaking(); }
 
 const VOICE = { // per-agent voice character
   JARVIS:{pitch:.85,rate:1.02}, FRIDAY:{pitch:1.25,rate:1.05}, ORACLE:{pitch:.95,rate:.98}, ATHENA:{pitch:1.2,rate:1},
@@ -645,7 +651,7 @@ async function sendCommand(text, agent, voice=false){
   if(voice) setTimeout(() => { if(streams[rid] && !streams[rid].any && !streams[rid].acked){ streams[rid].acked = true; queueSpeech(agent, ackFor(agent)); } }, 700);
   pendingCmds++;
   try {
-    const r = await fetch("/api/command", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, agent, voice, rid})});
+    const r = await fetch("/api/command", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, agent, voice, rid, source: ME})});
     const data = await r.json();
     finishStream(rid, data.agent || agent, data.reply, queueSpeech);
   } catch(err){ logLine("JARVIS", "Can't reach JARVIS on the laptop right now (it may be restarting). Try again in a moment.", "error"); }
@@ -751,7 +757,9 @@ if(SR){
   // Ctrl+Space = push to talk from anywhere on the page
   document.addEventListener("keydown", e => { if(e.code === "Space" && e.ctrlKey){ e.preventDefault(); $("#mic").click(); } });
 } else { $("#mic").hidden = true; $("#hands").hidden = true; }
-$("#voiceBtn").onclick = () => { voiceOn = !voiceOn; try{localStorage.setItem("jarvis-voice", voiceOn?"on":"off");}catch{}; $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted"; if(!voiceOn) stopSpeaking(); };
+$("#voiceBtn").onclick = async () => { const want = voiceOn ? "off" : ME; applySpeaker(want);
+  try { await fetch("/api/speaker", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({where: want})}); } catch {}
+  window.dispatchEvent(new CustomEvent("jarvis:speaker", {detail: want})); };
 $("#voiceCfg").onclick = openVoiceSettings;
 if("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
 
@@ -868,6 +876,9 @@ function connect(){
     else if(ev.type === "alert"){ redAlert(); }
     else if(ev.type === "focus"){ showFocus(ev.until, ev.task); }
     else if(ev.type === "listen"){ window.jarvisTalk(); }
+    else if(ev.type === "speaker"){ applySpeaker(ev.where); }
+    else if(ev.type === "speak"){   // a reply to something said on another device (phone app, Telegram voice note)
+      if(voiceOn && !streams[ev.rid]) queueSpeech(ev.agent, ev.text); }
   };
 }
 
@@ -883,13 +894,13 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
   try { const vi = await (await fetch("/api/voices")).json(); VOICE_PROVIDER = vi.provider; if(vi.wake_words?.length) WAKE = vi.wake_words; PRONOUNCE = vi.pronounce || {}; AUDITIONS = vi.auditions || {};
     HEAR = !!vi.hear && !window.JarvisNative && !!(window.MediaRecorder && navigator.mediaDevices?.getUserMedia); if(vi.speech_lang && rec) rec.lang = vi.speech_lang; warmAcks(); } catch {}
   try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
-  $("#voiceBtn").textContent = voiceOn ? "🔊 Voice" : "🔇 Muted";
+  try { applySpeaker((await (await fetch("/api/speaker")).json()).where); } catch { applySpeaker("laptop"); }
   buildGrid(); focus("JARVIS"); await refresh(); connect(); phoneLink();
   state.activity.slice(-25).forEach(a => logLine(a.agent, a.message, a.kind));
   const params = new URLSearchParams(location.search);
   if(params.get("listen") === "1") setTimeout(() => window.jarvisTalk(), 4500);
   if(params.get("kiosk") === "1"){   // the always-on JARVIS window: audio allowed, no click needed
-    voiceOn = true; $("#voiceBtn").textContent = "🔊 Voice"; boot().then(() => { if(rec && !handsFree) setHandsFree(true); });
+    applySpeaker(speakerWhere); boot().then(() => { if(rec && !handsFree) setHandsFree(true); });
   } else if(params.get("autostart") === "true"){
     $("#overlay").hidden = false; // browsers need one click before audio may play
     $("#engage").onclick = () => { $("#overlay").hidden = true; boot(); };

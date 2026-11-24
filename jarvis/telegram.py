@@ -189,6 +189,7 @@ class Bot:
         self.on_gemini: Callable[[str], str] | None = None       # (key) -> result
         self._gemini_until = 0.0
         self.on_transit: Callable[[str, dict], str] | None = None   # ("onemap"|"lta", values) -> result
+        self.on_spoken: Callable[[str], None] | None = None   # say a reply out loud on the laptop
         self._transit_until = {"onemap": 0.0, "lta": 0.0}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -425,15 +426,14 @@ class Bot:
     def handle_voice(self, voice_note: dict) -> None:
         """Voice note in -> transcribe on this laptop -> agent -> text + spoken reply."""
         from . import stt
-        from . import voice as tts
-        if not stt.available():
+        if not stt.available() and not stt.gemini_hearing_on():
             send("🎙 I can't understand voice notes yet: the speech part isn't installed. Send /voicecheck for details.")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
         tmp = Path(tempfile.gettempdir()) / f"jarvis-voice-{voice_note['file_unique_id']}.ogg"
         try:
             download(voice_note["file_id"], tmp)
-            heard = stt.transcribe(str(tmp))
+            heard = stt.hear_best(str(tmp), stt.vocabulary(_store))[0]
         except Exception as exc:  # noqa: BLE001 - tell the owner instead of going quiet
             send(f"🎙 I couldn't process that voice note: {exc}"[:600])
             return
@@ -444,7 +444,12 @@ class Bot:
             return
         reply = self.on_text(heard, voice=True)
         send(f"🎙 “{heard}”\n\n{reply}")
-        self.voice_reply(reply)
+        from . import speaker
+        where = speaker.get(_store) if _store is not None else "phone"
+        if where == "phone":
+            self.voice_reply(reply)          # the phone talks (voice note back)
+        elif where == "laptop" and self.on_spoken:
+            self.on_spoken(reply)            # the laptop says it out loud; the phone just shows the text
 
     def voice_reply(self, reply: str) -> None:
         """Send the reply as a voice note, in the speaking agent's voice."""

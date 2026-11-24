@@ -95,6 +95,10 @@ async def lifespan(_app):
         return (f"✅ Gemini connected (answered in {secs:.1f}s). Fast mode is ON, Gemini voices and the photo sorter "
                 "too. Say “fast mode off” any time.")
     bot.on_gemini = _connect_gemini
+    def _say_on_laptop(reply: str) -> None:   # a Telegram voice note's answer, read aloud by the laptop
+        who, _, rest = reply.partition(":")
+        spoken(*((who, rest.strip()) if who in AGENTS and rest else ("JARVIS", reply)), source="telegram")
+    bot.on_spoken = _say_on_laptop
     bot.start()
     from . import clap
     bus.log("JARVIS", clap.start(on_double_clap), "system")
@@ -197,6 +201,11 @@ class Command(BaseModel):
     agent: str = "JARVIS"
     voice: bool = False   # spoken command: fast path, short spoken answer
     rid: str = ""         # request id, so the dashboard can match streamed text to its request
+    source: str = ""      # "phone" | "laptop": where it was said, so only the chosen speaker reads the reply
+
+
+class SpeakerIn(BaseModel):
+    where: str
 
 
 class TaskIn(BaseModel):
@@ -554,6 +563,7 @@ async def command(cmd: Command):
         bus.publish({"type": "delta", "rid": cmd.rid, "agent": who, "text": direct})
         bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": who})
         bus.log(who, direct, "reply")
+        spoken(who, direct, cmd.rid, cmd.source)
         return {"agent": who, "reply": direct}
     if sp_agent:
         agent, cmd.text = sp_agent, sp_prompt
@@ -567,6 +577,7 @@ async def command(cmd: Command):
         bus.publish({"type": "delta", "rid": cmd.rid, "agent": "JARVIS", "text": reply})
         bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": "JARVIS"})
         bus.log("JARVIS", reply, "reply")
+        spoken("JARVIS", reply, cmd.rid, cmd.source)
         return {"agent": "JARVIS", "reply": reply}
 
     def stream_out(text: str) -> None:
@@ -575,7 +586,29 @@ async def command(cmd: Command):
     reply = await asyncio.to_thread(engine.run, agent, cmd.text, chat=True, on_text=stream_out, voice=cmd.voice)
     bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": agent})
     bus.log(agent, reply, "reply")
+    spoken(agent, reply, cmd.rid, cmd.source)
     return {"agent": agent, "reply": reply}
+
+
+def spoken(agent: str, text: str, rid: str = "", source: str = "") -> None:
+    """Tell every screen the reply, with who should read it aloud. The chosen speaker (laptop or phone) says it;
+    the other one just shows it. The device that asked already has the words, so it uses `rid` to skip a repeat."""
+    from . import speaker
+    bus.publish({"type": "speak", "agent": agent, "text": text, "rid": rid, "source": source,
+                 "where": speaker.get(store)})
+
+
+@app.get("/api/speaker")
+def speaker_get():
+    from . import speaker
+    return {"where": speaker.get(store)}
+
+
+@app.post("/api/speaker")
+def speaker_set(body: SpeakerIn):
+    from . import speaker
+    where = speaker.set_to(store, bus, body.where.lower())
+    return {"where": where, "say": speaker.said(where)}
 
 
 @app.post("/api/reset")
@@ -719,6 +752,9 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"^\s*(?:jarvis[,\s]+)?(?:try|preview|show me|switch to|put on)(?: the)? (chinese new year|lunar new year|cny|"
                        r"hari raya|raya|deepavali|diwali|national day|christmas|xmas|new year|birthday) (?:skin|mode|look|theme)"
                        r"\s*[.!]?\s*$", re.I)
+SPEAKER_RE = re.compile(_J + r"(?:(?:speak|talk|answer|reply|voice)\s+(?:on|from|through|via)\s+(?:my\s+|the\s+)?"
+                        r"(phone|mobile|laptop|computer|pc)|(phone|laptop|computer) (?:voice|speaker|speaks?|talks?)(?: on)?|"
+                        r"(mute) (?:both|everything|all|voice|jarvis|yourself)|(?:voice|speaker|sound) (off))\s*[.!]?\s*$", re.I)
 FAST_RE = re.compile(_J + r"(?:fast|quick|speed|turbo) (?:voice |reply |replies |response )?mode (on|off)\s*[.!]?\s*$|"
                      r"^\s*(?:jarvis[,\s]+)?(?:turn (on|off) fast (?:voice|mode|replies))\s*[.!]?\s*$", re.I)
 PRONOUNCE_RE = re.compile(_J + r"(?:pronounce|say)\s+[\"“']?(.{2,40}?)[\"”']?\s+(?:as|like)\s+[\"“']?(.{2,60}?)[\"”']?\s*[.!]?\s*$", re.I)
@@ -865,6 +901,10 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         line = holo.narrate(view, holo.data(store))
         bus.publish({"type": "holo", "view": view})
         return line, None, None
+    if m := SPEAKER_RE.match(text):
+        from . import speaker
+        where = (m.group(1) or m.group(2) or m.group(3) or m.group(4)).lower()
+        return speaker.said(speaker.set_to(store, bus, where)), None, None
     if m := FAST_RE.match(text):
         on = (m.group(1) or m.group(2)).lower() == "on"
         if not on:
@@ -1400,7 +1440,7 @@ async def hear(request: Request):
     import os as _os
     import tempfile as _tf
     from . import stt
-    if not stt.available():
+    if not stt.available() and not stt.gemini_hearing_on():
         raise HTTPException(503, "speech engine not installed")
     data = await request.body()
     if not data or len(data) > 15_000_000:
@@ -1411,7 +1451,10 @@ async def hear(request: Request):
         f.write(data)
         path = f.name
     try:
-        text, conf = await asyncio.to_thread(stt.transcribe_scored, path, stt.vocabulary(store))
+        try:
+            text, conf, _engine = await asyncio.to_thread(stt.hear_best, path, stt.vocabulary(store))
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from None
     finally:
         try:
             _os.remove(path)

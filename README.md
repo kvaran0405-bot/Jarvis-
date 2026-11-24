@@ -440,6 +440,28 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## Talk from your phone, one voice answers
+
+Your phone's mic hears you much better than the laptop's, so use it as JARVIS's ears:
+
+- **Phone app:** tap the reactor and talk (or turn on 👂 Hands-free and start with "Jarvis…").
+- **Telegram:** send a voice note to your JARVIS bot.
+
+Every reply shows on **both** the phone and the laptop, but only **one** of them reads it out, so two JARVISes
+never talk over each other. The **laptop talks by default**. Switch it with:
+
+- the **💻 LAPTOP TALKS / 🔊 PHONE TALKS** button at the top of the phone app,
+- the **🔊 Voice** button on the laptop (it shows 📱 Phone speaks when the phone has the voice),
+- or say **"speak on my phone"**, **"speak on the laptop"**, or **"mute both"**.
+
+Telegram voice notes follow the same switch: a voice note back when the phone talks, read aloud by the laptop
+otherwise (the text always comes to Telegram).
+
+**Hearing:** with your free Gemini key (`/gemini` on Telegram), voice notes and the laptop's 🎙 are written down by
+Google's speech model, which knows Singapore English and your names and places. If Google can't be reached,
+the laptop's own engine takes over, so it never goes silent. `JARVIS_GEMINI_HEARING=off` keeps all hearing on
+the laptop only.
+
 ## Stark mode
 
 - **Snap twice** (or clap twice) near the laptop and JARVIS answers "Yes Sir?" and listens. If you've been away 3+ hours, he

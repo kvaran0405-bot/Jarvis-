@@ -135,3 +135,68 @@ def warm_up() -> None:
             _get_model()
             _model_named(os.environ.get("JARVIS_HEAR_MODEL", "small"))   # push-to-talk engine, ready before first use
         threading.Thread(target=load, daemon=True).start()
+
+
+# ---------------------------------------------------------------- Google-quality hearing (free Gemini key)
+GEMINI_MIME = {".ogg": "audio/ogg", ".oga": "audio/ogg", ".wav": "audio/wav", ".mp3": "audio/mp3", ".flac": "audio/flac",
+               ".aac": "audio/aac"}
+
+
+def gemini_hearing_on() -> bool:
+    import os
+    return bool(settings.gemini_key) and os.environ.get("JARVIS_GEMINI_HEARING", "on").lower() != "off"
+
+
+def _wav_bytes(samples) -> bytes:
+    import io
+    import wave
+    import numpy as np
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes((np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes())
+    return buf.getvalue()
+
+
+def gemini_transcribe(path: str, hint: str = "") -> str:
+    """Writes down exactly what the owner said, the way Google's phone keyboard would: Singapore English, names
+    spelled right. Raises on any failure so the caller falls back to the laptop's own engine."""
+    import base64
+    import json
+    import urllib.request
+    from pathlib import Path
+    ext = Path(path).suffix.lower()
+    if ext in GEMINI_MIME:
+        mime, data = GEMINI_MIME[ext], Path(path).read_bytes()
+    else:   # webm / m4a from a browser: decode and send as a small WAV
+        mime, data = "audio/wav", _wav_bytes(load_audio(path))
+    prompt = ("Transcribe this voice message word for word. The speaker is from Singapore, talking to their "
+              "assistant JARVIS; they speak Singapore English (words like lah, leh, aite, can or not are normal). "
+              f"Names you may hear: {hint or vocabulary()}. Output only the words he said, no quotes, no notes. "
+              "If there is no speech, output nothing.")
+    body = {"contents": [{"parts": [{"text": prompt}, {"inlineData": {"mimeType": mime, "data": base64.b64encode(data).decode()}}]}],
+            "generationConfig": {"temperature": 0}}
+    from .brains import GEMINI_URL
+    req = urllib.request.Request(GEMINI_URL.format(model=settings.gemini_model), data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json", "x-goog-api-key": settings.gemini_key})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        out = json.loads(r.read())
+    parts = out.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+    return " ".join(p.get("text", "") for p in parts).strip().strip('"“”')
+
+
+def hear_best(path: str, hint: str = "") -> tuple[str, float, str]:
+    """(text, confidence, engine). Gemini first when the free key is set (far better with accents), the laptop's
+    own engine otherwise or if Google is unreachable."""
+    if gemini_hearing_on():
+        try:
+            text = gemini_transcribe(path, hint)
+            return text, (0.95 if text else 0.0), "gemini"
+        except Exception:  # noqa: BLE001 - fall back to the local engine, never go silent
+            pass
+    if not available():
+        raise RuntimeError("the speech part isn't installed")
+    text, conf = transcribe_scored(path, hint)
+    return text, conf, "local"

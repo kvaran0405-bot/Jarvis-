@@ -46,7 +46,7 @@ def status(store) -> list[dict]:
     items = [
         {"id": "brain", "label": "AI brain", "on": bool(b.get("now")), "detail": (b.get("now") or "none").upper(),
          "how": "Claude plan or a free Gemini key"},
-        {"id": "gemini", "label": "Free Gemini key (fast mode, Gemini voices, photo sorter)", "on": bool(settings.gemini_key),
+        {"id": "gemini", "label": "Free Gemini key (fast mode, clear hearing, Gemini voices, photo sorter)", "on": bool(settings.gemini_key),
          "action": "key", "key": "GEMINI_API_KEY", "how": "Get one free at aistudio.google.com/apikey, paste it here."},
         {"id": "telegram", "label": "Telegram (text JARVIS from anywhere, one-word updates)", "on": tg.ready(),
          "how": f"Send /start {tg.pair_code()} to your bot" if tg.enabled() and not tg.ready() else "Add your bot token in .env"},
