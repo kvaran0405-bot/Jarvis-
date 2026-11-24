@@ -357,7 +357,7 @@ function bargedIn(){
   stopSpeaking();
   awaitingUntil = Date.now() + 8000; convo = false;
   window.HUDFX?.toast?.("🎙 Go ahead, Sir");
-  try { window.dispatchEvent(new CustomEvent("jarvis:bargein")); } catch {}
+  try { document.dispatchEvent(new CustomEvent("jarvis:bargein")); } catch {}
   if(handsFree) resumeListening(); else window.jarvisTalk?.();
 }
 function stopSpeaking(){

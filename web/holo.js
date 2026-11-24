@@ -11,7 +11,7 @@ let yaw = 0, pitch = 0, zoom = 1, drag = null, labels = [], t0 = performance.now
 
 function loadThree(){
   if(window.THREE) return Promise.resolve(window.THREE);
-  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = "/vendor/three.min.js"; s.onload = () => window.THREE ? res(window.THREE) : rej(new Error("no THREE")); s.onerror = rej; document.head.appendChild(s); });
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = (window.HOLO_BASE ?? "/") + "vendor/three.min.js"; s.onload = () => window.THREE ? res(window.THREE) : rej(new Error("no THREE")); s.onerror = rej; document.head.appendChild(s); });
 }
 
 const css = document.createElement("style");
@@ -123,7 +123,10 @@ const BUILD = {
   body(){
     // Anatomical hologram. Muscles are tapered bellies (like real muscle), with their separate heads, sitting on a
     // see-through skin and skeleton. Cool cyan = rested, orange to red = worked this week (from your logged workouts).
-    const m = data.muscles || {}, fig = new THREE.Group(); fig.position.y = -.15; group.add(fig);
+    const m0 = data.muscles || {}, m = {...m0}, fig = new THREE.Group(); fig.position.y = -.15; group.add(fig);
+    // real steps from the phone light up the legs, and a ring of light at the feet grows with today's count
+    const st = data.steps || {}, today = st.today || 0, week = (st.week || []).reduce((a, b) => a + b, 0), walk = Math.min(1, today / 12000);
+    if(today){ ["calves", "quads", "hamstrings", "glutes"].forEach((k, i) => m[k] = Math.max(m[k] || 0, walk * (1 - i * .15))); }
     const heat = v => C("#1d8fc0").lerp(C("#ff6a1a"), Math.min(1, v * 1.3)).lerp(C("#ff2a1a"), Math.max(0, v - .75) * 2);
     // a unit muscle belly: thick in the middle, tapering to tendons at both ends
     const prof = []; for(let i = 0; i <= 16; i++){ const t = i / 16; prof.push(new THREE.Vector2(Math.max(.02, Math.pow(Math.sin(Math.PI * t), .72) * .5), t - .5)); }
@@ -200,11 +203,19 @@ const BUILD = {
     const POS = {chest: [.45, 2.25, .5], shoulders: [1.1, 2.62, .2], traps: [.3, 2.98, -.2], abs: [0, 1.55, .5], obliques: [.62, 1.35, .35],
       lats: [.75, 1.85, -.35], lower_back: [0, 1.0, -.45], biceps: [1.25, 2.0, .35], triceps: [1.35, 1.9, -.35], forearms: [1.42, 1.05, .2],
       glutes: [.3, .5, -.5], quads: [.42, -.25, .45], hamstrings: [.38, -.5, -.45], calves: [.38, -2.15, -.4]};
-    Object.entries(m).filter(([, v]) => v > .15).sort((a2, b2) => b2[1] - a2[1]).slice(0, 6).forEach(([k, v], i) => {
+    Object.entries(m0).filter(([, v]) => v > .15).sort((a2, b2) => b2[1] - a2[1]).slice(0, 6).forEach(([k, v], i) => {   // labels: gym work only
       const o = new THREE.Object3D(); const p = POS[k] || [0, 0, 0]; o.position.set(i % 2 ? -p[0] : p[0], p[1], p[2]); fig.add(o);
       label(o, `${k.replace("_", " ").toUpperCase()}<small>${Math.round(v * 100)}%</small>`, v > .8 ? "#ff5a4a" : "#ff8a3d"); });
+    if(today){
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(.9 + walk * 1.4, .035, 8, 90), new THREE.MeshBasicMaterial({color: 0x3dff9a, transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false}));
+      ring.rotation.x = Math.PI / 2; ring.position.y = -2.75; fig.add(ring);
+      const pulse = ring.clone(); pulse.material = ring.material.clone(); fig.add(pulse);
+      animators.push(t => { const k = (t * .5) % 1; pulse.scale.setScalar(1 + k * .8); pulse.material.opacity = .6 * (1 - k); });
+      const feet = new THREE.Object3D(); feet.position.set(2.3, -2.2, 0); fig.add(feet);
+      label(feet, `${today.toLocaleString()} STEPS TODAY<small>${week.toLocaleString()} this week</small>`, "#3dff9a");
+    }
     const top = new THREE.Object3D(); top.position.set(0, 4.3, 0); fig.add(top);
-    label(top, `BODY SCAN<small>${Object.values(m).filter(v => v > .15).length} of ${Object.keys(m).length} muscle groups worked this week</small>`, "#5fd8ff");
+    label(top, `BODY SCAN<small>${Object.values(m0).filter(v => v > .15).length} of ${Math.max(14, Object.keys(m0).length)} muscle groups worked this week</small>`, "#5fd8ff");
     animators.push((t, dt) => group.rotation.y += dt * .3);
   },
   money(){
@@ -335,7 +346,7 @@ function frame(now){
 async function openHolo(v = "week", opts = {}){
   try { THREE = await loadThree(); } catch { window.logLine?.("JARVIS", "The 3D engine couldn't load.", "error"); return; }
   if(!root) build();
-  try { data = await (await fetch("/api/holo")).json(); } catch { return; }
+  try { data = window.__HOLO_DATA || await (await fetch("/api/holo")).json(); } catch { return; }   // the phone's offline copy when the laptop is off
   size(); root.classList.add("on"); open = true; camera.position.set(0, 30, 60);
   show(v, !!opts.speak); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
 }

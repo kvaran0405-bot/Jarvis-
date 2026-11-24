@@ -12,13 +12,20 @@ html,body{margin:0;height:100%;background:#03060a;color:#dce7f2;font-family:"Jet
 #wait{position:fixed;inset:0;display:grid;place-items:center;font:700 11px Orbitron,sans-serif;letter-spacing:.3em;color:#5fd8ff}
 </style></head><body>
 <div id="wait">LOADING HOLOGRAMS…</div>
-<a id="sims" href="/simulate3d.html">🧪 HOLO SIMS</a>
-<script src="/holo.js"></script>
+<a id="sims" href="simulate3d.html">🧪 HOLO SIMS</a>
 <script>
-// The Holo Lab on its own page, so the phone app can open it. Closing it goes back to where you came from.
+// Works from the laptop (/holo.html) and inside the phone app with the laptop off (the app's offline copy of your data).
+window.HOLO_BASE = "";
+const N = window.JarvisNative;
+if (location.protocol === "file:" && N?.soloPack){ try { window.__HOLO_DATA = JSON.parse(N.soloPack()).holo || null; } catch {} }
+</script>
+<script src="holo.js"></script>
+<script>
 const view = new URLSearchParams(location.search).get("view") || "week";
-addEventListener("click", e => { if(e.target.closest("#holo .x")){ e.stopPropagation(); history.length > 1 ? history.back() : location.href = "/home.html"; } }, true);
-addEventListener("keydown", e => { if(e.key === "Escape") history.length > 1 ? history.back() : location.href = "/home.html"; });
-HOLO.open(view).then(() => document.getElementById("wait").remove());
+const back = () => history.length > 1 ? history.back() : location.href = "home.html";
+addEventListener("click", e => { if(e.target.closest("#holo .x")){ e.stopPropagation(); back(); } }, true);
+addEventListener("keydown", e => { if(e.key === "Escape") back(); });
+if (location.protocol === "file:" && !window.__HOLO_DATA) document.getElementById("wait").textContent = "OPEN JARVIS ONCE WITH THE LAPTOP ON TO COPY YOUR HOLOGRAMS";
+else HOLO.open(view).then(() => document.getElementById("wait").remove());
 </script>
 </body></html>

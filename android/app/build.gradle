@@ -39,7 +39,7 @@ android {
 // The 3D holo simulations (and the 3D engine) ship inside the app too, so they work with the laptop off.
 def holoAssets = layout.buildDirectory.dir("holoAssets")
 tasks.register("copyHoloAssets", Copy) {
-    from("../../web") { include "simulate3d.html", "vendor/three.min.js" }
+    from("../../web") { include "simulate3d.html", "holo.html", "holo.js", "core3d.html", "vendor/three.min.js" }
     into holoAssets
 }
 android.sourceSets.main.assets.srcDirs += [holoAssets.get().asFile]

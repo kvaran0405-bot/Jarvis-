@@ -89,7 +89,32 @@ def pack(store) -> dict:
         "team": [{"name": a.name, "title": a.title, "color": a.color, "style": (a.personality or "")[:220]}
                  for a in AGENTS.values() if not a.hidden],
         "speaker": store.get("voice:speaker") or "laptop",
+        "theme": _theme(store),
+        "voices": _voices(),
+        "holo": _holo(store),
+        "guest": store.get("hud:guest") == "on",
     }
+
+
+def _theme(store) -> dict:
+    from . import hud
+    name = hud.theme(store)
+    return {"name": name, "accent": hud.THEMES.get(name, "")}
+
+
+def _voices() -> dict:
+    """The team's premium Gemini voices, so the phone sounds the same with the laptop off."""
+    from . import gemtts
+    return {"models": gemtts.MODELS, "cast": {k: list(v) for k, v in gemtts.VOICES.items()}}
+
+
+def _holo(store) -> dict | None:
+    """The Holo Lab's data, so the holograms open on the phone with the laptop off."""
+    try:
+        from . import holo
+        return holo.data(store)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def merge(store, bus, items: list[dict]) -> dict:

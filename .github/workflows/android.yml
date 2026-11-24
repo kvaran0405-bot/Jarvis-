@@ -13,6 +13,8 @@ on:
     paths:
       - "android/**"
       - "web/simulate3d.html"
+      - "web/holo.html"
+      - "web/holo.js"
       - ".github/workflows/android.yml"
   workflow_dispatch:
 

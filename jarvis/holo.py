@@ -233,6 +233,8 @@ def data(store) -> dict:
         "today_places": places_today, "explored": sorted(explored),
         "trail": _explore.trail(store), "trail_stats": _explore.stats(store), "route": _explore.current_route(store),
         "diagnostics": diagnostics(store, today), "trophies": trophies(store),
+        "steps": {"today": int(store.get(f"steps:{today.isoformat()}") or 0),
+                  "week": [int(store.get(f"steps:{(today - timedelta(days=i)).isoformat()}") or 0) for i in range(6, -1, -1)]},
     }
 
 

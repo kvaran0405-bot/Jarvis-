@@ -39,6 +39,7 @@ h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin
 #remote{display:none}#remote.on{display:block}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chips button{background:rgba(12,18,26,.8);border:1px solid var(--line);color:var(--ink);font:600 10px Orbitron,sans-serif;letter-spacing:.12em;padding:9px 10px}
+.chips button.on{border-color:var(--c);color:var(--c);box-shadow:0 0 12px color-mix(in srgb,var(--c) 30%,transparent)}
 #shot{width:100%;margin-top:10px;border:1px solid var(--line);display:none}
 </style></head><body>
 <header><b>JARVIS</b><div class="r"><button id="spk" aria-label="Which device talks"><i>💻</i><span>LAPTOP TALKS</span></button><span id="clock">--:--</span></div></header>
@@ -64,6 +65,9 @@ h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin
     <button data-r="holo" data-v="singapore">Map</button><button data-r="holo" data-v="trophies">Trophies</button>
     <button data-r="holo_prev">◀</button><button data-r="holo_next">▶</button><button data-r="holo_close">Close</button><button data-r="expo">Stark Expo</button>
   </div>
+  <h2>SUIT</h2>
+  <div class="chips"><button data-suit="classic">Classic</button><button data-suit="mark 42">Mark 42</button><button data-suit="stealth">Stealth</button><button data-suit="arc blue">Arc Blue</button>
+    <button data-suit="ironheart">Ironheart</button><button data-suit="wakanda">Wakanda</button><button data-suit="hulkbuster">Hulkbuster</button></div>
   <h2>LAPTOP</h2>
   <div class="chips"><button id="peek">📷 See screen</button><button data-o="status">Status</button><button data-o="lock">🔒 Lock</button><button data-o="record">🔴 Record</button><button data-o="focus">🛡 Focus</button></div>
   <img id="shot" alt="Your laptop screen">
@@ -154,10 +158,18 @@ $("#spk").onclick = async () => {
     show("JARVIS", d.say); } catch {}
   window.dispatchEvent(new CustomEvent("jarvis:speaker", {detail: want}));
 };
+// "Friday, …" / "Zeus, …": talk to any of the team, each in their own voice
+let TEAM = [];
+fetch("/api/agents").then(r => r.json()).then(d => { TEAM = (d.agents || []).map(a => a.name); }).catch(() => {});
+function whoFor(text){
+  const m = text.match(/^\s*(?:hey |ok |yo )?([a-z]+)[,\s]+(.+)$/i), n = m && m[1].toUpperCase();
+  return n && n !== "JARVIS" && TEAM.includes(n) ? [n, m[2]] : ["JARVIS", text];
+}
 async function ask(text){
+  const [agent, said] = whoFor(text); if (agent !== "JARVIS") text = said;
   show("YOU", text); setState("THINKING"); myRid = Math.random().toString(36).slice(2); streamBuf = ""; streamAny = false; convo = true;
   const ack = setTimeout(() => { if(!speaking && speakerWhere === "phone") speak("JARVIS", "One moment Sir."); }, 1500);
-  try { const r = await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, agent: "JARVIS", voice: true, rid: myRid, source: "phone"})});
+  try { const r = await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, agent, voice: true, rid: myRid, source: "phone"})});
     if(r.status === 401){ location.href = "/login.html?next=/home.html"; return; }
     const d = await r.json(); clearTimeout(ack);
     if(streamAny){ show(d.agent || "JARVIS", d.reply || ""); feed("", true); }   // already being spoken as it streamed
@@ -182,13 +194,17 @@ window.jarvisTalk = () => { hands = false; listen(); };   // the floating orb op
 $("#remoteBtn").onclick = () => { $("#remote").classList.toggle("on"); $("#remoteBtn").classList.toggle("on"); };
 document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => fetch("/api/remote", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: b.dataset.r, view: b.dataset.v || ""})}));
 document.querySelectorAll("[data-o]").forEach(b => b.onclick = async () => { const r = await (await fetch("/api/orb/action", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: b.dataset.o})})).json(); if(r.say) answer("JARVIS", r.say); });
+document.querySelectorAll("[data-suit]").forEach(b => b.onclick = async () => {
+  const r = await (await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text: b.dataset.suit === "classic" ? "classic theme" : `switch to ${b.dataset.suit} theme`, source: "phone", rid: "suit" + Date.now()})})).json();
+  show("JARVIS", r.reply || ""); refresh(); });
 $("#peek").onclick = () => { const i = $("#shot"); i.src = "/api/laptop/screenshot?t=" + Date.now(); i.style.display = "block"; };
 
 // status
 async function refresh(){
   try { const r0 = await fetch("/api/widget"); if(r0.status === 401){ location.href = "/login.html?next=/home.html"; return; } const w = await r0.json(); $("#iNext").textContent = w.next; $("#iDone").textContent = w.handled; $("#iWait").textContent = w.waiting;
     if(w.mode === "paused") setState("PAUSED"); } catch {}
-  try { const o = await (await fetch("/api/orb")).json(); agentColor = o.color || agentColor; document.documentElement.style.setProperty("--c", agentColor); } catch {}
+  try { const o = await (await fetch("/api/orb")).json(); agentColor = o.accent || o.color || agentColor; document.documentElement.style.setProperty("--c", agentColor);   // the suit theme, same as the laptop
+    document.querySelectorAll("[data-suit]").forEach(b => b.classList.toggle("on", b.dataset.suit === (o.theme || "classic"))); } catch {}
   try { const t = (await (await fetch("/api/phone/token")).json()).token; window.JarvisNative?.setDeviceToken?.(t); } catch {}
 }
 refresh(); setInterval(refresh, 30000);

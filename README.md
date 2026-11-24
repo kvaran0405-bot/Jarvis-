@@ -440,6 +440,23 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## The phone is the full JARVIS
+
+- **The team:** start with a name ("Friday, …", "Zeus, …") and that agent answers in their own voice, on the laptop
+  and in the phone app (solo mode too).
+- **Premium voices with the laptop off:** with your Gemini key, the phone speaks in the team's own Gemini voices.
+  If Google is busy, the phone's voice takes over.
+- **Holo Lab without the laptop:** 🌐 HOLO LAB in solo mode opens your holograms from the phone's offline copy.
+- **Your day, glowing:** ✨ MY DAY draws today's trail (cyan in the morning, through gold, to pink at night) with your
+  steps, distance and places. It works with the laptop off.
+- **Steps on the body hologram:** Holo Lab → Body. Your legs light up with today's steps, and a ring of light at your
+  feet shows the count.
+- **Point and explain:** 📷 EXPLAIN opens the camera with a JARVIS vision HUD. Explain, translate, read it out, or ask
+  anything about what you're pointing at. Saying "what is this?" opens it too.
+- **Guest mode:** 🎭 GUEST in solo mode, or "guest mode on" anywhere. JARVIS charms your friends and keeps everything
+  private.
+- **Suit themes on the phone:** REMOTE → SUIT on the phone sets the theme for both screens. Solo mode uses it too.
+
 ## Faster replies, and talking like a real conversation
 
 - **Instant answers:** "what time is it", "what's next", "my tasks", "how many steps", "phone battery", "weather",
