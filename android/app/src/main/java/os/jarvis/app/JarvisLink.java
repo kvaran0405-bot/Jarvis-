@@ -271,6 +271,12 @@ public class JarvisLink extends Service implements LocationListener, android.har
                     new Thread(() -> done(id, a.runSteps(steps))).start();
                 }
                 break;
+            case "address": {   // JARVIS moved (e.g. to the cloud): use the new address from now on
+                String u = c.optString("url", "");
+                if (u.startsWith("https://")) { getSharedPreferences("jarvis", MODE_PRIVATE).edit().putString("url", u).apply(); done(id, "switched"); }
+                else done(id, "bad address");
+                break;
+            }
             case "call": done(id, Powers.call(this, c.optString("number"), c.optString("name"))); break;
             case "contacts": done(id, Powers.contacts(this, c.optString("name"))); break;
             case "alarm": done(id, Powers.alarm(this, c.optInt("hour"), c.optInt("minute"), c.optString("label"))); break;

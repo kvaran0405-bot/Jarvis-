@@ -31,6 +31,13 @@ findstr /i /c:"JARVIS_BRAIN=pro" .env >nul && (
     echo.
   )
 )
+REM This laptop is the satellite of a cloud JARVIS (see docs/CLOUD.md): open the cloud dashboard and do laptop jobs
+findstr /i /c:"JARVIS_ROLE=satellite" .env >nul && (
+  for /f "tokens=1* delims==" %%a in ('findstr /b /c:"JARVIS_CLOUD_URL=" .env') do start "" "%%b/command-centre.html"
+  python -m jarvis satellite
+  pause
+  exit /b 0
+)
 python -m jarvis serve --open
 if errorlevel 1 (
   echo.

@@ -206,8 +206,9 @@ def deliver(store, bus, msg: dict) -> bool:
             args = (msg["recipient"], msg["subject"] or "(no subject)", msg["body"], msg["reply_to"])
             send_email(*args, attachment=msg["attachment"]) if msg.get("attachment") else send_email(*args)
         elif msg["channel"] == "computer":
-            from . import devices
-            output = devices.run_command(msg["body"])
+            from . import devices, satellite
+            output = (satellite.remote(store, "shell", {"command": msg["body"]}, timeout=180) if satellite.role() == "cloud"
+                      else devices.run_command(msg["body"]))   # approved laptop commands run on the laptop, wherever JARVIS lives
             store.set_message(msg["id"], result=output)
             msg = {**msg, "result": output}
         elif msg["channel"] == "telegram":

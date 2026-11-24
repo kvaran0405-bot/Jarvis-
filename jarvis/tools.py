@@ -335,6 +335,9 @@ def execute(name: str, ctx: ToolContext, args: dict) -> tuple[str, bool]:
     t = REGISTRY.get(name)
     if not t:
         return f"Unknown tool {name}", True
+    from . import satellite
+    if name in satellite.LAPTOP_TOOLS and satellite.role() == "cloud":   # JARVIS is in the cloud: the laptop does this
+        return satellite.run_tool_remotely(ctx.store, name, args or {})
     try:
         result = t.fn(ctx, **(args or {}))
         return (result if isinstance(result, str) else json.dumps(result, default=str, ensure_ascii=False)), False

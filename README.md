@@ -440,6 +440,15 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## JARVIS in the cloud, 24/7, free (#7)
+
+JARVIS's main brain can live on a free always-on server (Oracle Cloud's Always Free tier), so Telegram, the night
+shift, reminders and the phone link keep running with the laptop off. The laptop becomes the cloud's **satellite**
+and does the laptop-only jobs (screen, files, apps, approved commands) whenever it's on.
+
+Setup is about 15 minutes once: follow **[docs/CLOUD.md](docs/CLOUD.md)**, then double-click `cloud-move.bat`. It
+moves your memory and settings over your private Tailscale network and switches the phone app over by itself.
+
 ## Predictive JARVIS (#69)
 
 JARVIS learns your routines from the phone's location history (the last 6 weeks): a trip between two of your places

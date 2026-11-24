@@ -100,8 +100,12 @@ async def lifespan(_app):
         spoken(*((who, rest.strip()) if who in AGENTS and rest else ("JARVIS", reply)), source="telegram")
     bot.on_spoken = _say_on_laptop
     bot.start()
-    from . import clap
-    bus.log("JARVIS", clap.start(on_double_clap), "system")
+    from . import satellite as _sat
+    if _sat.role() == "cloud":
+        bus.log("JARVIS", "☁ Cloud JARVIS: always on. Laptop jobs go to the laptop satellite when it's on.", "system")
+    else:
+        from . import clap
+        bus.log("JARVIS", clap.start(on_double_clap), "system")
     from . import dictate
 
     def _dictated_command(text: str) -> None:   # "Jarvis, ..." said while holding the voice-typing key
@@ -159,7 +163,7 @@ def _auth_cookie() -> str:
 async def pin_lock(request: Request, call_next):
     path = request.url.path
     if (_is_local(request) or path in OPEN_PATHS or path.startswith("/mcp/")
-            or path in ("/api/whatsapp/incoming", "/api/phone/notification")):   # these check their own token
+            or path in ("/api/whatsapp/incoming", "/api/phone/notification", "/api/satellite/poll", "/api/satellite/done")):   # these check their own token
         return await call_next(request)
     if not settings.access_pin:
         return JSONResponse({"detail": "Set JARVIS_PIN in .env to use JARVIS from your phone."}, status_code=403)
@@ -1274,6 +1278,53 @@ def phone_solo():
     from . import solo
     store.set("solo:last_pack", datetime.now(settings.tz).isoformat())
     return {"pack": solo.pack(store), "keys": solo.keys()}
+
+
+class SatDone(BaseModel):
+    id: int
+    result: str = ""
+    ok: bool = True
+
+
+def _sat_ok(tok: str) -> None:
+    import hmac
+    from . import satellite
+    if not satellite.token() or not hmac.compare_digest(tok or "", satellite.token()):
+        raise HTTPException(401, "bad satellite token")
+
+
+class Moved(BaseModel):
+    url: str
+
+
+@app.post("/api/cloud/moved")
+def cloud_moved(m: Moved, request: Request):
+    """cloud-move.bat finished: tell the phone app JARVIS's new always-on address (it switches by itself)."""
+    if not _is_local(request):
+        raise HTTPException(403, "only from this laptop")
+    url = m.url.strip().rstrip("/")
+    if not url.startswith("https://"):
+        raise HTTPException(400, "bad address")
+    from . import phonelink
+    phonelink.queue(store, "address", url=url)
+    bus.log("JARVIS", f"☁ Moved to the cloud: {url}. The phone app is switching over.", "system")
+    return {"ok": True}
+
+
+@app.post("/api/satellite/poll")
+def satellite_poll(body: dict, x_jarvis_satellite: str = Header("")):
+    """The laptop satellite checks in with the cloud JARVIS and collects laptop jobs (#7)."""
+    from . import satellite
+    _sat_ok(x_jarvis_satellite)
+    return {"jobs": satellite.checkin(store)}
+
+
+@app.post("/api/satellite/done")
+def satellite_done(d: SatDone, x_jarvis_satellite: str = Header("")):
+    from . import satellite
+    _sat_ok(x_jarvis_satellite)
+    satellite.done(store, d.id, d.result, d.ok)
+    return {"ok": True}
 
 
 class SoloSync(BaseModel):

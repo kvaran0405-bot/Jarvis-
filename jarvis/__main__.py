@@ -83,6 +83,8 @@ def main(argv: list[str] | None = None) -> int:
     bk.add_argument("--with-settings", action="store_true", help="include .env (contains passwords)")
     rs = sub.add_parser("restore", help="restore a backup zip (stop JARVIS first)")
     rs.add_argument("zip")
+    sat = sub.add_parser("satellite", help="link this laptop to your cloud JARVIS and do its laptop jobs")
+    sat.add_argument("--cloud", default="", help="the cloud JARVIS address (default: JARVIS_CLOUD_URL)")
 
     args = p.parse_args(argv)
     cmd = args.cmd or "serve"
@@ -111,7 +113,9 @@ def main(argv: list[str] | None = None) -> int:
                     except Exception:  # noqa: BLE001 - not up yet
                         time.sleep(0.5)
             threading.Thread(target=open_when_ready, daemon=True).start()
-        start_orb_later(settings)
+        from . import satellite as _sat
+        if _sat.role() != "cloud":   # a server in the cloud has no screen for the orb
+            start_orb_later(settings)
         uvicorn.run("jarvis.server:app", host=settings.host, port=settings.port, log_level="warning")
         return 0
 
@@ -122,6 +126,10 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "restore":
         from .studio import restore
         print("Restored: " + ", ".join(restore(args.zip)) + ". Start JARVIS again.")
+        return 0
+    if cmd == "satellite":
+        from .satellite import serve_forever
+        serve_forever(args.cloud or None)
         return 0
     if cmd == "orb":
         from .orb import main as orb_main
