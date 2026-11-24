@@ -247,6 +247,75 @@ final class Solo {
         } catch (Exception ignored) {}
     }
 
+    // ------------------------------------------------------------ shared by the solo page and the background brain
+    static String location(Context c) {
+        try {
+            android.location.LocationManager lm = c.getSystemService(android.location.LocationManager.class);
+            android.location.Location best = null;
+            for (String pr : lm.getProviders(true)) {
+                android.location.Location l = lm.getLastKnownLocation(pr);
+                if (l != null && (best == null || l.getTime() > best.getTime())) best = l;
+            }
+            if (best == null) return "";
+            return new JSONObject().put("lat", best.getLatitude()).put("lon", best.getLongitude()).put("accuracy", best.getAccuracy())
+                    .put("speed", best.hasSpeed() ? best.getSpeed() : -1).put("age", (System.currentTimeMillis() - best.getTime()) / 1000).toString();
+        } catch (Exception e) { return ""; }
+    }
+
+    /** Today's steps and the places the phone went (for the night review and "how was my day"). */
+    static String day(Context c) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("steps", JarvisLink.stepsToday);
+            JSONArray pts = new JSONArray();
+            synchronized (JarvisLink.TODAY) { for (double[] q : JarvisLink.TODAY) pts.put(new JSONArray().put(q[0]).put(q[1]).put(q[2])); }
+            o.put("points", pts);
+            return o.toString();
+        } catch (Exception e) { return "{}"; }
+    }
+
+    /** Notifications from the last day (never bank apps, never codes), for "what did I miss?". */
+    static void noteSeen(Context c, String app, String title, String text) {
+        if (Net.isFinance(app) || Net.isFinance(title) || Net.isFinance(text)) return;
+        if (text.matches("(?is).*\\b(otp|one[- ]time|verification|passcode|security code|pin)\\b.*") || text.matches("(?s).*\\b\\d{4,8}\\b.*(code|otp).*")) return;
+        try {
+            try { app = String.valueOf(c.getPackageManager().getApplicationLabel(c.getPackageManager().getApplicationInfo(app, 0))); } catch (Exception ignored) {}
+            synchronized (Solo.class) {
+                JSONArray a = new JSONArray(p(c).getString("notes", "[]")), keep = new JSONArray();
+                long cut = System.currentTimeMillis() - 24 * 3600_000L;
+                for (int i = 0; i < a.length(); i++) if (a.getJSONObject(i).optLong("t") > cut) keep.put(a.get(i));
+                keep.put(new JSONObject().put("t", System.currentTimeMillis()).put("app", app).put("title", title).put("text", text.length() > 300 ? text.substring(0, 300) : text));
+                while (keep.length() > 300) keep.remove(0);
+                p(c).edit().putString("notes", keep.toString()).apply();
+            }
+        } catch (Exception ignored) {}
+    }
+
+    static String notes(Context c) { return p(c).getString("notes", "[]"); }
+
+    /** Phone powers: the same ones the laptop can ask for. Bank and finance apps stay off limits (Powers checks). */
+    static String power(Context ctx, String kind, String argsJson) {
+        try {
+            JSONObject c = new JSONObject(argsJson == null || argsJson.isEmpty() ? "{}" : argsJson);
+            switch (kind) {
+                case "call": return Powers.call(ctx, c.optString("number"), c.optString("name"));
+                case "contacts": return Powers.contacts(ctx, c.optString("name"));
+                case "alarm": return Powers.alarm(ctx, c.optInt("hour"), c.optInt("minute"), c.optString("label"));
+                case "timer": return Powers.timer(ctx, c.optInt("seconds", 60), c.optString("label"));
+                case "torch": return Powers.torch(ctx, c.optBoolean("on", true));
+                case "volume": return Powers.volume(ctx, c.optInt("level", 50));
+                case "media": return Powers.media(ctx, c.optString("action", "toggle"));
+                case "play": return Powers.play(ctx, c.optString("query"), c.optString("app"));
+                case "app": return Powers.openApp(ctx, c.optString("name"));
+                case "link": return Powers.link(ctx, c.optString("url"));
+                case "camera": return Powers.camera(ctx, c.optBoolean("video"));
+                case "email": return Powers.email(ctx, c.optString("to"), c.optString("subject"), c.optString("body"));
+                case "screentime": return Powers.screenTime(ctx);
+                default: return "unknown";
+            }
+        } catch (Exception e) { return "couldn't: " + e.getMessage(); }
+    }
+
     /** A reminder is due. A backup copy of a laptop reminder rings only if the laptop is out of reach. */
     public static class Ring extends BroadcastReceiver {
         @Override

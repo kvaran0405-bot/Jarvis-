@@ -665,43 +665,20 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public String soloLocation() {
-            try {
-                android.location.LocationManager lm = getSystemService(android.location.LocationManager.class);
-                android.location.Location best = null;
-                for (String p : lm.getProviders(true)) {
-                    android.location.Location l = lm.getLastKnownLocation(p);
-                    if (l != null && (best == null || l.getTime() > best.getTime())) best = l;
-                }
-                if (best == null) return "";
-                return new JSONObject().put("lat", best.getLatitude()).put("lon", best.getLongitude())
-                        .put("accuracy", best.getAccuracy()).put("age", (System.currentTimeMillis() - best.getTime()) / 1000).toString();
-            } catch (SecurityException e) { return ""; } catch (Exception e) { return ""; }
-        }
+        public String soloLocation() { return Solo.location(MainActivity.this); }
+
+        @JavascriptInterface
+        public String soloDay() { return Solo.day(MainActivity.this); }
+
+        @JavascriptInterface
+        public String soloNotes() { return Solo.notes(MainActivity.this); }
+
+        @JavascriptInterface
+        public void notify(String title, String text, boolean urgent) { SoloBrain.notifyOwner(MainActivity.this, title, text, urgent); }
 
         /** Phone powers in solo mode: the same ones the laptop can ask for. */
         @JavascriptInterface
-        public String soloPower(String kind, String argsJson) {
-            try {
-                JSONObject c = new JSONObject(argsJson == null || argsJson.isEmpty() ? "{}" : argsJson);
-                Context ctx = MainActivity.this;
-                switch (kind) {
-                    case "call": return Powers.call(ctx, c.optString("number"), c.optString("name"));
-                    case "contacts": return Powers.contacts(ctx, c.optString("name"));
-                    case "alarm": return Powers.alarm(ctx, c.optInt("hour"), c.optInt("minute"), c.optString("label"));
-                    case "timer": return Powers.timer(ctx, c.optInt("seconds", 60), c.optString("label"));
-                    case "torch": return Powers.torch(ctx, c.optBoolean("on", true));
-                    case "volume": return Powers.volume(ctx, c.optInt("level", 50));
-                    case "media": return Powers.media(ctx, c.optString("action", "toggle"));
-                    case "play": return Powers.play(ctx, c.optString("query"), c.optString("app"));
-                    case "app": return Powers.openApp(ctx, c.optString("name"));
-                    case "link": return Powers.link(ctx, c.optString("url"));
-                    case "camera": return Powers.camera(ctx, c.optBoolean("video"));
-                    case "email": return Powers.email(ctx, c.optString("to"), c.optString("subject"), c.optString("body"));
-                    case "screentime": return Powers.screenTime(ctx);
-                    default: return "unknown";
-                }
-            } catch (Exception e) { return "couldn't: " + e.getMessage(); }
-        }
+        public String soloPower(String kind, String argsJson) { return Solo.power(MainActivity.this, kind, argsJson); }
+
     }
 }

@@ -73,6 +73,7 @@ public class JarvisLink extends Service implements LocationListener, android.har
         else startForeground(8, n);
         startLocation();
         startSteps();
+        SoloBrain.schedule(this);   // wakes every ~10 min even with the screen off (Telegram, briefs, alerts when the laptop's away)
         new Thread(this::loop).start();
     }
 
@@ -135,13 +136,22 @@ public class JarvisLink extends Service implements LocationListener, android.har
         boolean moved = lastKept == null || l.distanceTo(lastKept) > 60 || l.getTime() - lastKept.getTime() > 5 * 60_000L;
         if (!moved || l.getAccuracy() > 150) return;
         lastKept = l;
+        String d = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+        synchronized (TODAY) {
+            if (!d.equals(todayDay)) { TODAY.clear(); todayDay = d; }
+            TODAY.addLast(new double[]{l.getTime() / 1000.0, l.getLatitude(), l.getLongitude()});
+            while (TODAY.size() > 3000) TODAY.removeFirst();
+        }
         synchronized (pending) {
             pending.addLast(new double[]{l.getTime() / 1000.0, l.getLatitude(), l.getLongitude(), l.getAccuracy(), l.hasSpeed() ? l.getSpeed() : -1});
             while (pending.size() > 2000) pending.removeFirst();
         }
     }
     // ------------------------------------------------------------ steps (the phone's own step counter)
-    private volatile int stepsToday = -1;
+    static volatile int stepsToday = -1;
+    // today's trail (time, lat, lon), kept on the phone for the night review even when the laptop is off
+    static final java.util.ArrayDeque<double[]> TODAY = new java.util.ArrayDeque<>();
+    private static String todayDay = "";
 
     private void startSteps() {
         if (Build.VERSION.SDK_INT >= 29 && checkSelfPermission("android.permission.ACTIVITY_RECOGNITION") != PackageManager.PERMISSION_GRANTED) return;
@@ -205,6 +215,7 @@ public class JarvisLink extends Service implements LocationListener, android.har
             } catch (Exception ignored) {
                 Solo.lastFail = System.currentTimeMillis();   // laptop asleep or offline: the phone's own JARVIS takes over
             }
+            try { SoloBrain.tick(this, false); } catch (Exception ignored) {}   // at most every 2 minutes
             try { Thread.sleep(screenOn ? 5000 : 60000); } catch (InterruptedException e) { return; }
         }
     }

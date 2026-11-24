@@ -164,6 +164,23 @@ async function geocode(q, near){
   return {name: d[0].name || d[0].display_name.split(",")[0], lat: +d[0].lat, lon: +d[0].lon};
 }
 
+// ---------------------------------------------------------------- bus stops (LTA), cached on the phone for a week
+async function busStops(){
+  const c = LS.get("solo:stops", null); if (c && Date.now() - c.at < 7 * 86400e3) return c.stops;
+  if (!PACK.has?.lta) return [];
+  const out = []; for (let skip = 0; skip < 6000; skip += 500){
+    let d; try { d = await json(`https://datamall2.mytransport.sg/ltaodataservice/BusStops?$skip=${skip}`, {headers: {accept: "application/json"}}); } catch { break; }
+    const v = d.value || []; v.forEach(s => out.push([s.BusStopCode, s.Description, +s.Latitude.toFixed(5), +s.Longitude.toFixed(5)])); if (v.length < 500) break; }
+  if (out.length) LS.set("solo:stops", {at: Date.now(), stops: out}); return out;
+}
+async function nearestStop(l){ const stops = await busStops(); let best = null;
+  for (const [code, name, lat, lon] of stops){ const d = dist(l, {lat, lon}); if (d < .06 && (!best || d < best.d)) best = {code, name, d}; } return best; }
+async function stopArrivals(code){
+  try { const d = await json(`https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival?BusStopCode=${code}`, {headers: {accept: "application/json"}});
+    return (d.Services || []).map(s => ({bus: s.ServiceNo, mins: ["NextBus", "NextBus2"].map(k => s[k]?.EstimatedArrival).filter(Boolean).map(t => Math.max(0, Math.round((new Date(t) - Date.now()) / 60000)))}))
+      .filter(x => x.mins.length).sort((a, b) => a.mins[0] - b.mins[0]); } catch { return []; }
+}
+
 // ---------------------------------------------------------------- tools JARVIS can use on the phone by itself
 function decodePolyline(s){ const pts = []; let i = 0, lat = 0, lon = 0;
   while (i < s.length){ for (const w of [0, 1]){ let sh = 0, r = 0, b; do { b = s.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32);
@@ -258,6 +275,17 @@ const TOOLS = {
     const args = {name, number, hour, minute, label, seconds, on, level, query, app, video, to, subject, body};
     const kind = {open_app: "app", music: "play", flashlight: "torch"}[action] || action;
     return {result: N.soloPower(kind, JSON.stringify(args))}; },
+  async my_day(){ let d = {}; try { d = JSON.parse(N?.soloDay?.() || "{}"); } catch {}
+    const pts = (d.points || []).map(p => ({t: p[0], lat: p[1], lon: p[2]})); let km = 0; for (let i = 1; i < pts.length; i++) km += dist(pts[i - 1], pts[i]);
+    const saved = Object.entries(PACK.places || {}), visited = [];
+    pts.forEach(p => { const s = saved.find(([k, v]) => dist(p, {lat: v[0], lon: v[1]}) < .25); if (s && visited[visited.length - 1] !== s[0]) visited.push(s[0]); });
+    return {steps: d.steps >= 0 ? d.steps : "unknown", km_moved: +km.toFixed(1), places_in_order: visited, first_move: pts[0] ? hm(new Date(pts[0].t * 1000)) : "", gps_points: pts.length}; },
+  async notifications_digest({hours = 12}){ let a = []; try { a = JSON.parse(N?.soloNotes?.() || "[]"); } catch {}
+    const cut = Date.now() - hours * 3600e3; a = a.filter(x => x.t > cut);
+    const by = {}; a.forEach(x => (by[x.app] = by[x.app] || []).push(`${x.title}: ${x.text}`.slice(0, 160)));
+    return {count: a.length, by_app: Object.fromEntries(Object.entries(by).map(([k, v]) => [k, v.slice(-8)]))}; },
+  async buses_here(){ const l = await hereFresh(); if (!l) return {error: "no location"}; const st = await nearestStop(l);
+    if (!st) return {error: PACK.has?.lta ? "no bus stop within 60 m" : "live buses need /lta"}; return {stop: st.name, code: st.code, buses: await stopArrivals(st.code)}; },
   async look_up({question}){
     const d = await gemini({contents: [{role: "user", parts: [{text: question + "\nAnswer in 2-3 short sentences."}]}], tools: [{google_search: {}}]});
     return {answer: (d.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join(" ").trim()}; },
@@ -283,6 +311,9 @@ const DECL = [
   {name: "phone", description: "Do something on the phone: call (name or number), contacts, alarm (hour, minute), timer (seconds), torch (on), volume (level 0-100), media (play/pause/next), play (query, app), open_app (name), camera, email (opens a draft for the owner to send), screentime. Never bank or finance apps.",
    parameters: S({action: str("call|contacts|alarm|timer|torch|volume|media|play|open_app|link|camera|email|screentime"), name: str(""), number: str(""), hour: num(""), minute: num(""),
      label: str(""), seconds: num(""), on: {type: "BOOLEAN"}, level: num(""), query: str(""), app: str(""), video: {type: "BOOLEAN"}, to: str(""), subject: str(""), body: str("")}, ["action"])},
+  {name: "my_day", description: "Today so far: steps, distance moved, places visited (from the phone).", parameters: S({})},
+  {name: "notifications_digest", description: "What the owner missed: recent phone notifications grouped by app (no bank apps, no codes). Summarise the important ones.", parameters: S({hours: num("how far back, default 12")})},
+  {name: "buses_here", description: "Live arrival times at the bus stop the owner is standing at.", parameters: S({})},
   {name: "look_up", description: "Look something up on the web (news, opening hours, facts, prices).", parameters: S({question: str("the question")}, ["question"])},
 ];
 
@@ -297,7 +328,7 @@ function systemPrompt(){
   const team = TEAM.map(t => `${t.name} (${t.title}): ${t.style}`).join("\n");
   return `You are JARVIS, the personal AI of ${OWNER === "Sir" ? "the owner" : OWNER} (call them "Sir"). Iron Man's JARVIS: dry British wit, warm, loyal, quick.
 Right now you are running on the owner's phone by yourself (the laptop is off or far away), over Wi-Fi or mobile data. You can still do nearly everything with your tools. If something truly needs the laptop (its files, its screen), say it's queued for when the laptop is back.
-Your replies are spoken aloud: 1-3 short sentences, natural, no markdown, no lists, no emojis. Singapore English is normal for the owner (lah, aite, can).
+${VIA === "telegram" ? "You're replying in Telegram text: up to 5 short sentences, plain text, a line break between points is fine." : VIA === "routine" ? "This is a message you send first (a brief or review): warm, 3-5 short sentences, plain text." : "Your replies are spoken aloud: 1-3 short sentences, natural, no markdown, no lists, no emojis."} Singapore English is normal for the owner (lah, aite, can).
 Use tools whenever they help; never invent times, routes, weather or events.
 House rules: never touch bank or finance apps or sites. Never message other people by yourself: you can only open a draft for the owner to send. Ask before calling someone the owner didn't name.
 If the owner addresses a team member by name, answer as them in their style and start the reply with "NAME:". Team:
@@ -310,6 +341,7 @@ What you know about the owner:
 ${memories().slice(-120).map(m => "- " + m).join("\n") || "- (nothing yet)"}`;
 }
 let HISTORY = LS.get("solo:history", []);
+let VIA = "app";
 async function think(text){
   if (!PACK.has?.gemini && N) return basic(text);
   const contents = [...HISTORY.slice(-14), {role: "user", parts: [{text}]}];
@@ -415,6 +447,61 @@ async function ask(text){
   show(agent, reply); logLine(agent, reply); queue({kind: "chat", who: "jarvis", agent, text: reply});
   await speak(agent, reply);
 }
+// ---------------------------------------------------------------- the background brain (screen off, laptop away)
+const answer = (id, text) => { try { N?.answer?.(id, text); } catch {} };
+window.soloAsk = async (id, text, via = "app") => {
+  VIA = via; queue({kind: "chat", who: "you", text: `(${via}) ${text}`}); let reply;
+  try { reply = await think(text); } catch (e) { reply = /HTTP 0|timeout/i.test(e.message) ? "No internet on the phone right now, Sir." : "That didn't work, Sir: " + e.message.slice(0, 100); }
+  VIA = "app"; queue({kind: "chat", who: "jarvis", agent: "JARVIS", text: reply}); answer(id, reply);
+};
+window.soloHear = async (id, b64, mime) => {
+  try {
+    if (!PACK.has?.gemini) return answer(id, "🎙 Voice notes need the free Gemini key while the laptop's off, Sir (/gemini once it's back).");
+    const d = await gemini({contents: [{role: "user", parts: [{text: "Transcribe this voice message word for word (Singapore English). Output only the words."}, {inlineData: {mimeType: mime, data: b64}}]}], generationConfig: {temperature: 0}});
+    const heard = (d.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join(" ").trim();
+    if (!heard) return answer(id, "🎙 I couldn't make that out, Sir. Once more?");
+    VIA = "telegram"; const reply = await think(heard); VIA = "app";
+    queue({kind: "chat", who: "you", text: "(telegram voice) " + heard}); queue({kind: "chat", who: "jarvis", agent: "JARVIS", text: reply});
+    answer(id, `🎙 “${heard}”\n\n📱 ${reply}`);
+  } catch (e) { answer(id, "🎙 That voice note didn't go through, Sir."); }
+};
+window.soloRoutine = async (id, kind) => {
+  VIA = "routine";
+  const ask = kind === "morning" ? "Give me my morning brief: the weather here, today's plans and when to leave for the first one (use your tools), and the top task. End with one line of encouragement."
+                                 : "Review my day using my_day (steps, distance, places) and tell me tomorrow's first plan and if I need to set an alarm. Short and warm.";
+  let reply; try { reply = await think(ask); } catch { reply = null; } VIA = "app";
+  if (reply) queue({kind: "chat", who: "jarvis", agent: "JARVIS", text: reply}); answer(id, reply || "");
+};
+// Speaks up first: buses at your stop (always), time to leave and rain on the way (when the laptop is away).
+window.soloWatch = async (id, solo) => {
+  const seen = LS.get("solo:alerted", {}), now = Date.now(), once = (k, ms) => { if (seen[k] && now - seen[k] < ms) return false; seen[k] = now; return true; };
+  const say = (title, text, urgent) => { try { N?.notify?.(title, text, !!urgent); } catch {} };
+  try {
+    const l = here();
+    if (l && PACK.has?.lta && (l.speed == null || l.speed < 1.2) && (l.age == null || l.age < 300)){
+      const st = await nearestStop(l);
+      if (st && once("stop:" + st.code, 20 * 60e3)){ const arr = (await stopArrivals(st.code)).slice(0, 4);
+        if (arr.length) say(`🚌 ${st.name}`, arr.map(a => `${a.bus}: ${a.mins.map(m => m ? m + " min" : "now").join(", ")}`).join(" · ")); }
+    }
+    if (solo && l){
+      const e = events().find(v => new Date(v.start) > now && new Date(v.start) - now < 3 * 3600e3 && v.location);
+      if (e && !seen["leave:" + e.start]){
+        const r = await TOOLS.directions({to: e.location, arrive_by: e.start.slice(0, 16)}).catch(() => null);
+        if (r && r.leave_by){ const [h, m] = r.leave_by.split(":").map(Number), lb = new Date(); lb.setHours(h, m, 0, 0);
+          if (lb - now < 12 * 60e3){ seen["leave:" + e.start] = now;
+            say(`🚶 Time to go, Sir`, `Leave by ${r.leave_by} for ${e.title} at ${e.location}.` + (r.transit ? ` ${r.transit.steps}.` : ` About ${r.drive_min} min by car${r.grab_fare_sgd ? ", Grab " + r.grab_fare_sgd : ""}.`), true); } }
+      }
+      const h = new Date().getHours();
+      if (h >= 7 && h < 22 && once("rain:" + new Date().toDateString() + (h < 14 ? "am" : "pm"), 6 * 3600e3)){
+        const w = await weatherAt(l).catch(() => null);
+        if (w && !w.raining && w.rain_in_hours != null && w.rain_in_hours <= 1) say("☔ Rain on the way", "Rain likely within the hour, Sir. Umbrella.");
+        else if (!(w && w.rain_in_hours != null && w.rain_in_hours <= 1)) delete seen["rain:" + new Date().toDateString() + (h < 14 ? "am" : "pm")];
+      }
+    }
+  } catch {}
+  LS.set("solo:alerted", seen); answer(id, "ok");
+};
+
 window.jarvisTalk = () => { hands = false; $("#hands").classList.remove("on"); listen(); };
 $("#core").onclick = () => { if (speaking){ try { N?.stopSpeaking?.(); speechSynthesis.cancel(); } catch {} speaking = false; setState("TAP TO TALK"); } else window.jarvisTalk(); };
 $("#mic").onclick = () => window.jarvisTalk();
@@ -480,7 +567,7 @@ setInterval(() => { $("#clock").textContent = hm(new Date()); }, 1000); $("#cloc
 setInterval(() => { if (N?.laptopUp?.()) $("#back").classList.add("on"); }, 8000);
 $("#back").onclick = () => N?.openLaptop?.();
 show("JARVIS", PACK.has?.gemini || !N ? "Laptop's out of reach, Sir, so I'm running on your phone. Everything still works." : "Laptop's out of reach, Sir. I'm on your phone in basic mode.");
-hereFresh();
+if (!N?.headless) hereFresh();
 if (new URLSearchParams(location.search).get("talk") === "1") setTimeout(listen, 600);
 </script>
 </body></html>

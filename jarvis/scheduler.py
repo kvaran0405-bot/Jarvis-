@@ -409,7 +409,8 @@ class Scheduler:
                    "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6), "leave_now": every_hours(1 / 12), "screenshots": every_hours(1 / 60),
                    "nudge": every_hours(2), "auto_update": daily_at("04:10"),
                    "photo_pull": daily_at("01:30"), "photo_sort": every_hours(1),
-                   "screentime_pull": daily_at("23:40"), "phone_link_watch": every_hours(.5)}
+                   "screentime_pull": daily_at("23:40"), "phone_link_watch": every_hours(.5),
+                   "self_check": daily_at("03:40")}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -435,6 +436,9 @@ class Scheduler:
                 from .life import housekeeping
                 out = housekeeping()
                 self.bus.log("EDITH", f"Weekly tidy: {out['moved_to_old']} old download(s) filed away, backup made", "job")
+            elif name == "self_check":
+                from . import selfcheck
+                selfcheck.nightly(self.store, self.bus)
             elif name == "leave_now":
                 from .butler import leave_now_check
                 leave_now_check(self.store, self.bus)

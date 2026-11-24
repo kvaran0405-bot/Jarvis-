@@ -51,8 +51,19 @@ def keys() -> dict:
     out = {"gemini": settings.gemini_key or "", "gemini_model": settings.gemini_model,
            "lta": os.environ.get("JARVIS_LTA_KEY", "") if navigate.lta_ready() else "",
            "onemap_email": os.environ.get("JARVIS_ONEMAP_EMAIL", "") if navigate.onemap_ready() else "",
-           "onemap_password": os.environ.get("JARVIS_ONEMAP_PASSWORD", "") if navigate.onemap_ready() else ""}
+           "onemap_password": os.environ.get("JARVIS_ONEMAP_PASSWORD", "") if navigate.onemap_ready() else "",
+           # so the phone can answer your Telegram messages while the laptop is off (it hands the bot back after)
+           "telegram_token": settings.telegram_token or "", "telegram_chat": _chat(),
+           "morning_at": settings.morning_brief_at}
     return out
+
+
+def _chat() -> str:
+    from . import telegram
+    try:
+        return telegram.chat_id() or ""
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def pack(store) -> dict:

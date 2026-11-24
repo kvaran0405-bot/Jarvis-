@@ -440,6 +440,27 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## The phone works all night, screen off
+
+The phone's JARVIS keeps working with the screen off. It wakes about every 10 minutes even in deep sleep, and
+every couple of minutes while the phone is in use. When the laptop has been unreachable for 3 minutes, the phone:
+
+- **answers your Telegram messages and voice notes** (replies start with 📱). When the laptop is back it takes the
+  bot over again, and nothing is answered twice.
+- **sends the morning brief** at your usual time and a **night review** at 22:30 (steps, places, tomorrow's first plan).
+- **speaks up first:** "Time to go, Sir" before your next plan (with the bus or Grab), and "Rain on the way".
+
+Always, laptop or not:
+
+- **bus alerts:** stand at a stop and the next buses there pop up, live (needs `/lta` once).
+- **"What did I miss?"** sums up your notifications, never bank apps and never codes.
+
+**Nightly self-check:** at 03:40 JARVIS checks the database, disk, phone link, the phone's offline copy, Telegram,
+Gemini and hearing. It fixes what it safely can, and messages you only if something needs you. Say "system check"
+any time.
+
+Keep "Background" allowed on the phone's setup page, or Android may pause JARVIS while you sleep.
+
 ## Holograms everywhere (laptop and phone)
 
 - **🌐 HOLO LAB** (phone home screen, or 🌐 Holo on the laptop): your week, Shaabaz, body, money, Singapore,

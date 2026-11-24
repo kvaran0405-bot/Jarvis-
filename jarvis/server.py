@@ -752,6 +752,7 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"^\s*(?:jarvis[,\s]+)?(?:try|preview|show me|switch to|put on)(?: the)? (chinese new year|lunar new year|cny|"
                        r"hari raya|raya|deepavali|diwali|national day|christmas|xmas|new year|birthday) (?:skin|mode|look|theme)"
                        r"\s*[.!]?\s*$", re.I)
+SELFCHECK_RE = re.compile(_J + r"(?:run (?:a |the )?)?(?:self|system|systems|health)[ -]?check(?:up)?\s*[.!?]?\s*$", re.I)
 SPEAKER_RE = re.compile(_J + r"(?:(?:speak|talk|answer|reply|voice)\s+(?:on|from|through|via)\s+(?:my\s+|the\s+)?"
                         r"(phone|mobile|laptop|computer|pc)|(phone|laptop|computer) (?:voice|speaker|speaks?|talks?)(?: on)?|"
                         r"(mute) (?:both|everything|all|voice|jarvis|yourself)|(?:voice|speaker|sound) (off))\s*[.!]?\s*$", re.I)
@@ -901,6 +902,9 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         line = holo.narrate(view, holo.data(store))
         bus.publish({"type": "holo", "view": view})
         return line, None, None
+    if SELFCHECK_RE.match(text):
+        from . import selfcheck
+        return selfcheck.run(store, bus)["summary"], None, None
     if m := SPEAKER_RE.match(text):
         from . import speaker
         where = (m.group(1) or m.group(2) or m.group(3) or m.group(4)).lower()
@@ -1233,6 +1237,7 @@ def phone_poll(report: dict):
 def phone_solo():
     """The solo pack: what the phone needs to be JARVIS by itself while the laptop is off (see jarvis/solo.py)."""
     from . import solo
+    store.set("solo:last_pack", datetime.now(settings.tz).isoformat())
     return {"pack": solo.pack(store), "keys": solo.keys()}
 
 

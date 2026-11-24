@@ -79,6 +79,7 @@ public class SmartReplies extends NotificationListenerService {
     private void forward(String pkg, Notification n) {
         CharSequence t = n.extras.getCharSequence(Notification.EXTRA_TITLE), x = n.extras.getCharSequence(Notification.EXTRA_TEXT);
         if (t == null || x == null || Net.isFinance(String.valueOf(t)) || Net.isFinance(String.valueOf(x))) return;
+        Solo.noteSeen(this, pkg, String.valueOf(t), String.valueOf(x));   // for "what did I miss?", even with the laptop off
         String key = pkg + t + x;
         long now = System.currentTimeMillis();
         synchronized (RECENT) { Long seen = RECENT.get(key); if (seen != null && now - seen < 10 * 60 * 1000) return; RECENT.put(key, now); }
