@@ -132,3 +132,12 @@ Owner: "I want JARVIS laptop and phone display to be top notch, voice top notch,
 7. Missed calls summary ("who called me?", needs call-log access).
 8. Instagram/TikTok autopilot: post an approved story or reel with a written caption.
 9. Faster first words in fast mode: stream Gemini replies so speech starts before the whole answer is ready.
+
+## Job-application agent (owner asked; reminder set for 25 Nov, 20:00 SGT)
+- JARVIS finds fresh jobs that match the owner's resume: JobStreet, LinkedIn, MyCareersFuture, Indeed, plus fast
+  part-time and gig jobs.
+- It tailors the CV and cover letter for each job, tracks applications (already in the store), and follows up.
+- It applies with the owner's one-tap OK. LinkedIn and JobStreet ban bots, so JARVIS prepares everything and fills
+  the form (phone autopilot or the Easy Apply page opened ready), and the owner taps Submit.
+- Needs from the owner: resume PDF, target roles, salary and locations.
+
