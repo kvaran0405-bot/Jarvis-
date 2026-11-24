@@ -342,10 +342,21 @@ def make_slides(ctx: ToolContext, title: str, slides: list, subtitle: str = "", 
     return {"pptx": str(path), "slides": len(slides) + 1, **_to_phone(path, send_to_phone, f"🖥 {title} ({len(slides) + 1} slides)")}
 
 
+def _cell(v):
+    """Numbers written as text ("12.50", "1,200") become real numbers, so totals and charts work."""
+    if isinstance(v, str):
+        t = v.strip().replace(",", "")
+        try:
+            return int(t) if t.lstrip("-").isdigit() else float(t)
+        except ValueError:
+            return v
+    return v
+
+
 @tool("make_spreadsheet", "Make a real Excel (.xlsx) file: sheets: [{name, columns: [..], rows: [[..]], "
       "totals: [column names to total]}]. Formulas like '=B2*C2' work in cells. Saved in ~/JARVIS/Sheets.",
       {"name": S, "sheets": {"type": "array", "items": {"type": "object", "properties": {
-          "name": S, "columns": {"type": "array", "items": S}, "rows": {"type": "array", "items": {"type": "array"}},
+          "name": S, "columns": {"type": "array", "items": S}, "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
           "totals": {"type": "array", "items": S}}, "required": ["name", "columns", "rows"]}}, "send_to_phone": B},
       ["name", "sheets"])
 def make_spreadsheet(ctx: ToolContext, name: str, sheets: list, send_to_phone: bool = True) -> dict:
@@ -365,7 +376,7 @@ def make_spreadsheet(ctx: ToolContext, name: str, sheets: list, send_to_phone: b
             c.font = Font(bold=True, color="FFFFFF")
             c.fill = PatternFill("solid", fgColor="1A2A3A")
         for r in sh["rows"][:5000]:
-            ws.append(list(r))
+            ws.append([_cell(v) for v in r])
         n = len(sh["rows"]) + 1
         if sh.get("totals") and n > 1:
             row = ["TOTAL"] + [""] * (len(cols) - 1)

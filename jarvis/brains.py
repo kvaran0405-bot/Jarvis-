@@ -251,6 +251,10 @@ def _gemini_schema(schema: dict) -> dict:
         out["properties"] = {k: _gemini_schema(v) for k, v in out["properties"].items()}
     if "items" in out:
         out["items"] = _gemini_schema(out["items"])
+    if out.get("type") == "array" and not out.get("items"):
+        out["items"] = {"type": "string"}   # Gemini rejects a list with no item type (it broke every Gemini reply)
+    if out.get("type") == "object" and "properties" in out and not out["properties"]:
+        out.pop("properties")
     return out
 
 
