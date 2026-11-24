@@ -162,7 +162,7 @@ def check(store, bus, now: datetime | None = None) -> list[str]:
 
 
 @tool("my_routines", "The owner's learned routines (regular trips at regular times), e.g. home to gym around 18:10 on "
-      "Tuesdays. Use for 'what are my routines', 'when do I usually…'.", {"type": "object", "properties": {}})
+      "Tuesdays. Use for 'what are my routines', 'when do I usually…'.")
 def my_routines(ctx: ToolContext) -> dict:
     rs = json.loads(ctx.store.get("predict:routines") or "null")
     if rs is None:
