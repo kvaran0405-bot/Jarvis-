@@ -46,6 +46,8 @@ const MISSIONS = [
   {id: "busstop", title: "Your bus, before you ask", what: "Stand at a bus stop and a notification shows the next buses there, live. Or ask: “when's my bus?”", todo: "Next time you're at a stop, look at your notifications (needs /lta once).", manual: true},
   {id: "missed", title: "What did I miss?", what: "JARVIS sums up your notifications (never bank apps, never codes), even with the laptop off.", todo: "Ask: “what did I miss?”", say: /what did i miss|catch me up/i},
   {id: "selfcheck", title: "JARVIS checks himself", what: "Every night JARVIS tests himself, fixes what he can, and only messages you if something needs you.", todo: "Say: “Jarvis, run a system check”", say: /(system|self|health)[ -]?check/i},
+  {id: "bargein", title: "Cut in, like a real conversation", what: "Start talking while JARVIS is speaking and he stops and listens. After he answers, just keep talking: no need to say “Jarvis” or tap again for 8 seconds.", todo: "Ask something long (“tell me about my week”), then talk over him.", dom: "bargein"},
+  {id: "instant", title: "Instant answers", what: "Everyday questions (time, what's next, my tasks, steps, battery, weather, where am I) come back in a blink, with no thinking delay.", todo: "Ask: “what's next?”", say: /what'?s next|my tasks|how many steps|phone battery/i},
   {id: "snap", title: "Snap to summon", what: "Snap your fingers twice (or clap twice) near the laptop and JARVIS wakes up: “Yes Sir?” and he listens. Talking and music won't set it off.", todo: "Snap twice, about half a second apart, near the laptop.", ev: "wake", laptop: true},
   {id: "update", title: "One-word updates", what: "JARVIS updates itself every night. To update now, text “update” to your bot on Telegram.", todo: "Nothing to do here: tap ✓ Got it.", manual: true},
 ];
@@ -115,7 +117,7 @@ if(typeof origSend === "function"){
 }
 const form = $("#bar"); form?.addEventListener("submit", () => { const t = $("#cmd")?.value || ""; if(t) check("say", {text: t, voice: false}); }, true);
 const hud = window.HUDFX; if(hud?.onEvent){ const o = hud.onEvent; hud.onEvent = ev => { try { if(ev?.type === "tutorial") window.TUTORIAL.on(); else if(ev?.type) check("ev", ev.type); } catch {} return o(ev); }; }
-["drop", "taskdrop", "room", "photo"].forEach(n => document.addEventListener("jarvis:" + n, () => check("dom", n)));
+["drop", "taskdrop", "room", "photo", "bargein"].forEach(n => document.addEventListener("jarvis:" + n, () => check("dom", n)));
 if(new URLSearchParams(location.search).get("setup") === "done") check("dom", "setupdone");
 
 window.TUTORIAL = {show, replay(){ done = {}; store.set("done", done); show(); }, on(){ store.set("autostart", true); show(); }};

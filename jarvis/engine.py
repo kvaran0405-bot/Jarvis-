@@ -241,8 +241,9 @@ class Engine:
             messages.append({"role": "user", "content": full_prompt})
             return self._loop(agent, messages, depth, on_text, effort, approved)
         if which == "pro" and chat and depth == 0 and not approved:   # live chat: kept-alive session, fast replies
+            quick = effort == "low" and not agent.model   # a spoken question: the fastest model, kept warm
             return brains.run_pro_live(agent, full_prompt, self.system_prompt(agent), effort=effort, on_text=on_text,
-                                       log=log, model=agent.model or None)
+                                       log=log, model=(self.settings.voice_model if quick else None) or agent.model or None)
         if which == "pro":
             session = self._chats.get(key) if chat else None
             reply, session = brains.run_pro(agent, full_prompt, self.system_prompt(agent), self.tool_names_for(agent),
@@ -257,7 +258,7 @@ class Engine:
         contents.append({"role": "user", "parts": [{"text": full_prompt}]})
         ctx = ToolContext(self.store, self.bus, self.settings, self, agent.name, depth, approved)
         return brains.run_gemini(agent, contents, self.system_prompt(agent), self.tool_names_for(agent), ctx,
-                                 on_text=on_text, log=log)
+                                 on_text=on_text, log=log, quick=effort == "low")
 
     def _call(self, params: dict, on_text: Callable[[str], None] | None):
         if on_text is None:

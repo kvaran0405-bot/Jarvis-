@@ -4,6 +4,7 @@
 <title>JARVIS</title>
 <meta name="theme-color" content="#03060a"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png">
 <script src="/native-bridge.js"></script>
+<script src="/bargein.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box}
@@ -94,19 +95,50 @@ requestAnimationFrame(draw);
 // talk
 function setState(t){ $("#state").textContent = t; }
 function show(who, text){ $("#said").innerHTML = `<small>${who}</small>${String(text).replace(/\[\w+\]\s*/g, "").replace(/[<>&]/g, "").slice(0, 400)}`; }
-async function speak(agent, text){
-  speaking = true; setState(`${agent} SPEAKING`);
-  try { const r = await fetch("/api/tts", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent, text})});
-    if(!r.ok) throw 0; const a = window._a = new Audio(URL.createObjectURL(await r.blob())); await new Promise(res => { a.onended = a.onerror = res; a.play().catch(res); }); }
-  catch { await new Promise(res => { try { const u = new SpeechSynthesisUtterance(text.replace(/\[\w+\]\s*/g, "")); u.onend = u.onerror = res; speechSynthesis.speak(u); setTimeout(res, 3000 + text.length * 80); } catch { res(); } }); }
-  speaking = false; setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); if(hands) listen();
+// Speech queue: sentences play in order; the next one's audio is fetched while the current one plays (no gaps).
+let chain = Promise.resolve(), pend = 0, gen = 0, cutNow = null, followUntil = 0;
+function clip(agent, text){ return fetch("/api/tts", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent, text})})
+  .then(r => r.ok ? r.blob() : null).catch(() => null); }
+function play(agent, text, blobP, g){
+  return new Promise(async res => {
+    let fin = false; const done = () => { if(!fin){ fin = true; cutNow = null; res(); } }; cutNow = done;
+    if(g !== gen) return done();
+    speaking = true; setState(`${agent} SPEAKING`);
+    const b = await blobP; if(g !== gen) return done();
+    if(b){ const a = window._a = new Audio(URL.createObjectURL(b)); a.onended = a.onerror = done; a.play().catch(done); setTimeout(done, 9000 + text.length * 120); }
+    else { try { const u = new SpeechSynthesisUtterance(text.replace(/\[\w+\]\s*/g, "")); u.onend = u.onerror = done; speechSynthesis.speak(u); setTimeout(done, 3000 + text.length * 80); } catch { done(); } }
+  });
 }
+function speak(agent, text){
+  if(!String(text).trim()) return chain;
+  if(pend++ === 0) window.BargeIn?.watch(bargedIn);   // talk over him and he stops to listen
+  const g = gen, b = clip(agent, text);
+  chain = chain.then(() => play(agent, text, b, g)).finally(() => { if(--pend === 0) finished(); });
+  return chain;
+}
+function finished(){
+  window.BargeIn?.stop(); speaking = false;
+  setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK");
+  if(hands){ listen(); return; }
+  if(convo){ convo = false; followUntil = Date.now() + 8000; setState("GO AHEAD…"); setTimeout(() => listen(true), 250); }   // a follow-up, no tap needed
+}
+function shush(){ gen++; try { speechSynthesis.cancel(); window._a?.pause(); window.JarvisNative?.stopSpeaking?.(); } catch {} cutNow?.(); }
+function bargedIn(){ shush(); convo = false; followUntil = Date.now() + 8000; setTimeout(() => listen(true), 150); }
+// the reply streams in: speak each sentence as soon as it's complete
+let streamBuf = "", streamAny = false, streamAgent = "JARVIS";
+function feed(text, final){
+  streamBuf += text || ""; let m;
+  while((m = streamBuf.match(/^[\s\S]*?[.!?…](?=\s)|^[^\n]*\n/))){ const sn = m[0]; streamBuf = streamBuf.slice(sn.length); if(sn.trim()){ streamAny = true; speak(streamAgent, sn); } }
+  if(final && streamBuf.trim()){ streamAny = true; speak(streamAgent, streamBuf); streamBuf = ""; }
+}
+let convo = false;
 // Say it here if the phone is the speaker; otherwise just show it (the laptop is saying it) and carry on.
 function answer(agent, text){
   show(agent, text);
   if(speakerWhere === "phone") return speak(agent, text);
   setState(speakerWhere === "laptop" ? "💻 LAPTOP ANSWERING" : "🔇 MUTED");
-  return new Promise(res => setTimeout(() => { setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); if(hands) listen(); res(); },
+  return new Promise(res => setTimeout(() => { setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); if(hands) listen();
+      else if(convo){ convo = false; followUntil = Date.now() + 8000; listen(true); } res(); },
     speakerWhere === "laptop" ? 1200 + String(text).length * 60 : 400));   // don't let the phone hear the laptop talking
 }
 function showSpeaker(w){
@@ -123,22 +155,26 @@ $("#spk").onclick = async () => {
   window.dispatchEvent(new CustomEvent("jarvis:speaker", {detail: want}));
 };
 async function ask(text){
-  show("YOU", text); setState("THINKING"); myRid = Math.random().toString(36).slice(2);
+  show("YOU", text); setState("THINKING"); myRid = Math.random().toString(36).slice(2); streamBuf = ""; streamAny = false; convo = true;
   const ack = setTimeout(() => { if(!speaking && speakerWhere === "phone") speak("JARVIS", "One moment Sir."); }, 1500);
   try { const r = await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, agent: "JARVIS", voice: true, rid: myRid, source: "phone"})});
     if(r.status === 401){ location.href = "/login.html?next=/home.html"; return; }
-    const d = await r.json(); clearTimeout(ack); answer(d.agent || "JARVIS", d.reply || "Done."); }
+    const d = await r.json(); clearTimeout(ack);
+    if(streamAny){ show(d.agent || "JARVIS", d.reply || ""); feed("", true); }   // already being spoken as it streamed
+    else answer(d.agent || "JARVIS", d.reply || "Done."); }
   catch { clearTimeout(ack); show("JARVIS", "I can't reach your laptop right now, Sir."); setState("OFFLINE"); }
 }
-function listen(){
-  if(!SR || speaking || listening) return; const rec = new SR(); rec.lang = "en-SG"; rec.interimResults = false; listening = true; setState("LISTENING");
+function listen(follow){
+  if(!SR || speaking || listening) return; const rec = new SR(); rec.lang = "en-SG"; rec.interimResults = false; listening = true; setState(follow ? "GO AHEAD…" : "LISTENING");
   rec.onresult = e => { const t = e.results[0][0].transcript.trim(); listening = false;
     if(hands){ const m = t.match(/^(?:hey |ok )?jarvis[,\s]*(.*)$/i); if(!m){ listen(); return; } if(m[1]) ask(m[1]); else { answer("JARVIS", "Yes Sir?"); } }
-    else ask(t); };
-  rec.onerror = () => { listening = false; }; rec.onend = () => { listening = false; if(hands && !speaking) setTimeout(listen, 400); else if(!speaking) setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); };
+    else { followUntil = 0; ask(t); } };
+  rec.onerror = () => { listening = false; }; rec.onend = () => { listening = false; if(hands && !speaking) setTimeout(listen, 400);
+    else if(!speaking && Date.now() < followUntil) setTimeout(() => listen(true), 300);   // still inside the follow-up window
+    else if(!speaking) setState(hands ? "SAY “JARVIS…”" : "TAP TO TALK"); };
   try { rec.start(); } catch { listening = false; }
 }
-$("#core").onclick = () => { if(speaking){ speechSynthesis?.cancel?.(); speaking = false; } else { hands = false; $("#hands").classList.remove("on"); listen(); } };
+$("#core").onclick = () => { if(speaking){ shush(); } else { hands = false; $("#hands").classList.remove("on"); listen(); } };
 $("#hands").onclick = () => { hands = !hands; $("#hands").classList.toggle("on", hands); try { window.JarvisNative?.keepAwake(hands); } catch {} if(hands){ setState("SAY “JARVIS…”"); listen(); } else setState("TAP TO TALK"); };
 window.jarvisTalk = () => { hands = false; listen(); };   // the floating orb opens the app and calls this
 
@@ -163,6 +199,8 @@ function live(){
   const es = new EventSource("/api/stream");
   es.onmessage = e => { let ev; try { ev = JSON.parse(e.data); } catch { return; }
     if(ev.type === "speaker") showSpeaker(ev.where);
+    else if(ev.type === "delta" && ev.rid && ev.rid === myRid && speakerWhere === "phone"){ streamAgent = ev.agent || "JARVIS"; feed(ev.text, false); }
+    else if(ev.type === "delta_end" && ev.rid && ev.rid === myRid && speakerWhere === "phone"){ feed("", true); }
     else if(ev.type === "speak"){ if(ev.rid && ev.rid === myRid) return; show(ev.agent, ev.text); if(speakerWhere === "phone" && !speaking) speak(ev.agent, ev.text); }
     else if(ev.type === "say" || ev.type === "ask"){ const t = ev.say || ev.text; if(t){ show(ev.agent, t); if(speakerWhere === "phone" && !speaking) speak(ev.agent, t); } }
   };

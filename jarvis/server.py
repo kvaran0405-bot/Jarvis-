@@ -568,6 +568,13 @@ async def command(cmd: Command):
     if sp_agent:
         agent, cmd.text = sp_agent, sp_prompt
     from . import hud as _hud
+    from . import quick as _quick
+    if not sp_agent and agent == "JARVIS" and not _hud.guest_on(store) and (fast := _quick.answer(store, cmd.text)):
+        bus.publish({"type": "delta", "rid": cmd.rid, "agent": "JARVIS", "text": fast})   # instant: no AI round trip
+        bus.publish({"type": "delta_end", "rid": cmd.rid, "agent": "JARVIS"})
+        bus.log("JARVIS", fast, "reply")
+        spoken("JARVIS", fast, cmd.rid, cmd.source)
+        return {"agent": "JARVIS", "reply": fast}
     if _hud.guest_on(store) and not sp_agent:
         agent = "GUEST"   # visitors talk to the guest persona: no tools, no private data
     else:
@@ -1021,6 +1028,11 @@ def handle_owner_message(text: str, via: str = "WhatsApp", voice: bool = False) 
         items = store.list_outbox("pending", 20)
         return "\n\n".join(f"#{x['id']} {x['channel']} → {x['recipient_name'] or x['recipient']}: {x['body'][:200]}"
                              for x in items) or "Nothing is waiting for approval."
+    from . import quick as _quick
+    if (fast := _quick.answer(store, text)) is not None:   # instant answers: no AI round trip
+        bus.log("YOU", f"({via}) {text}", "command")
+        bus.log("JARVIS", fast, "reply")
+        return fast
     from . import team as _team
     if _team.DINNER_RE.match(text) or _team.TEAM_RE.match(text):   # on Telegram, wait and send the whole call
         bus.log("YOU", f"({via}) {text}", "command")

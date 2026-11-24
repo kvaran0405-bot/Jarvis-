@@ -89,6 +89,8 @@ class Settings:
     automation_brain: str = field(default_factory=lambda: _env("JARVIS_AUTOMATION_BRAIN", "auto").lower())
     # Claude model when thinking through your plan: sonnet (balanced) | haiku (fastest, lightest on limits) | opus
     pro_model: str = field(default_factory=lambda: _env("JARVIS_PRO_MODEL", "sonnet"))
+    # spoken questions go to the quickest Claude model (answers start in about a second); "sonnet" for more depth
+    voice_model: str = field(default_factory=lambda: _env("JARVIS_VOICE_MODEL", "haiku"))
     # Google Gemini (free tier) - key from https://aistudio.google.com/apikey
     gemini_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
     gemini_model: str = field(default_factory=lambda: _env("JARVIS_GEMINI_MODEL", "gemini-flash-latest"))

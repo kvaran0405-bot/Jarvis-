@@ -317,7 +317,7 @@ function speakBrowser(agent, text, done){
 }
 // Speech queue: sentences are spoken in order as they stream in. Premium audio for the next sentence is
 // fetched while the current one plays, so there are no gaps.
-let speechChain = Promise.resolve(), speechGen = 0, speaking = 0;
+let speechChain = Promise.resolve(), speechGen = 0, speaking = 0, currentDone = null;
 function prepareClip(agent, text){
   const clip = {agent, text: plain(text), gen: speechGen};
   if(VOICE_PROVIDER !== "browser")
@@ -329,7 +329,8 @@ function playClip(clip){
   return new Promise(res => {
     if(clip.gen !== speechGen || !voiceOn) return res();
     let finished = false;
-    const done = () => { if(finished) return; finished = true; $("#orb").classList.remove("speak"); window.HUDFX?.speakEnd(clip); res(); };
+    const done = () => { if(finished) return; finished = true; if(currentDone === done) currentDone = null; $("#orb").classList.remove("speak"); window.HUDFX?.speakEnd(clip); res(); };
+    currentDone = done;
     focus(clip.agent); $("#orb").classList.add("speak"); window.HUDFX?.speakStart(clip, null);
     const browser = () => "speechSynthesis" in window ? speakBrowser(clip.agent, clip.text, done) : done();
     if(clip.audio){
@@ -342,22 +343,32 @@ function playClip(clip){
 function queueSpeech(agent, text){
   if(!voiceOn || !plain(text).trim()) return speechChain;
   const clip = prepareClip(agent, text);
-  speaking++; pauseListening();
-  speechChain = speechChain.then(() => playClip(clip)).finally(() => { if(--speaking === 0) resumeListening(); });
+  if(speaking++ === 0) window.BargeIn?.watch(bargedIn);   // talk over him and he stops to listen
+  pauseListening();
+  speechChain = speechChain.then(() => playClip(clip)).finally(() => { if(--speaking === 0){ window.BargeIn?.stop(); resumeListening(); } });
   return speechChain;
 }
 function speak(agent, text){
   if(!voiceOn) return new Promise(r => setTimeout(r, 600 + text.length*12));
   return queueSpeech(agent, text);
 }
+// The owner started talking while JARVIS was speaking: stop at once and listen, no "Jarvis" needed.
+function bargedIn(){
+  stopSpeaking();
+  awaitingUntil = Date.now() + 8000; convo = false;
+  window.HUDFX?.toast?.("🎙 Go ahead, Sir");
+  try { window.dispatchEvent(new CustomEvent("jarvis:bargein")); } catch {}
+  if(handsFree) resumeListening(); else window.jarvisTalk?.();
+}
 function stopSpeaking(){
   speechGen++;
   try { speechSynthesis.cancel(); } catch {}
   if(currentAudio){ currentAudio.pause(); currentAudio = null; }
+  currentDone?.();   // let the queue move on now, not after its safety timeout
   $("#orb").classList.remove("speak");
 }
 // Split streamed text into speakable sentences.
-const streams = {};
+const streams = {}, doneRids = new Set();
 function feedStream(rid, agent, text, final){
   const st = streams[rid] || (streams[rid] = {buf:"", any:false});
   if(st.ended) return;
@@ -853,7 +864,10 @@ function connect(){
     if(ev.type === "activity"){
       if(ev.kind === "reply") { logLine(ev.agent, ev.message, "reply", true); }
       else logLine(ev.agent, ev.message, ev.kind);
-    } else if(ev.type === "delta"){ if(streams[ev.rid]) feedStream(ev.rid, ev.agent, ev.text, false); }
+    } else if(ev.type === "delta"){
+      // our own question, or one asked on the phone while this screen is the one that talks: speak as it's written
+      if(!streams[ev.rid] && ev.rid && voiceOn && !doneRids.has(ev.rid)){ streams[ev.rid] = {buf:"", any:false, remote:true}; setTimeout(() => { delete streams[ev.rid]; doneRids.add(ev.rid); }, 60000); }
+      if(streams[ev.rid]) feedStream(ev.rid, ev.agent, ev.text, false); }
     else if(ev.type === "delta_end"){ if(streams[ev.rid]) feedStream(ev.rid, ev.agent, "", true); }
     else if(ev.type === "status"){ setCard(ev.agent, ev.state); if(ev.state==="working") focus(ev.agent); }
     else if(ev.type === "brain"){ showBrain(ev); }
@@ -920,5 +934,6 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
 <script src="/bodymap.js"></script>
 <script src="/holo.js"></script>
 <script src="/gestures.js"></script>
+<script src="/bargein.js"></script>
 </body>
 </html>

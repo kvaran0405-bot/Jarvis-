@@ -440,6 +440,20 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## Faster replies, and talking like a real conversation
+
+- **Instant answers:** "what time is it", "what's next", "my tasks", "how many steps", "phone battery", "weather",
+  "where am I", "hi Jarvis" and "thanks" are answered from JARVIS's own data in a blink, with no AI round trip
+  (laptop, phone app and Telegram).
+- **Quick model for spoken questions:** voice questions go to the fastest Claude model, kept warm
+  (`JARVIS_VOICE_MODEL`, default `haiku`; set `sonnet` for more depth). With your Gemini key in fast mode, spoken
+  questions skip Gemini's silent thinking step.
+- **Speaks while writing:** the first sentence is spoken as soon as it's written, on the laptop and the phone,
+  including questions asked on the phone.
+- **Cut in (#21):** start talking while JARVIS is speaking and he stops and listens. Echo cancelling keeps his own
+  voice from triggering it. Turn it off with `localStorage["jarvis-bargein"] = "off"` in the browser.
+- **Keep talking (#22):** after he answers, you have 8 seconds for a follow-up without saying "Jarvis" or tapping.
+
 ## The phone works all night, screen off
 
 The phone's JARVIS keeps working with the screen off. It wakes about every 10 minutes even in deep sleep, and

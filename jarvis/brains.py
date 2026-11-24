@@ -149,13 +149,15 @@ def close_sessions(agent_name: str | None = None) -> None:
 
 
 def warm_up(agent, system_text: str, effort: str) -> None:
-    """Start JARVIS's chat session in the background so the very first reply is quick too."""
+    """Start JARVIS's chat sessions in the background so the very first reply is quick too
+    (the voice one on the quick model, and the typed one)."""
     def go():
         try:
-            key = (agent.name, effort, settings.pro_model)
-            with _sessions_lock:
-                if key not in _sessions:
-                    _sessions[key] = ProSession(agent, system_text, effort, None)
+            for model in dict.fromkeys([settings.voice_model if effort == "low" else "", ""]):
+                key = (agent.name, effort, model or settings.pro_model)
+                with _sessions_lock:
+                    if key not in _sessions:
+                        _sessions[key] = ProSession(agent, system_text, effort, model or None)
         except Exception:  # noqa: BLE001 - not fatal: the first message will start it
             pass
     threading.Thread(target=go, daemon=True).start()
@@ -269,6 +271,9 @@ def gemini_tools(tool_names: list[str]) -> list[dict]:
     return [{"functionDeclarations": decls}] if decls else []
 
 
+_quick_ok = {"on": True}
+
+
 def _gemini_call(body: dict, model: str | None = None) -> dict:
     req = urllib.request.Request(GEMINI_URL.format(model=model or settings.gemini_model), data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json", "x-goog-api-key": settings.gemini_key})
@@ -283,8 +288,10 @@ def _gemini_call(body: dict, model: str | None = None) -> dict:
 
 
 def run_gemini(agent, contents: list, system_text: str, tool_names: list[str], ctx, *,
-               on_text: Callable[[str], None] | None, log: Callable[[str], None], max_steps: int = 12) -> str:
-    """Run one turn on Gemini. `contents` is the running conversation (appended to in place)."""
+               on_text: Callable[[str], None] | None, log: Callable[[str], None], max_steps: int = 12,
+               quick: bool = False) -> str:
+    """Run one turn on Gemini. `contents` is the running conversation (appended to in place).
+    quick=True (spoken questions): no long silent "thinking" first, so the answer starts right away."""
     if not settings.gemini_key:
         raise BrainError("No GEMINI_API_KEY in .env")
     tools = gemini_tools(tool_names)
@@ -292,7 +299,16 @@ def run_gemini(agent, contents: list, system_text: str, tool_names: list[str], c
         body = {"systemInstruction": {"parts": [{"text": system_text}]}, "contents": contents}
         if tools:
             body["tools"] = tools
-        data = _gemini_call(body, agent.model if agent.model.startswith("gemini") else None)
+        if quick and _quick_ok["on"]:
+            body["generationConfig"] = {"thinkingConfig": {"thinkingBudget": 0}}
+        try:
+            data = _gemini_call(body, agent.model if agent.model.startswith("gemini") else None)
+        except BrainError as exc:
+            if "generationConfig" not in body or "400" not in str(exc):
+                raise
+            _quick_ok["on"] = False   # this model insists on thinking: never ask again
+            body.pop("generationConfig")
+            data = _gemini_call(body, agent.model if agent.model.startswith("gemini") else None)
         cands = data.get("candidates") or []
         if not cands:
             reason = (data.get("promptFeedback") or {}).get("blockReason", "no answer")
