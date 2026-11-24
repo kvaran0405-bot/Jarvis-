@@ -409,7 +409,7 @@ class Scheduler:
                    "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6), "leave_now": every_hours(1 / 12), "screenshots": every_hours(1 / 60),
                    "nudge": every_hours(2), "auto_update": daily_at("04:10"),
                    "photo_pull": daily_at("01:30"), "photo_sort": every_hours(1),
-                   "screentime_pull": daily_at("23:40")}
+                   "screentime_pull": daily_at("23:40"), "phone_link_watch": every_hours(.5)}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -446,6 +446,9 @@ class Scheduler:
                 from . import phonelink, photosort
                 if phonelink.state(self.store) and os.environ.get("JARVIS_PHOTO_SORT", "on").lower() != "off":
                     photosort.request_new(self.store)
+            elif name == "phone_link_watch":   # phone silent for hours: probably Tailscale is off on it
+                from . import phonelink
+                phonelink.link_watch(self.store)
             elif name == "screentime_pull":   # today's phone screen time, so agents know it without asking
                 from . import phonelink
                 if phonelink.state(self.store):

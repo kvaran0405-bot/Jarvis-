@@ -479,3 +479,34 @@ def phone_screen(ctx: ToolContext) -> dict:
         lines = [ln for ln in str(res.get("text", "")).splitlines() if not is_secret(ln) and not blocked(ln)]
         res["text"] = mask_numbers("\n".join(lines))   # codes, passwords and bank lines dropped; long numbers masked
     return out
+
+
+# ------------------------------------------------------------------ "your phone can't reach me" nudge
+LINK_LOST_HOURS = 2
+
+
+def link_watch(store, now: datetime | None = None, send=None) -> str | None:
+    """If the phone app was linked but hasn't checked in for a while (usually Tailscale switched off on the phone),
+    tell the owner once on Telegram. Checks in every minute even with the screen off, so a long gap means no link."""
+    st = state(store)
+    if not st.get("at"):
+        return None
+    now = now or datetime.now(settings.tz)
+    last = datetime.fromisoformat(st["at"])
+    gap_h = (now - last).total_seconds() / 3600
+    warned = store.get("phone:link_warned") or ""
+    if gap_h < LINK_LOST_HOURS:
+        if warned:
+            store.set("phone:link_warned", "")   # back online: ready to warn again next time
+        return None
+    if warned == st["at"]:
+        return None   # already told them about this gap
+    store.set("phone:link_warned", st["at"])
+    msg = (f"📱 Your phone hasn't reached me for {int(gap_h)} hours, Sir. Is Tailscale switched on on the phone? "
+           "Open the Tailscale app → Connected, then open JARVIS.")
+    if send is None:
+        from . import telegram as tg
+        send = tg.send if tg.ready() else None
+    if send:
+        send(msg)
+    return msg

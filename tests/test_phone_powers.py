@@ -93,3 +93,17 @@ def test_photo_route(tmp_path, monkeypatch):
     c = TestClient(server.app, base_url="http://127.0.0.1:7334", client=("127.0.0.1", 5))
     r = c.post("/api/phone/photo", json={"name": "IMG_1.jpg", "image": "data:image/jpeg;base64," + base64.b64encode(b"jpg").decode()})
     assert r.json()["path"].endswith("-IMG_1.jpg") and r.json()["path"].startswith(str(tmp_path))
+
+
+def test_link_watch_warns_once():
+    import json as _json
+    from datetime import datetime as _dt, timedelta as _td
+    s = Store(":memory:")
+    t0 = _dt.now(settings.tz)
+    s.set("phone:state", _json.dumps({"at": (t0 - _td(hours=3)).isoformat()}))
+    sent = []
+    assert "Tailscale" in phonelink.link_watch(s, t0, sent.append) and len(sent) == 1
+    assert phonelink.link_watch(s, t0 + _td(hours=1), sent.append) is None and len(sent) == 1   # only once
+    s.set("phone:state", _json.dumps({"at": t0.isoformat()}))
+    assert phonelink.link_watch(s, t0, sent.append) is None                                    # back online
+    assert phonelink.link_watch(Store(":memory:"), t0, sent.append) is None                    # never linked: quiet
