@@ -2,8 +2,8 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JARVIS Holo Simulations</title>
-<meta name="theme-color" content="#03060a"><link rel="icon" href="/icon-192.png">
-<script src="/vendor/three.min.js"></script>
+<meta name="theme-color" content="#03060a">
+<script src="vendor/three.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 /* Live 3D holographic simulations: spin (drag), zoom (scroll / pinch), change the "what if" with sliders, scrub time.
@@ -28,11 +28,17 @@
 .time{display:flex;align-items:center;gap:10px;margin-top:8px}.time button{background:var(--c);color:#03060a;border:0;border-radius:16px;padding:7px 14px;font:700 10px Orbitron,sans-serif;letter-spacing:.14em;cursor:pointer}
 .time input{flex:1}.time span{font:700 11px Orbitron,sans-serif;color:var(--c);min-width:84px;text-align:right}
 @media(max-width:700px){.hint{display:none}.sl label{min-width:42%;font-size:10px}.cap div{font-size:11px}.say{font-size:12px}}
+#flash{position:fixed;inset:0;z-index:6;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 50%,color-mix(in srgb,var(--c,#ffd23f) 55%,transparent),transparent 60%),
+  repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 1px,transparent 1px 4px)}
+#flash.go{animation:flash .7s ease-out}
+@keyframes flash{0%{opacity:.9;transform:scaleY(.02)}35%{opacity:.7;transform:scaleY(1)}100%{opacity:0}}
+#scan{position:fixed;inset:0;z-index:2;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px)}
+.back{flex:none;border:1px solid var(--line);background:rgba(8,13,20,.85);color:var(--txt);border-radius:16px;padding:6px 11px;font:700 11px Orbitron,sans-serif;text-decoration:none}
 .hint{position:fixed;right:12px;top:calc(110px + env(safe-area-inset-top));z-index:4;font-size:10px;color:var(--muted);text-align:right;line-height:1.5}
 </style></head><body>
-<canvas id="gl"></canvas><div id="labels"></div>
-<div class="top"><b>HOLO SIMS</b><div class="tabs" id="tabs"></div></div>
-<div class="cap" id="cap"></div><div class="hint">drag to spin · scroll / pinch to zoom<br>demo data</div>
+<canvas id="gl"></canvas><div id="scan"></div><div id="labels"></div><div id="flash"></div>
+<div class="top"><a class="back" href="javascript:history.length>1?history.back():location.href='home.html'" aria-label="Back">‹</a><b>HOLO SIMS</b><div class="tabs" id="tabs"></div></div>
+<div class="cap" id="cap"></div><div class="hint">drag to spin · scroll / pinch to zoom<br>sample data</div>
 <div class="say" id="say"></div>
 <div class="panel" id="panel"><div class="sl" id="sl"></div><div class="time"><button id="play">❚❚ PAUSE</button><input type="range" id="tm" min="0" max="1" step=".001" value="0"><span id="tl"></span></div></div>
 <script>
@@ -62,6 +68,11 @@ let spriteTex = (() => { const c = document.createElement("canvas"); c.width = c
 const glow = (c, s = 1.4, op = .9) => { const m = new THREE.Sprite(new THREE.SpriteMaterial({map: spriteTex, color: C(c), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false})); m.scale.set(s, s, 1); return m; };
 function floor(w = 30, d = 30, c = "#5fd8ff"){ const gh = new THREE.GridHelper(Math.max(w, d), 30, C(c), C(c)); gh.material.transparent = true; gh.material.opacity = .08; return gh; }
 
+// deep-space dust around every simulation
+{ const n = 1400, p = new Float32Array(n * 3); for(let i = 0; i < n; i++){ const r = 45 + Math.random() * 120, a = Math.random() * 6.283, y = (Math.random() - .5) * 140; p.set([Math.cos(a) * r, y, Math.sin(a) * r], i * 3); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(p, 3));
+  const dust = new THREE.Points(g, new THREE.PointsMaterial({color: 0x6fa8d8, size: .9, map: spriteTex, transparent: true, opacity: .6, fog: false, depthWrite: false, blending: THREE.AdditiveBlending})); scene.add(dust);
+  window.__dust = dust; }
 let group = new THREE.Group(); scene.add(group);
 let labels = [], anim = [], P = {}, T = 0, playing = true;
 function label(pos, html, c){ const el = document.createElement("div"); el.className = "lb"; el.style.setProperty("--c", c); el.innerHTML = html; $("#labels").appendChild(el); const l = {pos, el}; labels.push(l); return l; }
@@ -175,10 +186,120 @@ const SIMS = [
        b.mesh.scale.y = h; b.edges.scale.y = h; b.mesh.position.y = b.edges.position.y = h / 2; });
      er.geometry.setDrawRange(0, Math.floor(er.geometry.index.count * Math.max(.02, t))); });
   }},
+ {id: "exam", name: "EXAM PREDICTOR", c: "#b06bff", what: "Each crystal is a module, rising to your predicted score as revision pours in. Above the glass plane is an A.",
+  ctl: [["hours", "Revision hours / week", 0, 30, 12, 1], ["quiz", "ATHENA quizzes / week", 0, 7, 3, 1], ["sleep", "Sleep before exam (h)", 4, 9, 7, .5]],
+  time: t => `WEEK ${Math.min(6, 1 + Math.floor(t * 6))} OF 6`, cam: [.22, .38, 34],
+  say: t => t < .35 ? "Revision hours stream out of the pool into each module…" : t < .75 ? "Weak modules flicker red until ATHENA quizzes them." : "Exam day: sleep moves every score. Anything under the plane, ATHENA drills you on.",
+  build(p){
+   group.add(floor(26, 18, "#b06bff"));
+   const mods = [["FINANCE", 58, .9], ["STATS", 64, 1.1], ["LAW", 52, .8], ["MARKETING", 70, 1], ["ACCOUNTING", 61, 1.2]], H = 12, X = i => -10 + i * 5;
+   const score = (m, t) => Math.max(20, Math.min(98, m[1] + (p.hours * .9 + p.quiz * 2.2) * m[2] * t + (p.sleep - 7) * 2.5 * Math.min(1, t * 1.2)));
+   const pl = new THREE.Mesh(new THREE.PlaneGeometry(26, 7), glowMat("#ffffff", .06)); pl.rotation.x = -Math.PI / 2; pl.position.y = H * .8; group.add(pl);
+   const ple = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(26, 7)), lineMat("#ffffff", .3)); ple.rotation.x = -Math.PI / 2; ple.position.y = H * .8; group.add(ple);
+   label(new THREE.Vector3(-14.5, H * .8 + .4, -2.5), "A · 80%", "#ffffff");
+   const pool = glow("#b06bff", 5, .8); pool.position.set(0, .3, 7.5); group.add(pool);
+   const ring = new THREE.Mesh(new THREE.TorusGeometry(2.2, .05, 8, 60), glowMat("#b06bff", .8)); ring.rotation.x = Math.PI / 2; ring.position.set(0, .1, 7.5); group.add(ring);
+   label(new THREE.Vector3(0, 1.8, 7.5), `${p.hours} H / WEEK`, "#d9b8ff");
+   const cr = mods.map((m, i) => { const geo = new THREE.CylinderGeometry(.85, 1.25, 1, 6), mesh = new THREE.Mesh(geo, glowMat("#b06bff", .4));
+     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), lineMat("#e9d8ff", .9)); mesh.position.x = edges.position.x = X(i); group.add(mesh, edges);
+     const tip = glow("#ffffff", 1.5); group.add(tip); label(new THREE.Vector3(X(i), -.3, 1.9), m[0], "#8a95a7"); return {m, mesh, edges, tip, i, lb: label(new THREE.Vector3(), "", "#e9d8ff")}; });
+   const n = 140, pg = new THREE.BufferGeometry(), pp = new Float32Array(n * 3); pg.setAttribute("position", new THREE.BufferAttribute(pp, 3));
+   group.add(new THREE.Points(pg, new THREE.PointsMaterial({color: C("#e2c9ff"), size: .38, map: spriteTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false})));
+   const rate = .15 + p.hours / 30 * .7;
+   anim.push((t, now) => {
+     cr.forEach(c => { const s = score(c.m, t), h = H * s / 100, weak = s < 65, col = weak ? "#ff4d5e" : s >= 80 ? "#3dff9a" : "#b06bff";
+       c.mesh.scale.y = c.edges.scale.y = h; c.mesh.position.y = c.edges.position.y = h / 2; c.tip.position.set(X(c.i), h, 0);
+       c.mesh.material.color.set(col); c.mesh.material.opacity = weak ? .25 + .25 * Math.abs(Math.sin(now / 170 + c.i)) : .42;
+       c.lb.pos.set(X(c.i), h + 1.3, 0); c.lb.el.innerHTML = `${Math.round(s)}% · ${s >= 80 ? "A" : s >= 70 ? "B" : s >= 60 ? "C" : s >= 50 ? "D" : "F"}`; c.lb.el.style.setProperty("--c", col); });
+     for(let i = 0; i < n; i++){ const k = (now / 1000 * rate + i / n) % 1, ci = i % mods.length, th = H * score(mods[ci], t) / 100;
+       pp[i * 3] = X(ci) * k; pp[i * 3 + 1] = .3 + th * k * k + Math.sin(k * Math.PI) * 2.2; pp[i * 3 + 2] = 7.5 * (1 - k); }
+     pg.attributes.position.needsUpdate = true; pool.scale.setScalar(5 * (1 + Math.sin(now / 300) * .08)); });
+  }},
+ {id: "day", name: "TOMORROW, PLAYED", c: "#5fd8ff", what: "Tomorrow as a glowing clock: each wall is a plan, taller means more draining. The inner ribbon is your energy, the orb is you.",
+  ctl: [["wake", "Wake up", 5, 10, 7, .5], ["gym", "Gym (0 = skip)", 0, 1, 1, 1], ["bed", "Bedtime (24 = midnight)", 21, 27, 24, .5]],
+  time: t => { const h = 6 + t * 20, m = Math.round(h * 60) % 1440; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; }, cam: [.4, .95, 30],
+  say: t => DAY.say(t),
+  build(p){
+   const R0 = 9, th = h => (h % 24) / 24 * Math.PI * 2, at = (h, r, y = 0) => new THREE.Vector3(r * Math.sin(th(h)), y, r * Math.cos(th(h)));
+   const rim = new THREE.Mesh(new THREE.TorusGeometry(R0, .04, 8, 160), glowMat("#5fd8ff", .5)); rim.rotation.x = Math.PI / 2; group.add(rim);
+   const rim2 = new THREE.Mesh(new THREE.TorusGeometry(R0 + 2.4, .02, 8, 160), glowMat("#5fd8ff", .2)); rim2.rotation.x = Math.PI / 2; group.add(rim2);
+   for(let h = 0; h < 24; h++){ const a = at(h, R0 + .3), b = at(h, R0 + (h % 3 ? .9 : 1.6)); group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), lineMat("#5fd8ff", h % 3 ? .3 : .8)));
+     if(h % 3 === 0) label(at(h, R0 + 3.4, -.4), String(h).padStart(2, "0"), "#5d6878"); }
+   const bed = p.bed, sleepH = bed > 24 ? p.wake - (bed - 24) : 24 - bed + p.wake, e0 = Math.max(.25, Math.min(1, .25 + sleepH / 8 * .7));
+   const plans = [["SLEEP", bed > 24 ? bed - 24 : 0, p.wake, "#4b6aa0", .15]];
+   if(bed < 24) plans.push(["SLEEP", bed, 24, "#4b6aa0", .15]);
+   if(p.gym) plans.push(["GYM", p.wake + .5, p.wake + 1.75, "#3dff9a", .9]);
+   plans.push(["LECTURE", 10, 12, "#b06bff", .7], ["LUNCH", 12.5, 13.25, "#ffd23f", .2], ["DEEP WORK", 14, 16.5, "#5fd8ff", .85],
+              ["SHAABAZ CALL", 17, 17.75, "#ffb347", .5], ["DINNER", 19, 20, "#ff5c9a", .25]);
+   if(Math.min(bed, 24) > 20.5) plans.push(["FREE", 20.5, Math.min(bed, 24) - .25, "#ffffff", .12]);
+   const walls = plans.map(([n, a, b, c, d]) => { const hgt = .6 + d * 6, len = th(b) - th(a) || .01;
+     const g = new THREE.CylinderGeometry(R0, R0, hgt, 40, 1, true, th(a), len), w = new THREE.Mesh(g, new THREE.MeshBasicMaterial({color: C(c), transparent: true, opacity: .28, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false}));
+     w.position.y = hgt / 2; group.add(w);
+     const top = []; for(let k = 0; k <= 24; k++) top.push(at(a + (b - a) * k / 24, R0, hgt)); group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(top), lineMat(c, .95)));
+     if(n !== "SLEEP" || a > 0) label(at((a + b) / 2, R0, hgt + .7), n, c); return {n, a, b, d, w, hgt}; });
+   const energy = h => { let e = e0; for(let x = p.wake; x < h; x += .25){ const pl = plans.find(q => x >= q[1] && x < q[2] && q[0] !== "SLEEP");
+       const d = pl ? pl[4] : .3; e += (pl && pl[0] === "LUNCH" ? .03 : pl && pl[0] === "GYM" ? -.01 : -d * .022) + (pl && pl[0] === "DINNER" ? .02 : 0); } return Math.max(.05, Math.min(1, e)); };
+   const ep = []; for(let k = 0; k <= 160; k++){ const h = p.wake + (Math.min(bed, 26) - p.wake) * k / 160; ep.push(at(h, R0 - 2.2, .3 + energy(h) * 6)); }
+   const er = tube(ep, "#ffd23f", .09); group.add(er); label(ep[0].clone().add(new THREE.Vector3(0, .8, 0)), `ENERGY ${Math.round(e0 * 100)}%`, "#ffd23f");
+   const me = glow("#ffffff", 1.6); group.add(me); const now = label(new THREE.Vector3(), "", "#ffffff");
+   const crash = Math.round(Math.min(...ep.map(v => v.y)) / 6 * 100);
+   DAY.say = t => t < .25 ? `${sleepH} hours of sleep: you wake at ${Math.round(e0 * 100)}% energy.` : t < .6 ? "Walls rise with how much each block drains you. Deep work after lunch is the danger zone."
+     : `Lowest point: ${Math.max(0, crash)}% energy. ${p.gym ? "The gym costs a little now and pays back tomorrow." : "Skipping the gym saves energy today, costs it this week."}`;
+   anim.push((t, nowMs) => { const h = 6 + t * 20, pos = at(h, R0 + 1.2, 1.2 + Math.sin(nowMs / 250) * .15); me.position.copy(pos);
+     const cur = plans.find(q => h >= q[1] && h < q[2]); now.pos.copy(pos).add(new THREE.Vector3(0, 1.4, 0)); now.el.innerHTML = "YOU";
+     walls.forEach(w => { w.w.material.opacity = h >= w.a && h < w.b ? .55 + .15 * Math.sin(nowMs / 160) : .22; });
+     er.geometry.setDrawRange(0, Math.floor(er.geometry.index.count * Math.max(.02, Math.min(1, (h - p.wake) / (Math.min(bed, 26) - p.wake))))); });
+  }},
+ {id: "money", name: "MONEY FUTURE", c: "#3dff9a", what: "Your savings for the next 2 years as three rising spirals: as you are, with extra gigs, and skipping the big purchase. Planning only: JARVIS never touches your bank.",
+  ctl: [["save", "Saved / month ($)", 100, 2000, 600, 50], ["gigs", "Extra gigs / month", 0, 4, 1, 1], ["buy", "Big purchase in month 3 ($)", 0, 5000, 1500, 100]],
+  time: t => `MONTH ${Math.round(t * 24)}`, cam: [.6, .2, 44],
+  say: t => t < .3 ? "Three futures start from today…" : t < .7 ? "Each ring is another $5,000. Watch the gig spiral pull ahead." : "Two years out: the gap between the spirals is what your choices are worth.",
+  build(p){
+   group.add(floor(24, 24, "#3dff9a"));
+   const paths = [["AS YOU ARE", "#5fd8ff", m => p.save * m - (m >= 3 ? p.buy : 0)], ["+ GIGS", "#3dff9a", m => (p.save + p.gigs * 450) * m - (m >= 3 ? p.buy : 0)], ["NO BIG BUY", "#ffd23f", m => (p.save + p.gigs * 450) * m]];
+   const top = Math.max(1000, ...paths.map(q => q[2](24))), H = 15, k = H / top;
+   for(let v = 5000; v <= top; v += 5000){ const r = new THREE.Mesh(new THREE.TorusGeometry(8.5, .025, 6, 90), glowMat("#3dff9a", .25)); r.rotation.x = Math.PI / 2; r.position.y = v * k; group.add(r);
+     label(new THREE.Vector3(8.8, v * k, 0), `$${v / 1000}k`, "#7fe8b3"); }
+   const heads = paths.map(([n, c, f], i) => { const pts = []; for(let m = 0; m <= 24; m += .25){ const a = m / 24 * Math.PI * 3 + i * 2.1, r = 5 + i * .9; pts.push(new THREE.Vector3(Math.cos(a) * r, Math.max(0, f(m)) * k, Math.sin(a) * r)); }
+     const tb = tube(pts, c, .13); group.add(tb); const h = glow(c, 1.6); group.add(h); return {n, c, f, pts, tb, h, lb: label(new THREE.Vector3(), "", c)}; });
+   const drop = glow("#ff4d5e", 2.4, .9); group.add(drop); const dl = label(new THREE.Vector3(), "", "#ff4d5e");
+   anim.push((t, now) => { const m = t * 24;
+     heads.forEach(q => { const i = Math.min(q.pts.length - 1, Math.round(m * 4)); q.h.position.copy(q.pts[i]); q.tb.geometry.setDrawRange(0, Math.floor(q.tb.geometry.index.count * Math.max(.02, t)));
+       q.lb.pos.copy(q.pts[i]).add(new THREE.Vector3(0, 1.1, 0)); q.lb.el.innerHTML = `${q.n}<small>$${Math.round(q.f(m)).toLocaleString()}</small>`; });
+     const dp = heads[0].pts[12]; drop.position.copy(dp); drop.material.opacity = m > 2.5 && m < 6 && p.buy > 0 ? .5 + .4 * Math.sin(now / 120) : 0;
+     dl.pos.copy(dp).add(new THREE.Vector3(0, -1, 0)); dl.el.innerHTML = m > 2.5 && m < 6 && p.buy > 0 ? `−$${p.buy.toLocaleString()}` : ""; });
+  }},
+ {id: "event", name: "WEDDING DAY RUN", c: "#ff5c9a", what: "Shaabaz: the whole wedding day as gates on a glowing runway. Red pulses are things going wrong; buffer time soaks them up.",
+  ctl: [["crew", "Crew", 3, 14, 8, 1], ["buffer", "Buffer per stage (min)", 0, 30, 10, 5], ["rain", "Rain chance (%)", 0, 100, 30, 10]],
+  time: t => { const m = 14 * 60 + Math.round(t * 600) % 1440; return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; }, cam: [.55, .38, 40],
+  say: t => EVENT.say(t),
+  build(p){
+   group.add(floor(36, 14, "#ff5c9a"));
+   const st = [["SETUP", 14, Math.max(0, 8 - p.crew) * 12], ["GUESTS ARRIVE", 17, p.rain / 100 * 25], ["MARCH-IN", 18, 4], ["DINNER", 18.5, 15], ["SPEECHES", 20, 6],
+               ["FIRST DANCE", 20.75, 2], ["PARTY", 21, 0], ["TEARDOWN", 23, Math.max(0, 8 - p.crew) * 6]];
+   let late = 0; st.forEach(s => { late = Math.max(0, late + s[2] - p.buffer); s.push(late); });
+   const hs = st.map(q => q[1]).concat(24), idx = h => { for(let i = 0; i < st.length; i++) if(h < hs[i + 1]) return i + Math.max(0, h - hs[i]) / (hs[i + 1] - hs[i]); return st.length; };
+   const X = h => -17 + idx(h) / st.length * 34, Z = h => Math.sin(idx(h) * 1.1) * 2.5;
+   const rp = []; for(let k = 0; k <= 160; k++){ const h = 14 + k / 16; rp.push(new THREE.Vector3(X(h), .05, Z(h))); }
+   group.add(tube(rp, "#ff5c9a", .06, .7));
+   const gates = st.map(([n, h, risk, d], gi) => { const col = d < 5 ? "#3dff9a" : d < 15 ? "#ffb347" : "#ff4d5e";
+     const g = new THREE.Mesh(new THREE.TorusGeometry(1.5, .07, 8, 40), glowMat(col, .9)); g.position.set(X(h), 1.6, Z(h)); g.rotation.y = Math.PI / 2; group.add(g);
+     const pulse = glow("#ff4d5e", 2.8, 0); pulse.position.copy(g.position); group.add(pulse);
+     label(new THREE.Vector3(X(h), gi % 2 ? -.6 : 3.9, Z(h)), `${n}<small>${d < 1 ? "on time" : "+" + Math.round(d) + " min"}</small>`, col); return {h, g, pulse, risk}; });
+   const comet = glow("#ffffff", 1.8); group.add(comet);
+   const crew = []; for(let i = 0; i < p.crew; i++){ const g = glow("#3dff9a", .7); group.add(g); crew.push(g); }
+   const total = st[st.length - 1][3];
+   EVENT.say = t => t < .35 ? `${p.crew} crew setting up${p.crew < 8 ? ", a little thin, so setup runs over" : ""}…` : t < .7 ? (p.rain >= 50 ? "Rain at arrival: umbrellas and a covered walkway cost minutes." : "Guests in, dinner rolling. The vendor's 15 minutes late, as usual.")
+     : total < 1 ? "Buffers soaked up every hiccup. Finished on time. Pepper approves." : `You finish ${Math.round(total)} minutes late. More buffer or more crew fixes it.`;
+   anim.push((t, now) => { const h = 14 + t * 10, pos = new THREE.Vector3(X(h), 1.6, Z(h)); comet.position.copy(pos);
+     gates.forEach(g => { const near = Math.abs(h - g.h) < .35; g.g.scale.setScalar(near ? 1.25 + .1 * Math.sin(now / 90) : 1); g.pulse.material.opacity = near && g.risk > p.buffer ? .5 + .4 * Math.sin(now / 100) : 0; });
+     crew.forEach((c, i) => { const a = now / 700 + i / crew.length * Math.PI * 2; c.position.set(pos.x + Math.cos(a) * 2.6, .5, pos.z + Math.sin(a) * 2.6); }); });
+  }},
 ];
+const DAY = {say: () => ""}, EVENT = {say: () => ""};
 
 // ------------------------------------------------------------ ui
-let cur = null;
+let cur = null, flyTo = 0;
 SIMS.forEach(s => { P[s.id] = Object.fromEntries(s.ctl.map(c => [c[0], c[4]])); $("#tabs").insertAdjacentHTML("beforeend", `<div class="tab" data-id="${s.id}" style="--c:${s.c}">${s.name}</div>`); });
 $("#tabs").onclick = e => { const t = e.target.closest(".tab"); if(t) open(t.dataset.id, true); };
 function open(id, reset){
@@ -186,7 +307,8 @@ function open(id, reset){
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.id === id));
   document.documentElement.style.setProperty("--c", cur.c);
   $("#cap").innerHTML = `<b>${cur.name}</b><div>${cur.what}</div>`;
-  if(reset){ [yaw, pitch, dist] = cur.cam; T = 0; playing = true; $("#play").textContent = "❚❚ PAUSE"; }
+  if(reset){ [yaw, pitch, dist] = cur.cam; dist *= 1.6; flyTo = cur.cam[2]; T = 0; playing = true; $("#play").textContent = "❚❚ PAUSE";
+    const f = $("#flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); }
   $("#sl").innerHTML = cur.ctl.map(([k, l, a, b, v, st]) => `<label>${l} <output id="o-${k}">${P[id][k]}</output><input type="range" min="${a}" max="${b}" step="${st}" value="${P[id][k]}" data-k="${k}"></label>`).join("");
   $("#sl").querySelectorAll("input").forEach(inp => inp.oninput = () => { P[id][inp.dataset.k] = +inp.value; $("#o-" + inp.dataset.k).textContent = inp.value; open(id, false); });
 }
@@ -194,12 +316,14 @@ $("#play").onclick = () => { playing = !playing; $("#play").textContent = playin
 $("#tm").oninput = () => { T = +$("#tm").value; playing = false; $("#play").textContent = "▶ PLAY"; };
 const v = new THREE.Vector3(); let last = performance.now();
 function loop(now){
-  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now;   // the first frame's clock can run a hair behind
   if(playing){ T += dt / 12; if(T > 1.15) T = 0; }
   $("#say").style.bottom = ($("#panel").offsetHeight + 12) + "px";
-  const t = Math.min(1, T); $("#tm").value = t; $("#tl").textContent = cur.time(t); $("#say").textContent = cur.say(t);
+  const t = Math.max(0, Math.min(1, T)); $("#tm").value = t; $("#tl").textContent = cur.time(t); $("#say").textContent = cur.say(t);
   anim.forEach(f => f(t, now));
   if(!drag && !pinch) yaw += dt * .05;
+  if(flyTo){ dist += (flyTo - dist) * Math.min(1, dt * 2.5); if(Math.abs(dist - flyTo) < .05 || drag || pinch) flyTo = 0; }   // swoop in on every new hologram
+  window.__dust.rotation.y += dt * .01;
   const fit = dist * Math.max(1, .95 / cam.aspect);   // tall phone screens: pull back so the whole scene fits
   scene.fog.density = .018 * 32 / fit;   // fog scales with distance, so pulling back never hides the scene
   cam.position.set(target.x + fit * Math.cos(pitch) * Math.sin(yaw), target.y + fit * Math.sin(pitch), target.z + fit * Math.cos(pitch) * Math.cos(yaw)); cam.lookAt(target);

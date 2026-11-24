@@ -440,6 +440,15 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## Holograms everywhere (laptop and phone)
+
+- **🌐 HOLO LAB** (phone home screen, or 🌐 Holo on the laptop): your week, Shaabaz, body, money, Singapore,
+  diagnostics and trophies as 3D holograms. Drag to spin, pinch to zoom.
+- **🧪 HOLO SIMS** (phone home screen, 🧪 Sims on the laptop, or 🧪 HOLO SIMS in solo mode): 8 live 3D what-if
+  simulations with sliders and a time scrubber: life, gig pricing, wedding guest flow, meal plan to body, exam
+  predictor, tomorrow played, money future, and wedding day run. They're built into the phone app too, so they work
+  with the laptop off. For now they run on sample numbers; your own data comes next.
+
 ## Solo JARVIS: the phone works without the laptop
 
 When the laptop is off, asleep, in your bag or in another country, the phone app becomes JARVIS by itself, over

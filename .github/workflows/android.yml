@@ -12,6 +12,7 @@ on:
   push:
     paths:
       - "android/**"
+      - "web/simulate3d.html"
       - ".github/workflows/android.yml"
   workflow_dispatch:
 

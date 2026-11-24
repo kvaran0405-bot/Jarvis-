@@ -32,6 +32,7 @@ header .r{display:flex;align-items:center;gap:10px}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .grid a,.grid button{display:grid;gap:4px;justify-items:center;padding:14px 4px;border:1px solid var(--line);background:rgba(12,18,26,.7);color:var(--ink);text-decoration:none;font:600 9px Orbitron,sans-serif;letter-spacing:.16em}
 .grid a span,.grid button span{font-size:22px;letter-spacing:0}
+.grid .holo{border-color:color-mix(in srgb,var(--c) 45%,var(--line));box-shadow:inset 0 0 18px color-mix(in srgb,var(--c) 12%,transparent)}
 .grid .on{border-color:var(--c);color:var(--c);box-shadow:0 0 14px color-mix(in srgb,var(--c) 30%,transparent)}
 h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin:20px 0 8px}
 #remote{display:none}#remote.on{display:block}
@@ -51,6 +52,9 @@ h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin
   <button id="hands"><span>👂</span>HANDS-FREE</button>
   <button id="remoteBtn"><span>🎛</span>REMOTE</button>
   <a href="/command-centre.html"><span>🖥</span>DASHBOARD</a>
+  <a href="/holo.html" class="holo"><span>🌐</span>HOLO LAB</a>
+  <a href="/simulate3d.html" class="holo"><span>🧪</span>HOLO SIMS</a>
+  <a href="/map.html"><span>🗺</span>MAP</a>
 </div>
 <div id="remote">
   <h2>LAPTOP SCREEN</h2>

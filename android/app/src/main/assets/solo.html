@@ -84,6 +84,7 @@ h2 span{color:var(--c2);letter-spacing:.1em}
   <button data-q="What are my tasks?">✅ TASKS</button>
   <button data-q="Where am I?">📍 WHERE AM I</button>
   <button data-q="Remind me in 30 minutes to ">⏰ REMIND</button>
+  <button id="holoBtn">🧪 HOLO SIMS</button>
 </div>
 <div class="cards"><div><small>NEXT</small><b id="cNext">—</b></div><div><small>TASKS</small><b id="cTasks">—</b></div><div><small>TO SYNC</small><b id="cSync">0</b></div></div>
 <h2>CONVERSATION <span id="synced"></span></h2>
@@ -442,6 +443,7 @@ async function showRoute(dest, line, summary){
   let i = 0; const comet = L.circleMarker(line[0], {radius: 5, color: "#fff", weight: 2, fillColor: c, fillOpacity: 1}).addTo(map); layers.push(comet);
   (function run(){ if (!$("#mapbox").classList.contains("on")) return; i = (i + Math.max(1, line.length / 180)) % line.length; comet.setLatLng(line[Math.floor(i)]); requestAnimationFrame(run); })();
 }
+$("#holoBtn").onclick = () => { location.href = "file:///android_asset/simulate3d.html"; };   // bundled in the app: works with no laptop
 $("#mapclose").onclick = () => $("#mapbox").classList.remove("on");
 
 // ---------------------------------------------------------------- reactor
