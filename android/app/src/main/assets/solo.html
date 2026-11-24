@@ -529,6 +529,13 @@ window.soloWatch = async (id, solo) => {
       if (st && once("stop:" + st.code, 20 * 60e3)){ const arr = (await stopArrivals(st.code)).slice(0, 4);
         if (arr.length) say(`🚌 ${st.name}`, arr.map(a => `${a.bus}: ${a.mins.map(m => m ? m + " min" : "now").join(", ")}`).join(" · ")); }
     }
+    // routines (#69): "you usually head to the gym around 18:10", with the live way there
+    if (solo && l && PACK.routines?.length){ const d = new Date(), wd = (d.getDay() + 6) % 7;
+      for (const r of PACK.routines){ if (!r.days.includes(wd)) continue; const [h, m] = r.at.split(":").map(Number), at = new Date(d); at.setHours(h, m, 0, 0);
+        const mins = (at - d) / 60000, near = Object.entries(PACK.places || {}).find(([k]) => k.toLowerCase() === r.from.toLowerCase());
+        if (mins < 5 || mins > 25 || (near && dist(l, {lat: near[1][0], lon: near[1][1]}) > .4) || !once("routine:" + d.toDateString() + r.from + r.to, 20 * 3600e3)) continue;
+        const dir = await TOOLS.directions({to: r.to}).catch(() => null);
+        say("🔮 Before you ask", `You usually head to ${r.to} around ${r.at}, Sir.` + (dir?.transit ? ` Leave by ${dir.transit.leave}: ${dir.transit.steps}.` : dir?.drive_min ? ` About ${dir.drive_min} min by car${dir.grab_fare_sgd ? ", Grab " + dir.grab_fare_sgd : ""}.` : "")); } }
     if (solo && l){
       const e = events().find(v => new Date(v.start) > now && new Date(v.start) - now < 3 * 3600e3 && v.location);
       if (e && !seen["leave:" + e.start]){

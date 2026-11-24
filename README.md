@@ -440,6 +440,17 @@ When a WhatsApp message arrives, a JARVIS notification offers up to 3 replies wi
 Tapping one replies through WhatsApp's own notification reply. Nothing is sent without your tap, and group chats
 are ignored.
 
+## Predictive JARVIS (#69)
+
+JARVIS learns your routines from the phone's location history (the last 6 weeks): a trip between two of your places
+at about the same time, on the same weekday at least twice (or on 3+ weekdays). About 15 minutes before one, if
+you're at the starting place, he speaks up first with the live way there:
+
+> "You usually head to the gym around 18:10 on Tuesdays, Sir. Bus 15 is 4 minutes out: leave by 18:06."
+
+He nudges once per routine per day, never in quiet hours or focus mode, and also from the phone when the laptop is
+off. Ask "what are my routines?", or say "routine nudges off" or "routine nudges on".
+
 ## The 3D core (#18)
 
 The glowing core on the phone, in solo mode and on the laptop dashboard is now a living 3D hologram of about 12,000

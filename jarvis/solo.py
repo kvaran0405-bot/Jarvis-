@@ -93,6 +93,7 @@ def pack(store) -> dict:
         "voices": _voices(),
         "holo": _holo(store),
         "guest": store.get("hud:guest") == "on",
+        "routines": json.loads(store.get("predict:routines") or "[]") if (store.get("predict:on") or "on") == "on" else [],
     }
 
 

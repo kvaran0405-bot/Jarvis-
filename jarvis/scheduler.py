@@ -410,7 +410,7 @@ class Scheduler:
                    "nudge": every_hours(2), "auto_update": daily_at("04:10"),
                    "photo_pull": daily_at("01:30"), "photo_sort": every_hours(1),
                    "screentime_pull": daily_at("23:40"), "phone_link_watch": every_hours(.5),
-                   "self_check": daily_at("03:40")}
+                   "self_check": daily_at("03:40"), "routines_learn": daily_at("03:20"), "routines_nudge": every_hours(1 / 12)}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -436,6 +436,14 @@ class Scheduler:
                 from .life import housekeeping
                 out = housekeeping()
                 self.bus.log("EDITH", f"Weekly tidy: {out['moved_to_old']} old download(s) filed away, backup made", "job")
+            elif name == "routines_learn":
+                from . import predict
+                predict.learn(self.store)
+            elif name == "routines_nudge":
+                from . import predict
+                if self.store.get("predict:routines") is None:
+                    predict.learn(self.store)
+                predict.check(self.store, self.bus)
             elif name == "self_check":
                 from . import selfcheck
                 selfcheck.nightly(self.store, self.bus)

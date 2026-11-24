@@ -759,6 +759,7 @@ SEASON_RE = re.compile(_J + r"(?:seasonal skins?|festive mode|season(?:al)? mode
                        r"^\s*(?:jarvis[,\s]+)?(?:try|preview|show me|switch to|put on)(?: the)? (chinese new year|lunar new year|cny|"
                        r"hari raya|raya|deepavali|diwali|national day|christmas|xmas|new year|birthday) (?:skin|mode|look|theme)"
                        r"\s*[.!]?\s*$", re.I)
+ROUTINE_RE = re.compile(_J + r"(?:routine |habit |predictive )?(?:nudges?|reminders?|predictions?) (on|off)\s*[.!]?\s*$", re.I)
 SELFCHECK_RE = re.compile(_J + r"(?:run (?:a |the )?)?(?:self|system|systems|health)[ -]?check(?:up)?\s*[.!?]?\s*$", re.I)
 SPEAKER_RE = re.compile(_J + r"(?:(?:speak|talk|answer|reply|voice)\s+(?:on|from|through|via)\s+(?:my\s+|the\s+)?"
                         r"(phone|mobile|laptop|computer|pc)|(phone|laptop|computer) (?:voice|speaker|speaks?|talks?)(?: on)?|"
@@ -909,6 +910,10 @@ def special(text: str) -> tuple[str | None, str | None, str | None]:
         line = holo.narrate(view, holo.data(store))
         bus.publish({"type": "holo", "view": view})
         return line, None, None
+    if m := ROUTINE_RE.match(text):
+        store.set("predict:on", m.group(1).lower())
+        return ("Routine nudges on. I'll speak up before your usual trips, Sir." if m.group(1).lower() == "on"
+                else "Routine nudges off. I'll keep quiet about your habits, Sir."), None, None
     if SELFCHECK_RE.match(text):
         from . import selfcheck
         return selfcheck.run(store, bus)["summary"], None, None
