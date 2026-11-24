@@ -460,6 +460,18 @@ you're at the starting place, he speaks up first with the live way there:
 He nudges once per routine per day, never in quiet hours or focus mode, and also from the phone when the laptop is
 off. Ask "what are my routines?", or say "routine nudges off" or "routine nudges on".
 
+## More 3D (#15, #16, #17, #26)
+
+- **Tilt to look (#15):** in the Holo Lab and Holo Sims, tilt the phone and the hologram shifts like a real 3D
+  object.
+- **Hologram on your table (#16):** tap **📷 AR** and the camera becomes the background. The hologram floats over
+  your desk and stays put as you move the phone around.
+- **Your day in 3D (#17):** Holo Lab → Singapore shows today's real path as a glowing light trail, cyan in the
+  morning, through gold, to pink at night. A comet replays your day, with your step count.
+- **Live wallpaper (#26):** the JARVIS core breathes on your home screen, with orbiting arcs, drifting particles
+  and a ripple where you touch, in your suit colour. It only animates while you can see it. Set it from the phone's
+  setup page (Live wallpaper).
+
 ## The 3D core (#18)
 
 The glowing core on the phone, in solo mode and on the laptop dashboard is now a living 3D hologram of about 12,000

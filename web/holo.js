@@ -30,6 +30,10 @@ css.textContent = `
 #holo .bpanel{position:absolute;inset:64px 0 36px;display:none;place-items:center;z-index:1;overflow:auto;padding:0 max(14px,env(safe-area-inset-right))}
 #holo .bpanel.on{display:grid}
 #holo .b3d{position:absolute;right:max(14px,env(safe-area-inset-right));bottom:max(40px,env(safe-area-inset-bottom));z-index:2;background:rgba(10,17,26,.75);color:#c9d3e0;border:1px solid rgba(95,216,255,.25);font:600 10px Orbitron,sans-serif;letter-spacing:.14em;padding:8px 10px;cursor:pointer;display:none}
+#holo .arcam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+#holo.arOn{background:#000}
+#holo.arOn canvas{z-index:1}
+#holo.arOn .scan{opacity:.4}
 #holo .scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.02) 0 1px,transparent 1px 3px)}
 @media (max-width:700px){#holo .hbar button{padding:7px 7px;font-size:9px}#holo .ttl{flex-basis:100%}}`;
 document.head.appendChild(css);
@@ -37,7 +41,7 @@ document.head.appendChild(css);
 function build(){
   root = document.createElement("div"); root.id = "holo";
   root.innerHTML = `<canvas></canvas><div class="scan"></div><div class="labels"></div><div class="bpanel"></div><button class="b3d">3D HOLOGRAM</button>
-    <div class="hbar"><span class="ttl">HOLO LAB</span>${VIEWS.map(([k, n]) => `<button data-v="${k}">${n}</button>`).join("")}<button class="x" aria-label="Close">✕</button></div>
+    <div class="hbar"><span class="ttl">HOLO LAB</span>${VIEWS.map(([k, n]) => `<button data-v="${k}">${n}</button>`).join("")}<button class="ar" aria-label="Hologram over your camera">📷 AR</button><button class="x" aria-label="Close">✕</button></div>
     <div class="hint">DRAG TO SPIN · SCROLL / PINCH TO ZOOM · ESC TO CLOSE</div>`;
   document.body.appendChild(root);
   const cv = root.querySelector("canvas");
@@ -53,6 +57,7 @@ function build(){
   const grid = new THREE.GridHelper(80, 40, 0x1b4a66, 0x0c2030); grid.position.y = -6; grid.material.transparent = true; grid.material.opacity = .3; scene.add(grid);
   root.querySelectorAll("[data-v]").forEach(b => b.onclick = () => { stopTour(); show(b.dataset.v, true); });
   root.querySelector(".x").onclick = close;
+  root.querySelector(".ar").onclick = toggleAR;
   root.querySelector(".b3d").onclick = () => { body3d = !body3d; show("body"); };
   cv.addEventListener("pointerdown", e => { stopTour(); drag = {x: e.clientX, y: e.clientY}; cv.setPointerCapture(e.pointerId); });
   cv.addEventListener("pointermove", e => { if(!drag) return; yaw += (e.clientX - drag.x) * .006; pitch = Math.max(-.7, Math.min(.7, pitch + (e.clientY - drag.y) * .004)); drag = {x: e.clientX, y: e.clientY}; });
@@ -266,6 +271,24 @@ const BUILD = {
         blending: THREE.AdditiveBlending, depthWrite: false}));
       group.add(dots); animators.push(t => dots.material.opacity = .65 + Math.sin(t * 1.6) * .2);
     }
+    // #17 your day in 3D: today's real path as a light trail, cyan in the morning through gold to pink at night,
+    // rising a little through the day, with a comet replaying it and the day's steps
+    const tp = (data.today_path || []).filter(p => p && p.length >= 3);
+    if(tp.length > 1){
+      const t0d = tp[0][0], t1d = tp[tp.length - 1][0] || t0d + 1, pts3 = [], cols = [];
+      tp.forEach(([ts, lat, lon]) => { const f = (ts - t0d) / Math.max(1, t1d - t0d), v = P([lon, lat]); pts3.push(new THREE.Vector3(v.x, .15 + f * 1.2, v.z));
+        const c = new THREE.Color().setHSL(f < .5 ? (.53 - f * 2 * .4) : (.13 - (f - .5) * 2 * .22 + 1) % 1, 1, .6); cols.push(c.r, c.g, c.b); });
+      const seg = Math.min(600, pts3.length * 4), rad = 6, tg = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts3), seg, .09, rad, false), tc = [];
+      for(let i = 0; i <= seg; i++){ const j = Math.min(tp.length - 1, Math.round(i / seg * (tp.length - 1))); for(let r = 0; r <= rad; r++) tc.push(cols[j * 3], cols[j * 3 + 1], cols[j * 3 + 2]); }
+      tg.setAttribute("color", new THREE.Float32BufferAttribute(tc, 3));
+      group.add(new THREE.Mesh(tg, new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, opacity: .95, blending: THREE.AdditiveBlending, depthWrite: false})));
+      const hg = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts3), seg, .3, rad, false); hg.setAttribute("color", new THREE.Float32BufferAttribute(tc, 3));
+      group.add(new THREE.Mesh(hg, new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, opacity: .18, blending: THREE.AdditiveBlending, depthWrite: false})));
+      const comet = glow("#ffffff", 1.6, 1); group.add(comet);
+      animators.push(t => { const k = ((t / 14) % 1 + 1) % 1, i = Math.max(0, Math.min(pts3.length - 2, Math.floor(k * (pts3.length - 1)))), f = Math.min(1, k * (pts3.length - 1) - i); comet.position.lerpVectors(pts3[i], pts3[i + 1], f); });
+      const end = new THREE.Object3D(); end.position.copy(pts3[pts3.length - 1]).add(new THREE.Vector3(0, 1.2, 0)); group.add(end);
+      const st = data.steps || {}; label(end, `TODAY${st.today ? `<small>${st.today.toLocaleString()} steps</small>` : ""}`, "#ffffff");
+    }
     // today's route: numbered stops joined by an arc, with a light running along it
     rs.forEach((s, i) => { const v = P([s.lon, s.lat]), p = new THREE.Object3D(); p.position.set(v.x, 1.6 + i * 1.1, v.z); group.add(p);
       const stem = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.6 + i * 1.1, 6), mat("#3dff9a", .7)); stem.position.set(v.x, (1.6 + i * 1.1) / 2, v.z); group.add(stem);
@@ -329,12 +352,26 @@ function show(v, speak){
   if(speak && window.sendCommand) window.sendCommand(`show me ${view === "business" ? "Shaabaz" : view}`, "JARVIS", true);
 }
 
+// #15 tilt the phone to look around; #16 AR: the hologram floats over your table through the camera
+let tiltX = 0, tiltY = 0, devA = 0, devB = 0, ar = null;
+addEventListener("deviceorientation", e => { if(e.gamma == null) return; tiltX = Math.max(-1, Math.min(1, e.gamma / 35)); tiltY = Math.max(-1, Math.min(1, ((e.beta || 0) - 50) / 35)); devA = e.alpha || 0; devB = e.beta || 0; });
+async function toggleAR(){
+  const btn = root.querySelector(".ar");
+  if(ar){ ar.stream.getTracks().forEach(t => t.stop()); ar.video.remove(); ar = null; root.classList.remove("arOn"); btn.textContent = "📷 AR"; return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}}), video = document.createElement("video");
+    video.className = "arcam"; video.playsInline = true; video.muted = true; video.srcObject = stream; root.prepend(video); await video.play().catch(() => {});
+    ar = {stream, video, a: devA, b: devB}; root.classList.add("arOn"); btn.textContent = "✕ AR";
+  } catch { window.HUDFX?.toast?.("The camera isn't available for AR here"); }
+}
 function frame(now){
   if(!open) return;
   const t = (now - t0) / 1000, dt = Math.min(.05, (now - (frame.last || now)) / 1000); frame.last = now;
   if(!reduce) animators.forEach(f => f(t, dt));
   const base = new THREE.Vector3(...CAM[view]).multiplyScalar(zoom), sph = new THREE.Spherical().setFromVector3(base);
-  sph.theta += yaw; sph.phi = Math.max(.15, Math.min(Math.PI - .15, sph.phi - pitch));
+  let ty = tiltX * .35, tp2 = tiltY * .2;
+  if(ar){ let d = devA - ar.a; if(d > 180) d -= 360; if(d < -180) d += 360; ty = -d * Math.PI / 180; tp2 = (devB - ar.b) * Math.PI / 180 * .8; }   // stays put in the room as you move the phone
+  sph.theta += yaw + ty; sph.phi = Math.max(.15, Math.min(Math.PI - .15, sph.phi - pitch - tp2));
   const target = new THREE.Vector3().setFromSpherical(sph); camera.position.lerp(target, Math.min(1, dt * 3)); camera.lookAt(0, view === "body" ? .2 : 0, 0);
   renderer.render(scene, camera);
   const v = new THREE.Vector3();
@@ -350,7 +387,7 @@ async function openHolo(v = "week", opts = {}){
   size(); root.classList.add("on"); open = true; camera.position.set(0, 30, 60);
   show(v, !!opts.speak); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
 }
-function close(){ open = false; stopTour(); cancelAnimationFrame(raf); root?.classList.remove("on"); window.HUD_SFX?.whoosh?.(); }
+function close(){ if(ar) toggleAR(); open = false; stopTour(); cancelAnimationFrame(raf); root?.classList.remove("on"); window.HUD_SFX?.whoosh?.(); }
 
 // ------------------------------------------------------------------ screensaver tour in the JARVIS window
 function startTour(){ let i = 0; openHolo(VIEWS[0][0]); tour = setInterval(() => { i = (i + 1) % VIEWS.length; if(open) show(VIEWS[i][0]); }, 18000); }

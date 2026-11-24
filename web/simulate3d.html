@@ -10,7 +10,8 @@
    Preview with demo numbers; the real ones run on the owner's own data. Laptop and phone. */
 :root{--bg:#03060a;--line:#1b2735;--txt:#dce7f2;--muted:#8a95a7;--ac:#ffd23f}
 *{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:"JetBrains Mono",monospace;overflow:hidden}
-#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#arcam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+#gl{z-index:1;position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .top{position:fixed;top:0;left:0;right:0;z-index:5;padding:max(10px,env(safe-area-inset-top)) 14px 8px;background:linear-gradient(#03060ad9,transparent);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .top b{font:700 12px Orbitron,sans-serif;letter-spacing:.3em;color:var(--ac);text-shadow:0 0 12px #ffd23f66}
 .tabs{display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
@@ -37,13 +38,13 @@
 .hint{position:fixed;right:12px;top:calc(110px + env(safe-area-inset-top));z-index:4;font-size:10px;color:var(--muted);text-align:right;line-height:1.5}
 </style></head><body>
 <canvas id="gl"></canvas><div id="scan"></div><div id="labels"></div><div id="flash"></div>
-<div class="top"><a class="back" href="javascript:history.length>1?history.back():location.href='home.html'" aria-label="Back">‹</a><b>HOLO SIMS</b><div class="tabs" id="tabs"></div></div>
+<div class="top"><a class="back" href="javascript:history.length>1?history.back():location.href='home.html'" aria-label="Back">‹</a><b>HOLO SIMS</b><div class="tabs" id="tabs"></div><button class="back" id="arBtn" style="cursor:pointer">📷 AR</button></div>
 <div class="cap" id="cap"></div><div class="hint">drag to spin · scroll / pinch to zoom<br>sample data</div>
 <div class="say" id="say"></div>
 <div class="panel" id="panel"><div class="sl" id="sl"></div><div class="time"><button id="play">❚❚ PAUSE</button><input type="range" id="tm" min="0" max="1" step=".001" value="0"><span id="tl"></span></div></div>
 <script>
 const $ = s => document.querySelector(s);
-const R = new THREE.WebGLRenderer({canvas: $("#gl"), antialias: true, alpha: false});
+const R = new THREE.WebGLRenderer({canvas: $("#gl"), antialias: true, alpha: true});
 R.setPixelRatio(Math.min(2, devicePixelRatio || 1)); R.setClearColor(0x03060a);
 const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x03060a, .018);
 const cam = new THREE.PerspectiveCamera(50, 1, .1, 400);
@@ -299,7 +300,15 @@ const SIMS = [
 const DAY = {say: () => ""}, EVENT = {say: () => ""};
 
 // ------------------------------------------------------------ ui
-let cur = null, flyTo = 0;
+let cur = null, flyTo = 0, tiltX = 0, tiltY = 0, devA = 0, devB = 0, yawT = 0, pitchT = 0, AR = null;
+addEventListener("deviceorientation", e => { if(e.gamma == null) return; tiltX = Math.max(-1, Math.min(1, e.gamma / 35)); tiltY = Math.max(-1, Math.min(1, ((e.beta || 0) - 50) / 35)); devA = e.alpha || 0; devB = e.beta || 0; });
+$("#arBtn").onclick = async () => {
+  if(AR){ AR.stream.getTracks().forEach(t => t.stop()); AR.video.remove(); AR = null; R.setClearColor(0x03060a, 1); scene.fog.density = .018; window.__dust.visible = true; $("#arBtn").textContent = "📷 AR"; return; }
+  try { const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}}), video = document.createElement("video");
+    video.id = "arcam"; video.playsInline = true; video.muted = true; video.srcObject = stream; document.body.prepend(video); await video.play().catch(() => {});
+    AR = {stream, video, a: devA, b: devB}; R.setClearColor(0x000000, 0); window.__dust.visible = false; $("#arBtn").textContent = "✕ AR";
+  } catch { $("#say").textContent = "The camera isn't available for AR here."; }
+};
 SIMS.forEach(s => { P[s.id] = Object.fromEntries(s.ctl.map(c => [c[0], c[4]])); $("#tabs").insertAdjacentHTML("beforeend", `<div class="tab" data-id="${s.id}" style="--c:${s.c}">${s.name}</div>`); });
 $("#tabs").onclick = e => { const t = e.target.closest(".tab"); if(t) open(t.dataset.id, true); };
 function open(id, reset){
@@ -322,11 +331,16 @@ function loop(now){
   const t = Math.max(0, Math.min(1, T)); $("#tm").value = t; $("#tl").textContent = cur.time(t); $("#say").textContent = cur.say(t);
   anim.forEach(f => f(t, now));
   if(!drag && !pinch) yaw += dt * .05;
+  // #15 tilt the phone to look around; #16 AR: in AR it stays put over your table as you move the phone
+  let ty = tiltX * .35, tp = tiltY * .2;
+  if(AR){ let d = devA - AR.a; if(d > 180) d -= 360; if(d < -180) d += 360; ty = -d * Math.PI / 180; tp = (devB - AR.b) * Math.PI / 180 * .8; }
+  yawT = ty; pitchT = tp;
   if(flyTo){ dist += (flyTo - dist) * Math.min(1, dt * 2.5); if(Math.abs(dist - flyTo) < .05 || drag || pinch) flyTo = 0; }   // swoop in on every new hologram
   window.__dust.rotation.y += dt * .01;
   const fit = dist * Math.max(1, .95 / cam.aspect);   // tall phone screens: pull back so the whole scene fits
-  scene.fog.density = .018 * 32 / fit;   // fog scales with distance, so pulling back never hides the scene
-  cam.position.set(target.x + fit * Math.cos(pitch) * Math.sin(yaw), target.y + fit * Math.sin(pitch), target.z + fit * Math.cos(pitch) * Math.cos(yaw)); cam.lookAt(target);
+  scene.fog.density = AR ? 0 : .018 * 32 / fit;   // fog scales with distance, so pulling back never hides the scene
+  const py = Math.max(.05, Math.min(1.45, pitch + pitchT)), yw = yaw + yawT;
+  cam.position.set(target.x + fit * Math.cos(py) * Math.sin(yw), target.y + fit * Math.sin(py), target.z + fit * Math.cos(py) * Math.cos(yw)); cam.lookAt(target);
   R.render(scene, cam);
   labels.forEach(l => { v.copy(l.pos).project(cam); const vis = v.z < 1; l.el.style.display = vis ? "" : "none";
     if(vis){ l.el.style.left = ((v.x + 1) / 2 * innerWidth) + "px"; l.el.style.top = ((1 - v.y) / 2 * innerHeight) + "px"; } });

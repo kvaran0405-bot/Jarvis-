@@ -629,6 +629,25 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void changeAddress() { ui.post(() -> web.loadUrl("file:///android_asset/setup.html")); }
 
+        // ---- the live wallpaper (#26)
+        @JavascriptInterface
+        public boolean hasLiveWallpaper() {
+            try { android.app.WallpaperInfo i = android.app.WallpaperManager.getInstance(MainActivity.this).getWallpaperInfo();
+                return i != null && getPackageName().equals(i.getPackageName()); } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public void setLiveWallpaper() {
+            ui.post(() -> {
+                try {
+                    startActivity(new Intent(android.app.WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
+                            .putExtra(android.app.WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, new android.content.ComponentName(MainActivity.this, JarvisWallpaper.class)));
+                } catch (Exception e) {
+                    try { startActivity(new Intent(android.app.WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)); } catch (Exception ignored) {}
+                }
+            });
+        }
+
         // ---- Solo JARVIS (the phone by itself)
         @JavascriptInterface
         public String soloPack() { return Solo.packForPage(MainActivity.this); }

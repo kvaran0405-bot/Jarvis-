@@ -50,6 +50,7 @@ const saveSkips = () => { try { localStorage.setItem("jarvis-setup-skip", JSON.s
 const PHONE = [
   ["Notifications", "Messages, reminders and alerts from your agents", () => call("hasNotifyPermission") !== false, () => call("askNotifyPermission")],
   ["Microphone & camera", "Talk to JARVIS, video calls, Vision", () => call("hasMicCam"), () => call("askMicCam")],
+  ["Live wallpaper", "The JARVIS core animating on your home screen (tap Set wallpaper)", () => call("hasLiveWallpaper"), () => call("setLiveWallpaper")],
   ["On-time reminders (solo)", "Reminders ring on the dot even when the laptop is off", () => call("exactReminders") !== false, () => call("askExactReminders")],
   ["Calls, contacts & photos", "“Call Mum”, “what's in my last photo?”", () => call("hasPowers"), id => asked[id] ? call("openAppSettings") : call("askPowers")],
   ["Location", "Location magic: home, gym, class, leave-now alerts", () => call("hasLocation"), id => asked[id] ? call("openAppSettings") : call("askLocation")],

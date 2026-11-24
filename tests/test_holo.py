@@ -51,3 +51,10 @@ def test_show_me_phrases_open_holograms(monkeypatch):
     assert seen[-1]["view"] == "diagnostics"
     assert server.special("show me the trophies")[0].endswith(".") and seen[-1]["view"] == "trophies"
     assert server.special("show me how to cook rice") == (None, None, None)
+
+
+def test_holo_has_todays_path_and_steps():
+    from jarvis import server, holo
+    d = holo.data(server.store)
+    assert "today_path" in d and isinstance(d["today_path"], list)
+    assert "today" in d["steps"] and len(d["steps"]["week"]) == 7
