@@ -93,6 +93,20 @@ def send_app() -> None:
         pass
 
 
+ONEMAP_STEPS = ("🚇 Real bus & MRT journeys (free, official Singapore map), 2 minutes:\n\n"
+                "1. Open https://www.onemap.gov.sg/apidocs/register and register with your email (free).\n"
+                "2. Confirm the email they send you and set a password.\n"
+                "3. Send me ONE message: your OneMap email and password, like:\n"
+                "   you@gmail.com yourpassword\n\n"
+                "I'll delete your message straight away and check it works. (15 minutes to reply.)")
+LTA_STEPS = ("🚌 Live bus arrivals (free, from LTA), 2 minutes:\n\n"
+             "1. Open https://datamall.lta.gov.sg/content/datamall/en/request-for-api.html and request API access "
+             "(free, personal use).\n"
+             "2. LTA emails you an AccountKey (a long code).\n"
+             "3. Paste that key here as one message.\n\n"
+             "I'll delete your message straight away and check it works. (15 minutes to reply.)")
+
+
 # ---------------------------------------------------------------- Telegram Bot API
 def api(method: str, http_timeout: int = 30, **params):
     url = f"https://api.telegram.org/bot{settings.telegram_token}/{method}"
@@ -174,6 +188,8 @@ class Bot:
         self._email_until = 0.0
         self.on_gemini: Callable[[str], str] | None = None       # (key) -> result
         self._gemini_until = 0.0
+        self.on_transit: Callable[[str, dict], str] | None = None   # ("onemap"|"lta", values) -> result
+        self._transit_until = {"onemap": 0.0, "lta": 0.0}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -304,6 +320,33 @@ class Bot:
         if text in ("/installapp", "/apk", "/phoneapp") or INSTALL_RE.match(text):
             threading.Thread(target=send_app, daemon=True).start()
             return
+        if self.on_transit and text in ("/onemap", "/lta", "/bus", "/transit"):
+            which = "lta" if text in ("/lta", "/bus") else "onemap"
+            self._transit_until[which] = time.time() + 900
+            send(ONEMAP_STEPS if which == "onemap" else LTA_STEPS)
+            return
+        if self.on_transit and self._transit_until["onemap"] > time.time() and "@" in text:
+            try:
+                api("deleteMessage", chat_id=sender, message_id=msg.get("message_id"))
+            except Exception:  # noqa: BLE001
+                pass
+            m = re.match(r"^\s*(\S+@\S+\.\S+)\s+(.+?)\s*$", text)
+            if not m:
+                send("🔒 Deleted that to keep it private. Send it as: your-email@gmail.com yourpassword")
+                return
+            self._transit_until["onemap"] = 0
+            send("🔒 Got it and deleted your message. Checking with OneMap…")
+            send(self.on_transit("onemap", {"email": m.group(1), "password": m.group(2)}))
+            return
+        if self.on_transit and self._transit_until["lta"] > time.time() and re.fullmatch(r"\s*[A-Za-z0-9+/=_-]{16,64}\s*", text):
+            try:
+                api("deleteMessage", chat_id=sender, message_id=msg.get("message_id"))
+            except Exception:  # noqa: BLE001
+                pass
+            self._transit_until["lta"] = 0
+            send("🔒 Got it and deleted your message. Checking with LTA…")
+            send(self.on_transit("lta", {"key": text.strip()}))
+            return
         if text == "/voicecheck":
             send(voice_check())
             return
@@ -322,7 +365,7 @@ class Bot:
                  "Save your Claude plan:\n• /pause  or  pause for 3 hours - I use no AI at all\n"
                  "• /saver - run on free Gemini only\n• /resume - back to normal\n• /status - which brain I'm using\n\n"
                  "📱 /app - open the JARVIS app   📞 /call - talk to me live\n"
-                 "📱 /installapp - newest phone app\n📧 /email - connect your Gmail\n⚡ /gemini - free Gemini key (fast mode)\n🔎 /voicecheck - test voice notes   ⬆ update - get my newest version (laptop + phone)")
+                 "📱 /installapp - newest phone app\n📧 /email - connect your Gmail\n🚇 /onemap - real bus/MRT journeys\n🚌 /lta - live bus arrivals\n⚡ /gemini - free Gemini key (fast mode)\n🔎 /voicecheck - test voice notes   ⬆ update - get my newest version (laptop + phone)")
             return
         api("sendChatAction", chat_id=chat_id(), action="typing")
         reply = self.on_text(text, voice=False)

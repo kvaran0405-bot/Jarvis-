@@ -275,7 +275,8 @@ def _trip_estimate(store, event: dict, loc: str, now: datetime) -> dict | None:
         return None
     best = next(x for x in o["options"] if x["mode"] == o["best"])
     grab = next((x for x in o["options"] if x["mode"] == "grab"), None)
-    how = f"{best['label'].lower()} ~{best['min']} min"
+    how = (navigate.say_transit(o["transit"]) if o.get("transit") and best["mode"] == "transit"
+           else f"{best['label'].lower()} ~{best['min']} min")
     if grab and best["mode"] != "grab":
         how += f" (Grab ~{grab['min']} min, ${grab['price'][0]}–{grab['price'][1]})"
     elif grab:

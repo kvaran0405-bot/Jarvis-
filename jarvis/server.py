@@ -70,6 +70,14 @@ async def lifespan(_app):
         return "✅ " + result + " Try: “anything important in my email?”"
     bot.on_email = _connect_email
 
+    def _connect_transit(which: str, values: dict) -> str:   # "/onemap" and "/lta" on Telegram
+        from . import access
+        try:
+            return "✅ " + access.save_transit(which, values) + " Try: “how do I get to Jewel by 18:30”"
+        except ValueError as exc:
+            return f"⚠ {exc}\nSend /{which} to try again."
+    bot.on_transit = _connect_transit
+
     def _connect_gemini(key: str) -> str:   # "/gemini" on Telegram
         from . import access
         old_key = settings.gemini_key

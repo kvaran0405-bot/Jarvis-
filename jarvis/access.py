@@ -19,6 +19,11 @@ def startup_file() -> Path:
     return Path(os.environ.get("APPDATA", str(Path.home()))) / "Microsoft/Windows/Start Menu/Programs/Startup/JARVIS.bat"
 
 
+def _nav():
+    from . import navigate
+    return navigate
+
+
 def _offline_voice() -> bool:
     from . import localvoice
     return localvoice.ready()
@@ -60,6 +65,10 @@ def status(store) -> list[dict]:
         {"id": "email", "label": "Reads your email (briefings, inbox sweep, smart replies)", "on": channels.email_read_ready(),
          "action": "email", "detail": settings.smtp_user,
          "how": "Easiest: send /email to your JARVIS bot on Telegram. Or type it here: Gmail address + a Gmail app password."},
+        {"id": "onemap", "label": "Real bus & MRT journeys (OneMap, free)", "on": _nav().onemap_ready(),
+         "how": "Send /onemap to your JARVIS bot on Telegram (free account, 2 minutes)."},
+        {"id": "lta", "label": "Live bus arrivals (LTA DataMall, free)", "on": _nav().lta_ready(),
+         "how": "Send /lta to your JARVIS bot on Telegram (free key by email)."},
         {"id": "calendar", "label": "Google Calendar sync", "on": gcal.ready(), "link": "/google-setup.html"},
         {"id": "birthday", "label": "Your birthday (birthday mode)", "on": bool(os.environ.get("JARVIS_BIRTHDAY")),
          "action": "key", "key": "JARVIS_BIRTHDAY", "how": "MM-DD, e.g. 04-05"},
@@ -99,6 +108,45 @@ def _write_env(values: dict[str, str]) -> None:
 
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[a-z]{2,}$", re.I)
+
+
+def save_transit(which: str, values: dict, check: bool = True) -> str:
+    """OneMap (journeys) or LTA DataMall (live buses): check it really works, then save it on the laptop."""
+    from . import navigate
+    if which == "onemap":
+        email, pw = values.get("email", "").strip(), values.get("password", "").strip()
+        if not EMAIL_RE.match(email) or len(pw) < 4:
+            raise ValueError("Send it as: your-email@gmail.com yourpassword")
+        old = {k: os.environ.get(k, "") for k in ("JARVIS_ONEMAP_EMAIL", "JARVIS_ONEMAP_PASSWORD")}
+        os.environ.update(JARVIS_ONEMAP_EMAIL=email, JARVIS_ONEMAP_PASSWORD=pw)
+        navigate._token.update(value="", until=0.0)
+        if check:
+            try:
+                navigate._onemap_token()
+            except Exception:  # noqa: BLE001
+                os.environ.update(old)
+                raise ValueError("OneMap said no. Check the email and password (and that you confirmed the email).") from None
+        _write_env({"JARVIS_ONEMAP_EMAIL": email, "JARVIS_ONEMAP_PASSWORD": pw})
+        return "Bus & MRT journeys connected: real routes, bus numbers and leave-by times."
+    key = values.get("key", "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9+/=_-]{16,64}", key):
+        raise ValueError("That doesn't look like an LTA AccountKey. Copy the whole key from LTA's email.")
+    old = os.environ.get("JARVIS_LTA_KEY", "")
+    os.environ["JARVIS_LTA_KEY"] = key
+    if check:
+        import urllib.error
+        import urllib.request
+        try:
+            req = urllib.request.Request(navigate.LTA_ARRIVAL_URL + "83139", headers={"AccountKey": key, "accept": "application/json"})
+            urllib.request.urlopen(req, timeout=10).read()
+        except urllib.error.HTTPError as exc:
+            os.environ["JARVIS_LTA_KEY"] = old
+            raise ValueError(f"LTA refused the key ({exc.code}). Copy it again from the email.") from None
+        except Exception:  # noqa: BLE001
+            os.environ["JARVIS_LTA_KEY"] = old
+            raise ValueError("Couldn't reach LTA to check it. Is the laptop online?") from None
+    _write_env({"JARVIS_LTA_KEY": key})
+    return "Live bus arrivals connected."
 
 
 def save_email(address: str, app_password: str, check: bool = True) -> str:

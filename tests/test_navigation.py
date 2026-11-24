@@ -108,3 +108,89 @@ def test_geocode_uses_onemap_and_remembers(monkeypatch):
     assert explore.geocode(st, "odeon towers") == (1.2963, 103.8528)
     assert explore.geocode(st, "Odeon Towers") == (1.2963, 103.8528) and len(calls) == 1
     assert "onemap.gov.sg" in calls[0]
+
+
+def _encode(points):
+    """Google polyline encoder (to build OneMap-style test data)."""
+    out, plat, plon = [], 0, 0
+    for lat, lon in points:
+        for v, prev in ((round(lat * 1e5), plat), (round(lon * 1e5), plon)):
+            d = v - prev
+            d = ~(d << 1) if d < 0 else d << 1
+            while d >= 0x20:
+                out.append(chr((0x20 | (d & 0x1f)) + 63))
+                d >>= 5
+            out.append(chr(d + 63))
+        plat, plon = round(lat * 1e5), round(lon * 1e5)
+    return "".join(out)
+
+
+def test_polyline_round_trip():
+    pts = [[1.3496, 103.9568], [1.3201, 103.9002], [1.2963, 103.8528]]
+    assert navigate.decode_polyline(_encode(pts)) == pts
+
+
+def test_real_journey_with_live_buses(monkeypatch):
+    monkeypatch.setenv("JARVIS_ONEMAP_EMAIL", "me@example.com")
+    monkeypatch.setenv("JARVIS_ONEMAP_PASSWORD", "pw")
+    monkeypatch.setenv("JARVIS_LTA_KEY", "A" * 24)
+    navigate._token.update(value="", until=0.0)
+    now = datetime.now(settings.tz)
+    ms = lambda m: int((now + timedelta(minutes=m)).timestamp() * 1000)   # noqa: E731
+    plan = {"plan": {"itineraries": [{"duration": 1860, "startTime": ms(0), "endTime": ms(31), "fare": "1.79", "transfers": 1, "legs": [
+        {"mode": "WALK", "duration": 240, "startTime": ms(0), "from": {"name": "Origin"}, "to": {"name": "Blk 201"},
+         "legGeometry": {"points": _encode([[1.3496, 103.9568], [1.3490, 103.9550]])}},
+        {"mode": "BUS", "route": "15", "duration": 600, "startTime": ms(5), "from": {"name": "Blk 201", "stopCode": "76191"}, "to": {"name": "Tampines Int"}},
+        {"mode": "SUBWAY", "route": "EW", "duration": 900, "startTime": ms(16), "from": {"name": "TAMPINES MRT STATION"}, "to": {"name": "CITY HALL MRT STATION"}},
+        {"mode": "WALK", "duration": 120, "startTime": ms(29), "from": {"name": "City Hall"}, "to": {"name": "Destination"}}]}]}}
+    eta = lambda m: (now + timedelta(minutes=m, seconds=30)).isoformat()   # noqa: E731
+    arrivals = {"Services": [{"ServiceNo": "15", "NextBus": {"EstimatedArrival": eta(6)}, "NextBus2": {"EstimatedArrival": eta(14)},
+                             "NextBus3": {"EstimatedArrival": eta(25)}}, {"ServiceNo": "3", "NextBus": {"EstimatedArrival": eta(2)}}]}
+
+    class R:
+        def __init__(self, body): self.body = json.dumps(body).encode()
+        def read(self): return self.body
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+    seen = []
+
+    def fake(req, timeout=10):
+        url = req.full_url
+        seen.append(url)
+        if "getToken" in url:
+            return R({"access_token": "tok"})
+        if "routingsvc" in url:
+            assert req.headers.get("Authorization") == "tok"
+            return R(plan)
+        if "BusArrival" in url:
+            assert req.headers.get("Accountkey") == "A" * 24
+            return R(arrivals)
+        raise AssertionError(url)
+    monkeypatch.setattr("urllib.request.urlopen", fake)
+    t = navigate.transit(HOME, ODEON)
+    bus = next(l for l in t["legs"] if l["mode"] == "BUS")
+    assert bus["live"] == [6, 14, 25] and bus["route"] == "15"          # only bus 15, live
+    mrt = next(l for l in t["legs"] if l["mode"] == "SUBWAY")
+    assert mrt["line"] == "East-West Line" and "every" in mrt["every"]
+    assert t["fare"] == "1.79" and t["min"] == 31 and len(t["line"]) == 2
+    assert t["leave"] == (now + timedelta(minutes=6 - 4 - 1)).strftime("%H:%M")   # reach the stop as bus 15 comes
+    said = navigate.say_transit(t)
+    assert said.startswith("Leave at") and "bus 15 from Blk 201 (live: 6, 14, 25 min)" in said and "East-West Line" in said
+
+
+def test_transit_setup_over_telegram(monkeypatch):
+    from jarvis import telegram
+    out, calls, got = [], [], []
+    bot = telegram.Bot(on_text=lambda t, voice=False: "AI", on_decision=lambda *a: "", log=lambda m: None)
+    bot.on_transit = lambda which, v: got.append((which, v)) or "ok"
+    monkeypatch.setattr(telegram, "chat_id", lambda: "42")
+    monkeypatch.setattr(telegram, "send", lambda text, *a, **k: out.append(text))
+    monkeypatch.setattr(telegram, "api", lambda method, **p: calls.append((method, p)))
+    msg = lambda t, i=1: {"update_id": i, "message": {"message_id": i, "text": t, "chat": {"id": 42}}}   # noqa: E731
+    bot.handle(msg("/onemap"))
+    assert "onemap.gov.sg" in out[-1]
+    bot.handle(msg("me@gmail.com hunter22", 5))
+    assert got[-1] == ("onemap", {"email": "me@gmail.com", "password": "hunter22"}) and ("deleteMessage", {"chat_id": "42", "message_id": 5}) in calls
+    bot.handle(msg("/lta"))
+    bot.handle(msg("AbCdEf0123456789XyZ==", 6))
+    assert got[-1] == ("lta", {"key": "AbCdEf0123456789XyZ=="})

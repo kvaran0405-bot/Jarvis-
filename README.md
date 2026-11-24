@@ -298,6 +298,10 @@ it stays silent unless the alert is critical.
   traffic and the rain, plus a leave-by time; the route glows on JARVIS's map with turn-by-turn steps, and ▶ START
   gives live navigation with JARVIS speaking the turns. Places come from OneMap (free, official Singapore map);
   routes from the free OpenStreetMap routing servers. Bus/MRT times and Grab prices are estimates.
+- **Real bus & MRT (free):** send **/onemap** (free OneMap account) and **/lta** (free LTA DataMall key) on Telegram.
+  Then routes show the real journey: walk to the stop, bus number with **live arrivals** ("next 3, 14 min"), MRT line
+  and changes, fare, arrival time, and exactly **when to leave** to catch the bus. MRT trains have no public live feed,
+  so JARVIS shows the usual frequency. "Leave now" alerts use the same.
 - **Your day, glowing:** 📅 MY DAY on the map replays where you went (colour = time of day) with steps (the phone's
   step counter), km walked, km travelled, time moving and places. When you set off somewhere, JARVIS asks where
   you're heading ("trip questions off" to stop). "Leave now" alerts use your live location, traffic, rain, and

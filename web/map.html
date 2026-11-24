@@ -240,8 +240,23 @@ function showOptions(mode){
     <div class="steps" id="steps"></div>
     <div class="row"><button onclick="document.querySelector('#sheet').classList.remove('on')">CLOSE</button><button class="go2" id="startNav">▶ START</button></div>`;
   $("#sheet").querySelectorAll(".opt").forEach(e => e.onclick = () => showOptions(e.dataset.m));
+  const T = NAV.transit;
+  if(mode === "transit" && T){   // the real journey: walk -> bus (live) -> MRT -> walk
+    drawNav({line: T.line && T.line.length > 1 ? T.line : [NAV.from_at, NAV.to_at]}, col.transit);
+    const ic = {WALK: "🚶", BUS: "🚌", SUBWAY: "🚇", RAIL: "🚇", TRAM: "🚈"};
+    const legText = l => l.mode === "WALK" ? `Walk to ${esc(l.to || "the stop")}`
+      : l.mode === "BUS" ? `Bus <b>${esc(l.route)}</b> from ${esc(l.from)}` + (l.live && l.live.length ? ` <span style="color:var(--go)">· next ${l.live.join(", ")} min (live)</span>` : "")
+      : `${esc(l.line || "MRT")} ${esc(l.from)} → ${esc(l.to)} <span style="color:var(--muted)">· trains ${esc(l.every || "")}</span>`;
+    $("#steps").innerHTML = `<div style="color:#fff;margin-bottom:4px">Leave <b style="color:var(--go)">${T.leave}</b> · arrive <b>${T.arrive}</b>`
+      + (T.fare ? ` · fare ~$${esc(T.fare)}` : "") + (T.transfers ? ` · ${T.transfers} change${T.transfers > 1 ? "s" : ""}` : "") + `</div>`
+      + T.legs.map(l => `<div>${ic[l.mode] || "•"} ${l.at} ${legText(l)}<em>${l.min} min</em></div>`).join("");
+    $("#startNav").onclick = () => startNav(routeFor("walk") || routeFor("drive"));
+    return;
+  }
   const rt = routeFor(mode); drawNav(rt, col[mode]);
-  $("#steps").innerHTML = rt && rt.steps ? rt.steps.filter(s => s.text).map(s => `<div>▸ ${esc(s.text)}<em>${s.m >= 1000 ? (s.m / 1000).toFixed(1) + " km" : s.m + " m"}</em></div>`).join("")
+  $("#steps").innerHTML = mode === "transit" && NAV.transit_setup
+    ? `<div style="color:var(--muted)">This is an estimate. For real bus numbers, MRT lines, live bus arrivals and the exact time to leave, send <b style="color:#fff">/onemap</b> and <b style="color:#fff">/lta</b> to your JARVIS bot on Telegram (both free).</div>`
+    : rt && rt.steps ? rt.steps.filter(s => s.text).map(s => `<div>▸ ${esc(s.text)}<em>${s.m >= 1000 ? (s.m / 1000).toFixed(1) + " km" : s.m + " m"}</em></div>`).join("")
     : `<div style="color:var(--muted)">${mode === "transit" ? "Bus/MRT time is an estimate; JARVIS shows the walking and road route around it." : "Route line shown."}</div>`;
   $("#startNav").onclick = () => startNav(rt || routeFor("walk") || routeFor("drive"));
 }
