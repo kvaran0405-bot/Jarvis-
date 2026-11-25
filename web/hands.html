@@ -39,7 +39,7 @@ const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(45, 1, .1, 10
 let W = 0, H = 0, DPR = 1;
 const HUD = $("#hud"), X = HUD.getContext("2d");
 function resize(){ DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; R.setPixelRatio(DPR); R.setSize(W, H, false);
-  cam.aspect = W / H; cam.updateProjectionMatrix(); HUD.width = W * DPR; HUD.height = H * DPR; X.setTransform(DPR, 0, 0, DPR, 0, 0); layout(); }
+  cam.aspect = W / H; cam.position.z = H > W ? 21 : 13; cam.updateProjectionMatrix();   // a tall phone screen: step back so the menus stay clear HUD.width = W * DPR; HUD.height = H * DPR; X.setTransform(DPR, 0, 0, DPR, 0, 0); layout(); }
 const holder = new THREE.Group(); scene.add(holder);
 const dot = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.3, "rgba(255,255,255,.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
