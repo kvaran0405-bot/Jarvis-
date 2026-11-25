@@ -34,11 +34,11 @@ const PHONE = /Android|iPhone|iPad/i.test(navigator.userAgent) || !!window.Jarvi
 const VER = "0.10.14";
 
 // ---------------------------------------------------------------- the hologram (three.js)
-const R = new THREE.WebGLRenderer({canvas: $("#gl"), antialias: true, alpha: true}); R.setClearColor(0, 0);
+const R = new THREE.WebGLRenderer({canvas: $("#gl"), antialias: !PHONE, alpha: true, powerPreference: "high-performance"}); R.setClearColor(0, 0);
 const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(45, 1, .1, 100); cam.position.set(0, 0, 13);
 let W = 0, H = 0, DPR = 1;
 const HUD = $("#hud"), X = HUD.getContext("2d");
-function resize(){ DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; R.setPixelRatio(DPR); R.setSize(W, H, false);
+function resize(){ DPR = Math.min(PHONE ? 1.5 : 2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; R.setPixelRatio(DPR); R.setSize(W, H, false);
   cam.aspect = W / H; cam.position.z = H > W ? 21 : 13; /* a tall phone screen: step back so the menus stay clear */ cam.updateProjectionMatrix(); HUD.width = W * DPR; HUD.height = H * DPR; X.setTransform(DPR, 0, 0, DPR, 0, 0); layout(); }
 const holder = new THREE.Group(); scene.add(holder);
 const dot = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -97,31 +97,94 @@ function throwIt(){
 // ---------------------------------------------------------------- hands: tracking, pinch, grab, swipe, flick
 let tracker = null, video = $("video"), hands = [], cursors = [], grab = null, pinchTwo = null, swipeT = [], camOn = false;
 const BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VER}`;
+const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+// More forgiving than the defaults (.5), so hands are found in dim rooms and at an angle.
+const OPTS = {runningMode: "VIDEO", numHands: 2, minHandDetectionConfidence: .35, minHandPresenceConfidence: .35, minTrackingConfidence: .3};
+// The hand tracking runs in its own thread: the hologram never waits for it, and it looks at each new camera frame once.
+const WORKER_SRC = `let lm = null;
+onmessage = async e => { const d = e.data;
+  if (d.init){ try { const v = await import(d.cdn + "/vision_bundle.mjs"); const files = await v.FilesetResolver.forVisionTasks(d.cdn + "/wasm");
+      const make = del => v.HandLandmarker.createFromOptions(files, {baseOptions: {modelAssetPath: d.model, delegate: del}, ...d.opts});
+      try { lm = await make("GPU"); postMessage({ready: true, gpu: true}); } catch (err) { lm = await make("CPU"); postMessage({ready: true, gpu: false}); }
+    } catch (err) { postMessage({error: String(err && err.message || err)}); } return; }
+  if (d.frame){ const t0 = performance.now(); let r = null; try { r = lm.detectForVideo(d.frame, d.ts); } catch (err) {} d.frame.close();
+    postMessage({hands: r ? r.landmarks.map(h => h.map(p => [p.x, p.y])) : [], ms: performance.now() - t0}); } };`;
+let worker = null, busy = false, track = {hz: 0, n: 0, t0: 0, mode: ""}, lastTs = 0, mainTracker = null;
+// One-Euro smoothing (steady when still, instant when moving fast) + a little prediction to hide the camera delay
+const euro = () => ({x: null, dx: 0, t: 0});
+function filt(f, x, t, minCut = 1.6, beta = .02){ if (f.x === null){ f.x = x; f.t = t; return x; }
+  const dt = Math.max(1e-3, (t - f.t) / 1000), a = c => 1 / (1 + 1 / (2 * Math.PI * c * dt)), dx = (x - f.x) / dt;
+  f.dx = f.dx + a(1) * (dx - f.dx); const cut = minCut + beta * Math.abs(f.dx); f.x = f.x + a(cut) * (x - f.x); f.t = t; return f.x; }
+let TRK = [];   // tracked hands: {pts: [[fx, fy] x21 filters], last, seen}
+function onHands(list, t){
+  const next = list.map(h => { const wx = (1 - h[0][0]) * W, wy = h[0][1] * H;
+    let best = null, bd = 1e9; TRK.forEach(k => { if (k.used) return; const d = Math.hypot(k.wx - wx, k.wy - wy); if (d < bd){ bd = d; best = k; } });
+    const k = best && bd < Math.min(W, H) * .35 ? best : {pts: Array.from({length: 21}, () => [euro(), euro()])}; k.used = true;
+    k.raw = h.map(p => [(1 - p[0]) * W, p[1] * H]); k.wx = wx; k.wy = wy; k.t = t;
+    k.cur = k.raw.map(([x, y], i) => [filt(k.pts[i][0], x, t), filt(k.pts[i][1], y, t)]); return k; });
+  next.forEach(k => k.used = false); TRK = next;
+}
+let fresh = true, lastFeedVT = -1;   // only frames the camera hasn't given us before
+if (video.requestVideoFrameCallback){ const onFrame = () => { fresh = true; video.requestVideoFrameCallback(onFrame); }; video.requestVideoFrameCallback(onFrame); fresh = false; }
+function feed(){   // hand the newest camera frame to the tracker, as soon as it's free
+  if (!worker || busy || !camOn || video.readyState < 2 || !video.videoWidth) return;
+  if (video.requestVideoFrameCallback ? !fresh : video.currentTime === lastFeedVT) return;
+  fresh = false; lastFeedVT = video.currentTime; busy = true; const w = 480, h = Math.round(480 * video.videoHeight / video.videoWidth);
+  createImageBitmap(video, {resizeWidth: w, resizeHeight: h, resizeQuality: "low"}).then(bm => {
+    let ts = Math.round(performance.now()); if (ts <= lastTs) ts = lastTs + 1; lastTs = ts;
+    worker.postMessage({frame: bm, ts}, [bm]); }).catch(() => { busy = false; });
+}
+function startWorker(){
+  return new Promise((res, rej) => {
+    try { worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], {type: "text/javascript"}))); /* classic worker: MediaPipe loads its engine with importScripts */ } catch (e) { return rej(e); }
+    const to = setTimeout(() => rej(new Error("tracker took too long")), 25000);
+    worker.onmessage = e => { const d = e.data;
+      if (d.ready){ clearTimeout(to); track.mode = d.gpu ? "GPU" : "CPU"; res(); return; }
+      if (d.error){ clearTimeout(to); rej(new Error(d.error)); return; }
+      if (d.hands){ busy = false; onHands(d.hands, performance.now()); track.n++; feed(); } };
+    worker.onerror = e => { clearTimeout(to); rej(e); };
+    worker.postMessage({init: true, cdn: CDN, model: MODEL, opts: OPTS});
+  });
+}
 async function startCam(){
   $("#status").textContent = "WAKING THE CAMERA…";
   try {
-    video.srcObject = await navigator.mediaDevices.getUserMedia({video: {facingMode: "user", width: {ideal: 1280}, height: {ideal: 720}}}); await video.play(); camOn = true;
+    video.srcObject = await navigator.mediaDevices.getUserMedia({video: {facingMode: "user", width: {ideal: 960}, height: {ideal: 540}, frameRate: {ideal: 30}}}); await video.play(); camOn = true;
     $("#status").textContent = "LOADING HAND TRACKING…";
-    const vision = await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VER}/vision_bundle.mjs`);
-    const files = await vision.FilesetResolver.forVisionTasks(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VER}/wasm`);
-    tracker = await vision.HandLandmarker.createFromOptions(files, {baseOptions: {modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate: "GPU"},
-      runningMode: "VIDEO", numHands: 2});
-    $("#status").textContent = ""; flash("HANDS ONLINE"); sfx("pop");
+    try { await startWorker(); tracker = "worker"; }
+    catch (e) {   // no background threads here: track on the page, but only on new camera frames
+      worker?.terminate(); worker = null;
+      const vision = await import(`${CDN}/vision_bundle.mjs`), files = await vision.FilesetResolver.forVisionTasks(`${CDN}/wasm`);
+      try { mainTracker = await vision.HandLandmarker.createFromOptions(files, {baseOptions: {modelAssetPath: MODEL, delegate: "GPU"}, ...OPTS}); track.mode = "GPU·PAGE"; }
+      catch { mainTracker = await vision.HandLandmarker.createFromOptions(files, {baseOptions: {modelAssetPath: MODEL, delegate: "CPU"}, ...OPTS}); track.mode = "CPU·PAGE"; }
+      tracker = "page";
+    }
+    $("#status").textContent = ""; flash("HANDS ONLINE"); sfx("pop"); track.t0 = performance.now(); track.n = 0; feed();
   } catch (e) { $("#status").textContent = camOn ? "HAND TRACKING NEEDS INTERNET THE FIRST TIME · USE YOUR FINGER INSTEAD" : "NO CAMERA · USE YOUR FINGER OR MOUSE INSTEAD"; setTimeout(() => $("#status").textContent = "", 4000); }
 }
-$("#camBtn").onclick = () => camOn ? (video.srcObject?.getTracks().forEach(t => t.stop()), camOn = false, tracker = null, hands = []) : startCam();
+$("#camBtn").onclick = () => camOn ? (video.srcObject?.getTracks().forEach(t => t.stop()), camOn = false, tracker = null, worker?.terminate(), worker = null, busy = false, TRK = [], hands = []) : startCam();
 // touch / mouse works like a hand too (pressed = pinch), so it's usable without a camera
 let pointer = null;
 addEventListener("pointerdown", e => { if (e.target.closest(".top")) return; pointer = {x: e.clientX, y: e.clientY, down: true, tap: true}; });
 addEventListener("pointermove", e => { if (pointer) Object.assign(pointer, {x: e.clientX, y: e.clientY}); else if (e.pointerType === "mouse") pointer = {x: e.clientX, y: e.clientY, down: false}; });
 addEventListener("pointerup", () => { if (pointer) pointer.down = false; if (pointer && !matchMedia("(hover:hover)").matches) setTimeout(() => pointer = null, 80); });
 
+let lastVT = -1;
 function readHands(now){
   cursors = [];
-  if (tracker && video.readyState >= 2){
-    const r = tracker.detectForVideo(video, now); hands = (r.landmarks || []).map(lm => lm.map(p => ({x: (1 - p.x) * W, y: p.y * H})));   // mirrored, like a mirror
+  if (tracker === "page" && mainTracker && video.readyState >= 2 && video.currentTime !== lastVT){   // only new frames
+    lastVT = video.currentTime; let ts = Math.round(now); if (ts <= lastTs) ts = lastTs + 1; lastTs = ts;
+    try { const r = mainTracker.detectForVideo(video, ts); onHands((r.landmarks || []).map(h => h.map(p => [p.x, p.y])), now); track.n++; } catch {}
+  }
+  if (tracker && camOn){
+    feed();
+    TRK = TRK.filter(k => now - k.t < 260);   // a hand that's gone, goes
+    hands = TRK.map(k => { const ahead = Math.min(.06, (now - k.t) / 1000);   // predict a few ms ahead: no rubber-band lag
+      return k.cur.map(([x, y], i) => ({x: x + k.pts[i][0].dx * ahead * .6, y: y + k.pts[i][1].dx * ahead * .6})); });
     hands.forEach(h => { const size = Math.hypot(h[0].x - h[9].x, h[0].y - h[9].y) || 1, d = Math.hypot(h[4].x - h[8].x, h[4].y - h[8].y) / size;
-      cursors.push({x: (h[4].x + h[8].x) / 2 * .4 + h[8].x * .6, y: (h[4].y + h[8].y) / 2 * .4 + h[8].y * .6, pinch: d < .32, open: d > .7, palm: h[9], hand: true}); });
+      cursors.push({x: (h[4].x + h[8].x) / 2 * .4 + h[8].x * .6, y: (h[4].y + h[8].y) / 2 * .4 + h[8].y * .6, pinch: d < .34, open: d > .7, palm: h[9], hand: true}); });
+    if (track.t0 && now - track.t0 > 1000){ track.hz = Math.round(track.n * 1000 / (now - track.t0)); track.n = 0; track.t0 = now; }
   } else hands = [];
   if (pointer){ cursors.push({x: pointer.x, y: pointer.y, pinch: pointer.down || pointer.tap, open: !pointer.down && !pointer.tap, palm: pointer}); pointer.tap = false; }   // a quick tap is never missed
 }
@@ -158,16 +221,20 @@ function drawHUD(now){
       X.fillStyle = "#5fd8ff"; X.font = `700 ${Math.max(9, d.r * .13)}px Orbitron, sans-serif`; X.fillText(d.title, d.cx, d.cy); }
     d.btns.forEach(b => { const h = Math.max(0, b.hover), glow = b.over ? "#ffd23f" : "#5fd8ff";
       X.fillStyle = b.over ? "rgba(255,210,63,.16)" : "rgba(4,14,22,.55)"; X.beginPath(); X.arc(b.x, b.y, b.r, 0, Math.PI * 2); X.fill();
-      X.strokeStyle = glow; X.lineWidth = 2; X.shadowColor = glow; X.shadowBlur = 14; X.beginPath(); X.arc(b.x, b.y, b.r, 0, Math.PI * 2); X.stroke();
+      X.strokeStyle = glow; X.globalAlpha = .22; X.lineWidth = 9; X.beginPath(); X.arc(b.x, b.y, b.r, 0, Math.PI * 2); X.stroke(); X.globalAlpha = 1;
+      X.lineWidth = 2; X.beginPath(); X.arc(b.x, b.y, b.r, 0, Math.PI * 2); X.stroke();
       if (h > 0){ X.lineWidth = 4; X.beginPath(); X.arc(b.x, b.y, b.r + 5, -Math.PI / 2, -Math.PI / 2 + h * Math.PI * 2); X.stroke(); }
-      X.shadowBlur = 0; X.font = `${b.r * .7}px sans-serif`; X.fillText(b.icon, b.x, b.y - b.r * .08); X.fillStyle = glow; X.font = `700 ${Math.max(8, b.r * .26)}px Orbitron, sans-serif`; X.fillText(b.label, b.x, b.y + b.r + 12); });
+      X.font = `${b.r * .7}px sans-serif`; X.fillText(b.icon, b.x, b.y - b.r * .08); X.fillStyle = glow; X.font = `700 ${Math.max(8, b.r * .26)}px Orbitron, sans-serif`; X.fillText(b.label, b.x, b.y + b.r + 12); });
   });
   // hands: a glowing skeleton and a fingertip cursor
-  hands.forEach(h => { X.strokeStyle = "rgba(95,216,255,.8)"; X.lineWidth = 2; X.shadowColor = "#5fd8ff"; X.shadowBlur = 10;
-    BONES.forEach(([a, b]) => { X.beginPath(); X.moveTo(h[a].x, h[a].y); X.lineTo(h[b].x, h[b].y); X.stroke(); });
-    X.fillStyle = "#fff"; h.forEach(p => { X.beginPath(); X.arc(p.x, p.y, 2.5, 0, Math.PI * 2); X.fill(); }); X.shadowBlur = 0; });
-  cursors.forEach(c => { const col = c.pinch ? "#ffd23f" : "#5fd8ff"; X.strokeStyle = col; X.lineWidth = 2.5; X.shadowColor = col; X.shadowBlur = 16;
-    X.beginPath(); X.arc(c.x, c.y, c.pinch ? 10 : 18, 0, Math.PI * 2); X.stroke(); X.beginPath(); X.arc(c.x, c.y, 3, 0, Math.PI * 2); X.fillStyle = col; X.fill(); X.shadowBlur = 0; });
+  hands.forEach(h => { X.beginPath(); BONES.forEach(([a, b]) => { X.moveTo(h[a].x, h[a].y); X.lineTo(h[b].x, h[b].y); });   // one path, two strokes = glow
+    X.strokeStyle = "rgba(95,216,255,.25)"; X.lineWidth = 8; X.stroke(); X.strokeStyle = "rgba(160,235,255,.95)"; X.lineWidth = 2; X.stroke();
+    X.fillStyle = "#fff"; X.beginPath(); h.forEach(p => { X.moveTo(p.x + 2.5, p.y); X.arc(p.x, p.y, 2.5, 0, Math.PI * 2); }); X.fill(); });
+  cursors.forEach(c => { const col = c.pinch ? "#ffd23f" : "#5fd8ff", r = c.pinch ? 10 : 18; X.strokeStyle = col;
+    X.globalAlpha = .25; X.lineWidth = 9; X.beginPath(); X.arc(c.x, c.y, r, 0, Math.PI * 2); X.stroke(); X.globalAlpha = 1;
+    X.lineWidth = 2.5; X.beginPath(); X.arc(c.x, c.y, r, 0, Math.PI * 2); X.stroke(); X.beginPath(); X.arc(c.x, c.y, 3, 0, Math.PI * 2); X.fillStyle = col; X.fill(); });
+  if (camOn && track.mode){ X.font = "600 9px JetBrains Mono, monospace"; X.textAlign = "left"; X.fillStyle = "rgba(159,176,195,.55)";
+    X.fillText(`TRACKING ${track.hz} Hz · ${track.mode}${hands.length ? "" : " · SHOW ME YOUR HAND"}`, 14, 58); X.textAlign = "center"; }
   if (grab){ X.strokeStyle = "rgba(255,210,63,.6)"; X.setLineDash([6, 6]); X.beginPath(); X.arc(W / 2, H > W ? H * .44 : H * .5, Math.min(W, H) * .3, 0, Math.PI * 2); X.stroke(); X.setLineDash([]); }
   // message
   const age = (now - msg.t) / 1000; if (msg.text && age < 1.4){ X.globalAlpha = Math.max(0, 1 - Math.max(0, age - .8) / .6); X.fillStyle = "#ffd23f"; X.shadowColor = "#ffd23f"; X.shadowBlur = 20;

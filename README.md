@@ -462,6 +462,14 @@ off. Ask "what are my routines?", or say "routine nudges off" or "routine nudges
 
 ## Holo Hands (#44, #46, #47, #48)
 
+**Smooth and reliable:**
+- The hand tracking runs in its own background thread, on the graphics chip where possible, so the hologram and
+  menus stay smooth even while it's working.
+- It only looks at new camera frames, in a lighter size.
+- Your hand is smoothed and slightly predicted, so the cursor doesn't jitter or lag behind.
+- It's more forgiving in dim rooms and at an angle.
+- A small readout under the title shows the tracking rate, plus "SHOW ME YOUR HAND" when it can't see one.
+
 - **Holo Hands:** open it from the phone's **🖐 HOLO HANDS** or the laptop's **🖐 Holo Hands**. The camera fills the
   screen and a neon skeleton follows your hand. Two ring menus float beside you: **OPEN** (Holo Lab, Sims, Trailer,
   Map) and **MODEL** (the core, a globe, a body figure, a crystal).

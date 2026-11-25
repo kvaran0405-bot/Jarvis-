@@ -18,3 +18,11 @@ def test_signing_key_is_a_jarvis_pkcs12():
     from jarvis.signing import make_keystore
     k = pkcs12.load_pkcs12(make_keystore("pw123456"), b"pw123456")
     assert k.key is not None and k.cert.friendly_name == b"jarvis"
+
+
+def test_holo_hands_tracks_off_the_main_thread():
+    h = (ROOT / "web/hands.html").read_text(encoding="utf-8")
+    assert "new Worker(" in h and "importScripts" in h            # hand tracking in its own thread (classic worker)
+    assert "minHandDetectionConfidence: .35" in h                  # finds hands in dim rooms
+    assert "requestVideoFrameCallback" in h and "function filt(" in h   # new frames only; smoothed + predicted
+    assert "shadowBlur = 10" not in h and "shadowBlur = 16" not in h    # no per-frame blur glows
