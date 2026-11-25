@@ -629,6 +629,28 @@ Keep "Background" allowed on the phone's setup page, or Android may pause JARVIS
   predictor, tomorrow played, money future, and wedding day run. They're built into the phone app too, so they work
   with the laptop off. For now they run on sample numbers; your own data comes next.
 
+## The boardroom: your team reports in when you wake up
+
+You're the boss, and the agents are your company. The **first time JARVIS opens each day**, on the phone or the laptop
+and whenever you wake up (noon is fine), the **🏢 DAILY BRIEFING** plays: one card per agent, each lighting up as
+they report in their own voice.
+
+- **JARVIS:** "Good afternoon, Sir", the weather (with an umbrella warning), and today's agenda and tasks due.
+- **VERONICA (the daily P&L):** yesterday's spending by category, money that came in, and the month so far (in, out,
+  net).
+- **ZEUS:** jobs lined up for you, the best fit, how many can be emailed with one SEND ALL, yesterday's applications,
+  and any interviews in play.
+- **HERALD:** what came in overnight (WhatsApp, Gmail…), and anything flagged urgent.
+- **ATHENA:** exams, assignments and deadlines in the next 3 days.
+- **PEPPER:** what's waiting for your sign-off (messages to approve, the team's ideas).
+
+Only agents with something to report speak, and the briefing plays once a day: whichever screen opens first gets it.
+- **Hear it again:** say "briefing", "team report" or "status report".
+- **Not opened JARVIS by 1pm?** The same briefing comes to you on Telegram.
+- **Overnight:** the agents keep working while you sleep (ZEUS hunts at 7:50, VERONICA books your spending every
+  hour) but they stay quiet. They report when you're up.
+- **With the laptop off:** the phone plays the team's last reports, plus the live weather where you are.
+
 ## ZEUS's job hunt: 50 applications a day
 
 ZEUS lines up the jobs, matches them to you and writes the letters. You just tap.
@@ -696,7 +718,8 @@ few seconds, as your filter. Things that arrive together are summed up together.
 - **What gets flagged:** deadlines, interviews and jobs, school or work, bills, family, and anything that needs a reply.
 - **What gets lumped together:** promos, newsletters and automated mail, in a few words.
 - **Every time:** the same summary also appears as a notification, with a **🔇 Stop announcing** button.
-- **Quiet:** when the phone is on silent or vibrate, during a call, and from 11pm to 7am, it's a notification only.
+- **Quiet:** when the phone is on silent or vibrate, during a call, from 11pm, and in the morning until you first
+  unlock your phone (so a noon wake-up isn't spoiled by a 9am promo email), it's a notification only.
 - **Voice commands:** "stop announcing" / "announce messages" to switch it, and "what was that?" to hear it again.
 - **What's included:** emails (Gmail, Outlook and others) and WhatsApp direct chats. Telegram and group chats aren't
   announced.

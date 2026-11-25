@@ -92,10 +92,20 @@ def pack(store) -> dict:
         "theme": _theme(store),
         "voices": _voices(),
         "money": _money(store),
+        "briefing": _briefing(store),
         "holo": _holo(store),
         "guest": store.get("hud:guest") == "on",
         "routines": json.loads(store.get("predict:routines") or "[]") if (store.get("predict:on") or "on") == "on" else [],
     }
+
+
+def _briefing(store) -> list:
+    """The team's reports (everything but JARVIS's greeting), for the phone's own daily briefing."""
+    try:
+        from . import boardroom
+        return [line for line in boardroom.briefing(store)["lines"] if line["agent"] != "JARVIS"]
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def _money(store) -> dict:

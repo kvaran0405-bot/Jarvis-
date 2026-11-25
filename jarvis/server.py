@@ -1205,6 +1205,13 @@ class JobAct(BaseModel):
     ids: list[int] = []
 
 
+@app.get("/api/briefing")
+async def api_briefing(first: int = 0):
+    """The team's daily report. first=1: only if today's hasn't been given yet (the first screen to open gets it)."""
+    from . import boardroom
+    return await asyncio.to_thread(boardroom.first_open if first else boardroom.briefing, store)
+
+
 @app.get("/api/jobs")
 def jobs_list():
     from . import jobs

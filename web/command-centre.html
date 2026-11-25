@@ -8,6 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
 <script src="/native-bridge.js"></script>
+<script src="/briefing.js"></script>
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -659,6 +660,7 @@ function warmAcks(){   // pre-make the acknowledgement audio so it plays instant
   ACKS.JARVIS.forEach(t => fetch("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({agent:"JARVIS", text:t})}).catch(() => {}));
 }
 async function sendCommand(text, agent, voice=false){
+  if (window.JarvisBriefing?.BRIEF_RE.test(String(text).trim())) return JarvisBriefing.again(speak);   // "briefing": the team reports again
   const rid = Math.random().toString(36).slice(2);
   streams[rid] = {buf:"", any:false}; focus(agent); stopSpeaking();
   if(voice) setTimeout(() => { if(streams[rid] && !streams[rid].any && !streams[rid].acked){ streams[rid].acked = true; queueSpeech(agent, ackFor(agent)); } }, 700);
@@ -911,6 +913,7 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catc
     HEAR = !!vi.hear && !window.JarvisNative && !!(window.MediaRecorder && navigator.mediaDevices?.getUserMedia); if(vi.speech_lang && rec) rec.lang = vi.speech_lang; warmAcks(); } catch {}
   try { showBrain(await (await fetch("/api/brain")).json()); } catch {}
   try { applySpeaker((await (await fetch("/api/speaker")).json()).where); } catch { applySpeaker("laptop"); }
+  setTimeout(() => window.JarvisBriefing?.check(speak), 2500);   // first time today: the team reports in
   buildGrid(); focus("JARVIS"); await refresh(); connect(); phoneLink();
   state.activity.slice(-25).forEach(a => logLine(a.agent, a.message, a.kind));
   const params = new URLSearchParams(location.search);

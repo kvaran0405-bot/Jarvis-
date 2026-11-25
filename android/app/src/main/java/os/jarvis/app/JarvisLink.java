@@ -73,6 +73,11 @@ public class JarvisLink extends Service implements LocationListener, android.har
         else startForeground(8, n);
         startLocation();
         startSteps();
+        try {   // the first unlock of the day = the boss is up (the announcer stays quiet until then)
+            registerReceiver(new android.content.BroadcastReceiver() {
+                @Override public void onReceive(android.content.Context c, Intent i) { Announcer.unlocked(c); }
+            }, new android.content.IntentFilter(Intent.ACTION_USER_PRESENT));
+        } catch (Exception ignored) {}
         SoloBrain.schedule(this);   // wakes every ~10 min even with the screen off (Telegram, briefs, alerts when the laptop's away)
         new Thread(this::loop).start();
     }

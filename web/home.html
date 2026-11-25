@@ -5,6 +5,7 @@
 <meta name="theme-color" content="#03060a"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png">
 <script src="/native-bridge.js"></script>
 <script src="/bargein.js"></script>
+<script src="/briefing.js"></script>
 <script src="/vendor/three.min.js"></script>
 <script src="/core3d.js"></script>
 <script src="/transitions.js" data-boot defer></script>
@@ -190,6 +191,7 @@ function whoFor(text){
   return n && n !== "JARVIS" && TEAM.includes(n) ? [n, m[2]] : ["JARVIS", text];
 }
 async function ask(text){
+  if (window.JarvisBriefing?.BRIEF_RE.test(text.trim())){ show("YOU", text); return JarvisBriefing.again(speak); }   // "briefing": the team reports again
   const [agent, said] = whoFor(text); if (agent !== "JARVIS") text = said;
   show("YOU", text); setState("THINKING"); thinking = true; myRid = Math.random().toString(36).slice(2); streamBuf = ""; streamAny = false; convo = true;
   const ack = setTimeout(() => { if(!speaking && speakerWhere === "phone") speak("JARVIS", "One moment Sir."); }, 1500);
@@ -249,11 +251,12 @@ function live(){
     else if(ev.type === "speak"){ if(ev.rid && ev.rid === myRid) return; show(ev.agent, ev.text); if(speakerWhere === "phone" && !speaking) speak(ev.agent, ev.text); }
     else if(ev.type === "say" || ev.type === "ask"){ const t = ev.say || ev.text; if(t){ show(ev.agent, t); if(speakerWhere === "phone" && !speaking) speak(ev.agent, t); } }
   };
-  es.onerror = async () => { es.close(); if (!(await reachable())) return laptopGone(); setTimeout(() => { syncSpeaker(); live();
-// Back on screen after a while (e.g. you left home and the laptop went to sleep): check it's still there.
-document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && !(await reachable())) laptopGone(); }); }, 5000); };
+  es.onerror = async () => { es.close(); if (!(await reachable())) return laptopGone(); setTimeout(() => { syncSpeaker(); live(); }, 5000); };
 }
 syncSpeaker(); live();
+// Back on screen after a while (e.g. you left home and the laptop went to sleep): check it's still there.
+document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && !(await reachable())) laptopGone(); });
+setTimeout(() => window.JarvisBriefing?.check(speak), 1500);   // first time today: the team reports in
 setInterval(() => $("#clock").textContent = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}), 1000);
 if(new URLSearchParams(location.search).get("talk") === "1") setTimeout(listen, 700);
 </script>

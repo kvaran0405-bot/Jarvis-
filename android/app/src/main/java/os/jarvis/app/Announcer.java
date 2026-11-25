@@ -107,6 +107,20 @@ final class Announcer {
         return b.toString();
     }
 
+    /** The phone was unlocked: remember it (the day starts at 5am). */
+    static void unlocked(Context c) {
+        c.getSharedPreferences("jarvis", Context.MODE_PRIVATE).edit().putLong("awake_at", System.currentTimeMillis()).apply();
+    }
+
+    /** Has the owner picked up the phone since 5am today? Until then they're asleep (they wake around noon). */
+    static boolean awake(Context c) {
+        Calendar day = Calendar.getInstance();
+        if (day.get(Calendar.HOUR_OF_DAY) < 5) day.add(Calendar.DAY_OF_MONTH, -1);
+        day.set(Calendar.HOUR_OF_DAY, 5); day.set(Calendar.MINUTE, 0); day.set(Calendar.SECOND, 0);
+        return c.getSharedPreferences("jarvis", Context.MODE_PRIVATE).getLong("awake_at", 0) >= day.getTimeInMillis()
+                || MainActivity.visible;
+    }
+
     static boolean quietNow(Context c) {
         try {
             AudioManager am = c.getSystemService(AudioManager.class);
@@ -114,7 +128,8 @@ final class Announcer {
             if (am.getMode() != AudioManager.MODE_NORMAL) return true;                // on a call
         } catch (Exception ignored) {}
         int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        return h >= 23 || h < 7;
+        if (h >= 23 || h < 5) return true;
+        return !awake(c);   // morning, but the boss hasn't picked up the phone yet: let them sleep
     }
 
     private static void warm(Context c) {

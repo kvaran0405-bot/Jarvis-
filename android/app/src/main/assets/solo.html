@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#03060a">
 <script src="file:///android_asset/vendor/three.min.js"></script>
 <script src="file:///android_asset/core3d.js"></script>
+<script src="file:///android_asset/briefing.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box}
@@ -552,7 +553,9 @@ function logLine(who, text, save = true){
   if (save){ const keep = LS.get("solo:log", []); keep.push([who, text, Date.now()]); LS.set("solo:log", keep.slice(-30)); }
 }
 async function ask(text){
-  if (busy) return; busy = true;
+  if (busy) return;
+  if (window.JarvisBriefing?.BRIEF_RE.test(text.trim())){ LS.set("solo:briefDay", ""); return soloBrief(true); }
+  busy = true;
   show("YOU", text); logLine("YOU", text); queue({kind: "chat", who: "you", text}); setState("THINKING");
   const ack = setTimeout(() => { if (busy && !speaking) setState("STILL THINKING…"); }, 2500);
   let reply;
@@ -809,6 +812,22 @@ $("#back").onclick = () => N?.openLaptop?.();
 show("JARVIS", PACK.has?.gemini || !N ? "Laptop's out of reach, Sir, so I'm running on your phone. Everything still works." : "Laptop's out of reach, Sir. I'm on your phone in basic mode.");
 if (!N?.headless) hereFresh();
 if (new URLSearchParams(location.search).get("talk") === "1") setTimeout(listen, 600);
+// The boardroom (#brief): the first time JARVIS opens each day, the team reports in (their last reports from the laptop,
+// plus the weather here and now).
+async function soloBrief(force){
+  const d = new Date(Date.now() - 5 * 3600e3).toDateString();
+  if (!window.JarvisBriefing || N?.headless || (!force && LS.get("solo:briefDay", "") === d)) return;
+  LS.set("solo:briefDay", d);
+  const h = new Date().getHours(), part = h >= 5 && h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  let w = ""; try { const x = await TOOLS.weather({}); if (!x.error) w = ` It's ${x.temp}° and ${String(x.now).toLowerCase()} here${x.rain_in_hours != null && x.rain_in_hours <= 3 ? `, rain likely in about ${x.rain_in_hours} hours: umbrella` : ""}.`; } catch {}
+  const lines = [{agent: "JARVIS", text: `${part}, ${OWNER}.${w}`}];
+  const evs = events().filter(e => new Date(e.end || e.start) >= new Date() && e.start.slice(0, 10) === localISO(new Date()).slice(0, 10));
+  if (evs.length) lines.push({agent: "JARVIS", text: `Today: ${evs.slice(0, 3).map(e => `${e.title} at ${e.start.slice(11, 16)}`).join(", ")}.`});
+  (PACK.briefing || []).forEach(l => lines.push(l));
+  lines.push({agent: "JARVIS", text: lines.length > 1 ? "That's the briefing. Where shall we start?" : "All quiet. The team awaits your orders."});
+  await JarvisBriefing.play(lines, (a, t) => speak(a, t, false));
+}
+setTimeout(() => soloBrief(false), 1800);
 // Came over from the laptop page mid-question: answer it here.
 { const pend = new URLSearchParams(location.search).get("ask"); if (pend) setTimeout(() => ask(pend), 900); }
 </script>

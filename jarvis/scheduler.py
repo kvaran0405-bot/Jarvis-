@@ -412,7 +412,7 @@ class Scheduler:
                    "screentime_pull": daily_at("23:40"), "phone_link_watch": every_hours(.5),
                    "self_check": daily_at("03:40"), "routines_learn": daily_at("03:20"), "routines_nudge": every_hours(1 / 12),
                    "money_sync": every_hours(1), "money_monthly": daily_at("09:07"),
-                   "jobs_morning": daily_at("07:50"), "jobs_topup": daily_at("13:10")}
+                   "jobs_morning": daily_at("07:50"), "jobs_topup": daily_at("13:10"), "boss_brief_fallback": daily_at("13:00")}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -449,6 +449,9 @@ class Scheduler:
             elif name == "jobs_morning":   # ZEUS: today's job hunt, lined up before you wake
                 from . import jobs
                 jobs.morning(self.store, self.bus)
+            elif name == "boss_brief_fallback":   # not opened JARVIS by 1pm: the team's briefing goes to Telegram
+                from . import boardroom
+                boardroom.fallback(self.store, self.bus)
             elif name == "jobs_topup":
                 from . import jobs
                 jobs.hunt(self.store, self.bus)

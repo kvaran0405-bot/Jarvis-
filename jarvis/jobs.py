@@ -355,17 +355,8 @@ def send_all(store, bus, ids: list[int]) -> dict:
 
 
 def morning(store, bus) -> None:
-    """07:50: hunt, then tell the owner how many are waiting."""
-    out = hunt(store, bus)
-    n, ready = len(queue(store, 200)), len(email_ready(store))
-    if not n:
-        return
-    from .notify import notify_owner
-    notify_owner("🎯 ZEUS: today's job hunt",
-                 f"{n} matched jobs are lined up (target {prefs(store)['daily_target']} applications today)."
-                 + (f" {ready} can be emailed with your CV in one tap." if ready else "")
-                 + "\nOpen JOB HUNT on the phone: one tap per job, the cover letter is already written."
-                 + ("" if resume_text() else "\n⚠️ Send me your resume (PDF, caption 'resume') so I can match and write letters."), short=True)
+    """07:50: hunt quietly. ZEUS reports what he found in the boss's daily briefing (boardroom.py)."""
+    hunt(store, bus)
 
 
 # ---------------------------------------------------------------- ZEUS's tools
