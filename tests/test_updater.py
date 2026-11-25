@@ -71,3 +71,18 @@ def test_installapp_command(monkeypatch):
     for t in ("/installapp", "install the app", "/InstallApp@MyBot"):
         bot.handle({"update_id": 1, "message": {"message_id": 1, "text": t, "chat": {"id": 42}}})
     assert len(out) == 3 and all("releases/latest/download/JARVIS.apk" in x and "Play Protect" in x for x in out)
+
+
+def test_updates_every_hour_but_never_mid_chat():
+    from datetime import datetime, timedelta
+    from jarvis import updater
+    from jarvis.config import settings
+    from jarvis.scheduler import Scheduler
+    from jarvis.store import Store
+    st = Store(":memory:")
+    assert updater.idle(st)
+    st.set("owner:last_seen", datetime.now(settings.tz).isoformat())
+    assert not updater.idle(st)
+    st.set("owner:last_seen", (datetime.now(settings.tz) - timedelta(minutes=20)).isoformat())
+    assert updater.idle(st)
+    assert "auto_update" in Scheduler.MAINTENANCE

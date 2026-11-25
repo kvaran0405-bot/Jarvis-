@@ -461,7 +461,7 @@ class Scheduler:
 
     MAINTENANCE = {"file_index": every_hours(6), "housekeeping": daily_at("03:00"),
                    "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6), "leave_now": every_hours(1 / 12), "screenshots": every_hours(1 / 60),
-                   "nudge": every_hours(2), "auto_update": daily_at("04:10"),
+                   "nudge": every_hours(2), "auto_update": every_hours(1),
                    "photo_pull": daily_at("01:30"), "photo_sort": every_hours(1),
                    "screentime_pull": daily_at("23:40"), "phone_link_watch": every_hours(.5),
                    "self_check": daily_at("03:40"), "routines_learn": daily_at("03:20"), "routines_nudge": every_hours(1 / 12),
@@ -562,10 +562,11 @@ class Scheduler:
             elif name == "photo_sort":
                 from . import photosort
                 photosort.sort_inbox(self.store, self.bus)
-            elif name == "auto_update":   # quietly get the newest version at night, if there is one
+            elif name == "auto_update":   # every hour: the newest version, as soon as it's out, when you're not mid-chat
                 import os
                 from . import updater
-                if os.environ.get("JARVIS_AUTO_UPDATE", "on").lower() != "off" and updater.newer_available():
+                if os.environ.get("JARVIS_AUTO_UPDATE", "on").lower() != "off" and updater.idle(self.store) \
+                        and updater.newer_available():
                     updater.start(self.store, self.bus, quiet=True)
             elif name == "nudge":
                 from .butler import wellness_nudge

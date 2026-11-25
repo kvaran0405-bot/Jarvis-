@@ -759,6 +759,15 @@ few seconds, as your filter. Things that arrive together are summed up together.
 - It's given the team's names and yours as hints.
 - When the recogniser isn't sure, JARVIS's brain sees its other guesses and goes with what you most likely meant.
 
+## Everything updates itself
+
+- **Laptop:** checks for a new version every hour and updates within the hour, but only when you haven't
+  used JARVIS for 15 minutes. The restart takes about a minute, and open pages reload themselves.
+- **Phone app:** updates itself (see below).
+- **Phone brain, voices and trailer:** refreshed from the laptop, or from GitHub when it's away.
+
+After the one-time setup in `docs/DO-THIS-NOW.md`, nothing needs updating by hand.
+
 ## The phone app updates itself
 
 You never have to download and install the app again. About once an hour (and whenever you open it) the app checks

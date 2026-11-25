@@ -46,5 +46,10 @@ Do it in order. After step 5, tell Claude **"done"** and wait for the "new app i
 15. **Phone:** tap **🎯 JOB HUNT**. Ask **"what's my P&L?"**.
 16. **In a few weeks:** say **"VERONICA, set my budgets"** (she bases them on last month).
 
-After this you never install the app by hand again: it updates itself, and so does the laptop (every night,
-or text **update**).
+## After this: everything updates itself
+- **Laptop JARVIS:** checks every hour and updates itself within the hour of a new version, never while you're
+  talking to it (about a minute's restart; open pages reload by themselves).
+- **Phone app:** checks every hour and installs new versions itself (after the first time, usually silently; at
+  most a single "Update" tap on a notification).
+- **Phone brain, voices and trailer:** refresh from the laptop, or from GitHub when the laptop is off.
+- You never type "update" again (it still works if you want it right now).

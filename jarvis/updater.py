@@ -64,6 +64,17 @@ def _git(*args: str, timeout: int = 60) -> str:
     return out.stdout.strip()
 
 
+def idle(store, minutes: int = 15) -> bool:
+    """Not mid-conversation: the owner hasn't used JARVIS in the last few minutes (a restart takes about a minute)."""
+    from datetime import datetime, timedelta
+    from .config import settings
+    last = store.get("owner:last_seen")
+    try:
+        return not last or datetime.now(settings.tz) - datetime.fromisoformat(last) > timedelta(minutes=minutes)
+    except ValueError:
+        return True
+
+
 def newer_available() -> bool:
     """Is there a newer JARVIS on GitHub? (False if Git isn't set up yet or GitHub can't be reached.)"""
     try:
