@@ -53,13 +53,26 @@ def parse_alert(subject: str, body: str) -> dict | None:
         break
     if not amount:
         return None
-    inn, out = IN_RE.search(text), OUT_RE.search(text)
-    if inn and (not out or inn.start() < out.start()):
-        sign = 1
-    elif out:
-        sign = -1
+    # table-style alerts (DBS/POSB PayNow, FAST, transfers): "From: <you> A/C ending 1234   To: <someone>"
+    own = r"[^:]{0,40}?\b(?:a/?c|acct|account|card)\b[^:]{0,12}?\bending\b"
+    field = lambda name: re.search(rf"\b{name}\s*:\s*([^:(]{{2,40}}?)(?=\s*\(|\s+(?:if|from|to|date|amount|ref\w*)\b|\s*$)", text, re.I)
+    merchant = ""
+    if re.search(rf"\bfrom\s*:{own}", text, re.I):
+        sign, f = -1, field("to")
+        merchant = f.group(1).strip() if f else ""
+    elif re.search(rf"\bto\s*:{own}", text, re.I):
+        sign, f = 1, field("from")
+        merchant = f.group(1).strip() if f else ""
     else:
-        return None   # an amount but no clue which way: not a transaction alert
+        inn, out = IN_RE.search(text), OUT_RE.search(text)
+        if inn and (not out or inn.start() < out.start()):
+            sign = 1
+        elif out:
+            sign = -1
+        else:
+            return None   # an amount but no clue which way: not a transaction alert
+    if merchant and not _JUNK_MERCHANT.match(merchant) and not re.search(r"\d{4,}", merchant):
+        return {"amount": round(sign * amount, 2), "merchant": merchant[:40], "own_transfer": bool(OWN_RE.search(text))}
     merchant = ""
     for rx in MERCHANT_RES:
         for mm in rx.finditer(text):

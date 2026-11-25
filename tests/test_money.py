@@ -15,6 +15,13 @@ ALERTS = [   # (from, subject, body) -> expected (amount, category)
      "You have received SGD 2,000.00 in your account ending 5678 via PayNow from ACME PTE LTD (salary).", (2000.00, "salary")),
     ("DBS PayLah! <paylah@dbs.com>", "PayNow transfer",
      "You have transferred SGD 20.00 via PayNow to TOLU on 23 Nov.", (-20.00, "transfers")),
+    ("DBS Bank <ibanking.alert@dbs.com>", "iBanking Alerts",
+     "Dear Customer, We refer to your PAYNOW dated 25 Nov. We are pleased to confirm that the transaction was completed. "
+     "Date & Time: 25 Nov 14:36 (SGT) Amount: SGD78.00 From: kamal A/C ending 9437 To: FEXX JINGXXXXX (MOBILE ending 4863) "
+     "If unauthorised, please call", (-78.00, "transfers")),
+    ("DBS Bank <ibanking.alert@dbs.com>", "iBanking Alerts",
+     "We refer to your incoming PAYNOW. Date & Time: 25 Nov 10:00 (SGT) Amount: SGD150.00 From: TAN AH KOW To: kamal A/C ending 9437",
+     (150.00, "income")),
     ("OCBC Alerts <notifications@ocbc.com>", "Card charge",
      "Your OCBC card ending 9999 was charged SGD 12.50 at FAIRPRICE XTRA on 22 Nov.", (-12.50, "groceries")),
 ]
@@ -45,7 +52,7 @@ def test_sync_builds_a_pnl(monkeypatch):
     monkeypatch.setattr(ch, "email_read_ready", lambda: True)
     monkeypatch.setattr(ch, "bank_mail", lambda days=40, skip=None, limit=400: [m for m in mails if f"mail:{m['uid']}:{m['message_id']}" not in (skip or set())])
     out = money.sync(st)
-    assert out["added"] == 6                        # the OTP and the shop promo are not transactions
+    assert out["added"] == 8                        # the OTP and the shop promo are not transactions
     assert money.sync(st)["added"] == 0             # never counted twice
     r = money.report(st, month)
     assert r["income"] >= 2000 and r["spent"] >= 182.5
