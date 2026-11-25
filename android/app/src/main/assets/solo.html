@@ -431,6 +431,7 @@ async function quick(t){
   if (/^(what(?:'s| is) )?(next|my next (thing|event|meeting|plan))$|^what(?:'s| is) next( today)?$/.test(t)){ const e = events().find(v => new Date(v.start) > now);
     return e ? `Next is ${e.title}, ${new Date(e.start).toDateString() === now.toDateString() ? "at " : "on " + new Date(e.start).toLocaleDateString("en-SG", {weekday: "long"}) + " at "}${e.start.slice(11, 16)}${e.location ? ", at " + e.location : ""}.` : "Nothing coming up in the calendar, Sir."; }
   if (/^(how many )?steps( today)?$|^my steps$/.test(t)){ try { const d = await TOOLS.my_day({}); if (d && d.steps != null) return `${d.steps.toLocaleString()} steps so far today, Sir.`; } catch {} }
+  if (/^(update|upgrade|check for (an )?updates?( for)?)( (the|your|my))? ?(app|yourself|jarvis)?$/.test(t) && N?.updateApp){ N.updateApp(); return "Checking for a newer me, Sir. If there is one, it installs itself."; }
   if (/^(thanks|thank you|cheers|ty)( jarvis)?$/.test(t)) return ["Always, Sir.", "My pleasure, Sir.", "Anytime, Sir."][now.getSeconds() % 3];
   if (/^(hi|hello|hey|yo|morning|good (morning|afternoon|evening))$/.test(t)) return `${now.getHours() < 12 ? "Good morning" : now.getHours() < 18 ? "Good afternoon" : "Good evening"}, Sir. What can I do for you?`;
   return null;

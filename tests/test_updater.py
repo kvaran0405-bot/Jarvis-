@@ -13,7 +13,7 @@ def test_after_boot_reports(monkeypatch):
     monkeypatch.setattr(updater, "latest_change", lambda: "Remove edge glow")
     monkeypatch.setattr(updater, "app_version", lambda: "app2")
     msgs = updater.after_boot(s, sent.append)
-    assert "Updated" in msgs[0] and "Remove edge glow" in msgs[0] and "/installapp" in msgs[1]
+    assert "Updated" in msgs[0] and "Remove edge glow" in msgs[0] and "installs itself" in msgs[1]
     assert updater.after_boot(s, sent.append) == [] and len(sent) == 3
 
 

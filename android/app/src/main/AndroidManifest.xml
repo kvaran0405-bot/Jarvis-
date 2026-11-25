@@ -20,6 +20,9 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- The app updates itself from the public GitHub release (no more downloading and installing by hand) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <!-- Solo JARVIS: reminders ring on time on the phone by itself, even with the laptop off -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Mark IV phone powers: calls, contacts, alarms, photos, screen time (never SMS: that's where bank codes arrive) -->
@@ -124,6 +127,12 @@
             <meta-data android:name="android.service.wallpaper" android:resource="@xml/jarvis_wallpaper" />
         </service>
 
+        <receiver android:name=".AppUpdate$Result" android:exported="false" />
+        <receiver android:name=".AppUpdate$Replaced" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

@@ -595,6 +595,15 @@ Keep "Background" allowed on the phone's setup page, or Android may pause JARVIS
   predictor, tomorrow played, money future, and wedding day run. They're built into the phone app too, so they work
   with the laptop off. For now they run on sample numbers; your own data comes next.
 
+## The phone app updates itself
+
+You never have to download and install the app again. About once an hour (and whenever you open it) the app checks
+the latest GitHub release and, if there's a newer build, downloads and installs it by itself. On Android 12 and later
+this is silent after the first self-update; the first time (or on phones that insist) you get a notification:
+**tap Update, done**. Say "update app" to check right now. Allow it once on the setup page (**Self-updates** →
+"Install unknown apps" for JARVIS). Most changes don't even need that: the screens and the phone's own JARVIS brain
+(solo mode) are refreshed from the laptop automatically.
+
 ## Solo JARVIS: the phone works without the laptop
 
 When the laptop is off, asleep, in your bag or in another country, the phone app becomes JARVIS by itself, over

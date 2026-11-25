@@ -108,7 +108,7 @@ def after_boot(store, send) -> list[str]:
             sent.append("✅ Updated and back online, Sir. The laptop and your phone pages are on the newest version"
                         + (f".\nLatest change: {what}" if what else "."))
     if app_before and app_now != app_before:
-        sent.append("📱 The phone app has a new version too. Send /installapp and I'll send it to you.")
+        sent.append("📱 The phone app has a new version too. It installs itself within the hour (or say \"update app\" to JARVIS on the phone). Only the very first time it may ask you to tap Update.")
     store.set("update:app", app_now)
     for m in sent:
         try:

@@ -99,6 +99,7 @@ final class SoloBrain {
         long now = System.currentTimeMillis();
         if (!fromAlarm && now - lastTick < 2 * 60_000L) return;
         lastTick = now;
+        AppUpdate.check(c, false);   // every few hours: install a newer app by itself
         boolean laptop = probe(c);
         if (laptop) { downSince = 0; Solo.lastOk = now; }
         else { Solo.lastFail = now; if (downSince == 0) downSince = now; }

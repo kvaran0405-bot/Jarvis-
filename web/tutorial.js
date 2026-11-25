@@ -63,6 +63,7 @@ const MISSIONS = [
   {id: "snap", title: "Snap to summon", what: "Snap your fingers twice (or clap twice) near the laptop and JARVIS wakes up: “Yes Sir?” and he listens. Talking and music won't set it off.", todo: "Snap twice, about half a second apart, near the laptop.", ev: "wake", laptop: true},
   {id: "convo", title: "Just keep talking", what: "On the phone in solo mode, after JARVIS answers the mic opens by itself for 8 seconds, so you can carry on like a normal chat. Say “that's all” to end it. Easy questions (time, next, tasks, steps) are answered instantly.", todo: "In solo mode tap the core once, ask “what time is it”, then just ask a follow-up without tapping.", manual: true},
   {id: "missed", title: "What did I miss?", what: "JARVIS reads your phone's notifications, Gmail included (never bank apps, never codes), and sums up what you missed.", todo: "Ask “any emails today?” or “what did I miss?”", say: /(miss|e-?mails?|gmail|notifications)/i},
+  {id: "selfupdate", title: "The app updates itself", what: "No more installing APKs: the phone app checks for a new version about once an hour and installs it by itself (the first time, Android may ask you to tap Update once).", todo: "On the phone, say “update app”.", manual: true},
   {id: "update", title: "One-word updates", what: "JARVIS updates itself every night. To update now, text “update” to your bot on Telegram.", todo: "Nothing to do here: tap ✓ Got it.", manual: true},
 ];
 let done = store.get("done", {}), cur = null;
