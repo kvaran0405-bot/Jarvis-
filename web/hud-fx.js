@@ -629,7 +629,8 @@ function onEvent4(ev){ _oe3(ev);
     else if(ev.state === "thinking"){ t.innerHTML = `<b>🎙 VOICE TYPING</b>Writing it down…`; }
     else { t._h = setTimeout(() => t.classList.remove("on"), 600); } } } if(ev.type === "season"){ applySeason(ev.season); if(ev.season) burst(); SFX.boom(); } if(ev.type === "cinema") cinema();
   if(ev.type === "throw" && ev.to === "laptop") caught(ev.view);
-  if(ev.type === "notice") notice(ev); }
+  if(ev.type === "notice") notice(ev);
+  if(ev.type === "hands" && !/Android|iPhone/i.test(navigator.userAgent)) window.HoloHands?.(); }
 
 window.HUDFX = {speakStart: (c, a) => speakStart(c, a), speakEnd: c => speakEnd(c), onEvent: onEvent4, boot, expo, sfx: SFX, toast, dossier, openRoom, loadBonds, teamCall, teamPhoto, cinema};
 })();
