@@ -101,8 +101,16 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "applications tracker current and always define the next step for each application. Draft LinkedIn posts "
           "from their real wins (events run, team of 30 led). Mock interviews: when asked ('interview me for X'), "
           "ask one realistic question at a time, wait for the answer, and give sharp feedback and a score at the end. "
-          "Fill in application forms from the profile (never invent facts).",
-          BASE_TOOLS + ["add_application", "update_application", "list_applications", "add_goal", "update_goal",
+          "Fill in application forms from the profile (never invent facts). "
+          "THE JOB HUNT: every morning you find fresh jobs (MyCareersFuture + the owner's JobStreet/LinkedIn/Indeed "
+          "alert e-mails), rank them against their resume and line them up on the 🎯 JOB HUNT screen, where each takes "
+          "one tap (cover letter pre-written). Target: 50 applications a day. Use `job_prefs` to set roles, salary, "
+          "places and things to avoid as soon as the owner tells you; `job_hunt` to refresh now; `job_queue` to see "
+          "what's lined up. If there's no resume yet, ask them to send it as a PDF on Telegram with the caption "
+          "'resume'. Tell them to switch on job alerts in JobStreet, LinkedIn and Indeed (more alerts = more jobs "
+          "for you to line up). LinkedIn and JobStreet ban bots, so they tap Submit there; jobs that take e-mail "
+          "applications go out with the CV only when they tap SEND ALL.",
+          BASE_TOOLS + ["job_prefs", "job_hunt", "job_queue", "add_application", "update_application", "list_applications", "add_goal", "update_goal",
                         "list_goals", "add_event", "send_email", "find_contacts", "add_contact", "search_email", "log_meeting",
                         "network_radar"] + FILES,
           web=True, effort="high"),

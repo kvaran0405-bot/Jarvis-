@@ -260,6 +260,10 @@ class Bot:
             if voice_note:
                 self.handle_voice(voice_note)
                 return
+            dname = (doc.get("file_name") or "").lower()
+            if doc and dname.endswith((".pdf", ".docx")) and re.search(r"\b(resume|cv|curriculum)\b", f"{caption.lower()} {dname}"):
+                self.handle_resume(doc)
+                return
             image = (msg.get("photo") or [None])[-1] or (
                 doc if (doc.get("mime_type") or "").startswith("image/") else None)
             if image:
@@ -398,6 +402,25 @@ class Bot:
         send(f"📼 Got it{f' ({mins} min)' if mins else ''}. Transcribing on the laptop now; notes arrive here when "
              f"ready (lecture #{lid}).")
 
+    def handle_resume(self, doc: dict) -> None:
+        """ZEUS keeps the owner's CV: it's matched against every job and attached to e-mail applications."""
+        from . import jobs
+        path = Path(tempfile.gettempdir()) / ("jarvis-resume" + Path(doc.get("file_name") or "cv.pdf").suffix.lower())
+        try:
+            download(doc["file_id"], path)
+            text = jobs.save_resume(path)
+        except Exception as exc:  # noqa: BLE001
+            send(f"ZEUS couldn't read that file: {exc}")
+            return
+        if not text.strip():
+            send("ZEUS: got your CV file, but I can't read the text in it (is it a scanned image?). "
+                 "Send a text PDF or a Word file if you can.")
+            return
+        send("ZEUS: resume locked in. 💪 I'll match every job against it and write the cover letters.\n"
+             "Tell me the roles you want, your minimum salary and anything to avoid, e.g. "
+             "'ZEUS, I want marketing or events roles, at least $2,800, no sales'. Hunting now...")
+        threading.Thread(target=lambda: send("🎯 " + _hunt_line(jobs.hunt(_store))), daemon=True).start()
+
     def handle_photo(self, image: dict, caption: str = "") -> None:
         """Photo -> what's in it -> JARVIS acts (dates to the calendar, receipts to the money log, slides to notes)."""
         from . import vision
@@ -491,3 +514,8 @@ def voice_check() -> str:
     lines.append(f"Voice replies: {cfg.telegram_voice_replies} (always = every reply, voice = only when you send a "
                  "voice note). Change with JARVIS_TELEGRAM_VOICE_REPLIES in .env.")
     return "\n".join(lines)
+
+
+def _hunt_line(out: dict) -> str:
+    return (f"{out.get('ready', 0)} jobs lined up on your JOB HUNT screen."
+            + (f" (Couldn't reach: {'; '.join(out['errors'])})" if out.get("errors") else ""))

@@ -629,6 +629,35 @@ Keep "Background" allowed on the phone's setup page, or Android may pause JARVIS
   predictor, tomorrow played, money future, and wedding day run. They're built into the phone app too, so they work
   with the laptop off. For now they run on sample numbers; your own data comes next.
 
+## ZEUS's job hunt: 50 applications a day
+
+ZEUS lines up the jobs, matches them to you and writes the letters. You just tap.
+
+1. **Every morning at 7:50** (and again after lunch) ZEUS finds fresh jobs:
+   - MyCareersFuture's public job search, for the roles you want.
+   - Your own job-alert emails from JobStreet, LinkedIn, Indeed, Glassdoor and FastJobs. Switch alerts on in each
+     app: more alerts means more jobs.
+2. **He ranks them against your resume:** a fit %, plus one line on why you fit. Best first. Things you said to avoid
+   are dropped.
+3. **He writes a short cover letter for each job**, using only what's in your resume.
+4. **🎯 JOB HUNT** (on the phone's home screen, or `/jobs.html`) shows one job at a time:
+   - **⚡ APPLY** (or swipe right) copies the letter, opens the job (the JobStreet or LinkedIn app if installed),
+     logs it in ZEUS's tracker with a follow-up reminder a week later, and slides in the next one.
+   - **✕ SKIP** (swipe left) and **★ LATER** are there too, with UNDO for 4 seconds.
+   - A ring counts today's applications against your target (50).
+5. **Email applications go out by themselves when you say so.** Jobs whose ad says "send your CV to hr@…" appear in
+   **📧 REVIEW & SEND ALL**. One tap sends every one with its own cover letter and your CV attached. That tap is your
+   yes: nothing is sent without it.
+
+**Get started:**
+- Send your CV as a PDF (or Word file) to the JARVIS bot on Telegram with the caption **resume**. ZEUS reads it and
+  starts hunting.
+- Tell him what you want: "ZEUS, I want marketing or events roles, at least $2,800, no sales", or "50 a day".
+
+**Why you still tap Submit on JobStreet and LinkedIn:** both ban accounts that apply with bots, and losing your
+account would hurt your chances. So ZEUS does everything up to that tap. MyCareersFuture needs Singpass, so that one's
+yours too.
+
 ## VERONICA's books: your monthly P&L from bank alerts
 
 Turn on email alerts in your bank apps (DBS/POSB, OCBC, UOB, Citi, Trust, GXS, PayLah, GrabPay, PayPal, Revolut,

@@ -1200,6 +1200,43 @@ def orb():
     return hud.orb_state(store, bus)
 
 
+class JobAct(BaseModel):
+    status: str = ""
+    ids: list[int] = []
+
+
+@app.get("/api/jobs")
+def jobs_list():
+    from . import jobs
+    p = jobs.prefs(store)
+    return {"jobs": jobs.queue(store, 80), "today": jobs.today_count(store), "target": p["daily_target"], "prefs": p,
+            "can_email": jobs.email_ready(store), "resume": bool(jobs.resume_text()), "hunted": store.get("jobs:hunted")}
+
+
+@app.post("/api/jobs/hunt")
+async def jobs_hunt():
+    from . import jobs
+    return await asyncio.to_thread(jobs.hunt, store, bus)
+
+
+@app.post("/api/jobs/{job_id}/prep")
+async def jobs_prep(job_id: int):
+    from . import jobs
+    return await asyncio.to_thread(jobs.prep, store, job_id)
+
+
+@app.post("/api/jobs/{job_id}/mark")
+def jobs_mark(job_id: int, a: JobAct):
+    from . import jobs
+    return jobs.mark(store, job_id, a.status)
+
+
+@app.post("/api/jobs/send-all")
+async def jobs_send_all(a: JobAct):
+    from . import jobs
+    return await asyncio.to_thread(jobs.send_all, store, bus, a.ids)
+
+
 @app.get("/api/trailer")
 def trailer_data():
     """What the trailer shows (#10): only safe-to-share highlights, never messages, tasks or money."""

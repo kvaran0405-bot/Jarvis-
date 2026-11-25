@@ -194,6 +194,43 @@ def bank_mail(days: int = 40, skip: set | None = None, limit: int = 400) -> list
         box.logout()
 
 
+JOB_SENDERS = ["jobstreet", "linkedin", "indeed", "glassdoor", "mycareersfuture", "fastjobs", "jobsdb"]
+
+
+def _html_of(msg: email.message.Message) -> str:
+    for part in (msg.walk() if msg.is_multipart() else [msg]):
+        if part.get_content_type() == "text/html":
+            return (part.get_payload(decode=True) or b"").decode(part.get_content_charset() or "utf-8", errors="replace")
+    return ""
+
+
+def job_alert_mail(days: int = 3, limit: int = 40) -> list[dict]:
+    """Job-alert e-mails (JobStreet, LinkedIn, Indeed...) from the last few days, with their HTML for the job links."""
+    from datetime import date, timedelta
+    box = _imap()
+    try:
+        uids: list[int] = []
+        if "gmail" in settings.imap_host.lower():
+            raw = f"newer_than:{days}d (" + " OR ".join(f"from:{s}" for s in JOB_SENDERS) + ")"
+            typ, data = box.uid("search", "CHARSET", "UTF-8", "X-GM-RAW", '"' + raw + '"')
+            if typ == "OK":
+                uids = [int(u) for u in (data[0] or b"").split()]
+        else:
+            since = (date.today() - timedelta(days=days)).strftime("%d-%b-%Y")
+            for s in JOB_SENDERS:
+                typ, data = box.uid("search", None, f'(SINCE {since} FROM "{s}")')
+                if typ == "OK":
+                    uids += [int(u) for u in (data[0] or b"").split()]
+        out = []
+        for uid in sorted(set(uids))[-limit:]:
+            _, msg_data = box.uid("fetch", str(uid), "(BODY.PEEK[])")
+            m = email.message_from_bytes(next((p[1] for p in msg_data if isinstance(p, tuple)), b""))
+            out.append({"uid": uid, "from": _hdr(m["From"]), "subject": _hdr(m["Subject"]), "html": _html_of(m)})
+        return out
+    finally:
+        box.logout()
+
+
 def read_email(uid: int) -> dict:
     box = _imap()
     try:

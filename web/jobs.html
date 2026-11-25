@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS Job Hunt</title>
+<meta name="theme-color" content="#04060b">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ZEUS's job hunt: one job at a time, one tap to apply (the cover letter is already written and copied). */
+:root{--z:#ffb020;--ok:#3dff9a;--no:#ff4f7b;--c:#5fd8ff;--bg:#04060b;--ink:#dce7f2;--mut:#7d8899}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:"JetBrains Mono",monospace;-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+#bg{position:fixed;inset:0;z-index:0}
+.wrap{position:relative;z-index:1;max-width:620px;margin:0 auto;padding:max(12px,env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+header{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+header b{font:900 clamp(10px,3.2vw,13px) Orbitron,sans-serif;letter-spacing:.22em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--z);text-shadow:0 0 14px #ffb02088;flex:1}
+.btn{font:700 10px Orbitron,sans-serif;letter-spacing:.16em;color:var(--z);border:1px solid var(--z);background:rgba(4,8,14,.7);padding:9px 12px;border-radius:999px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:disabled{opacity:.4}
+#ringRow{display:flex;align-items:center;gap:14px;margin:4px 0 12px}
+#ring{width:78px;height:78px;flex:none}
+#ring circle{fill:none;stroke-width:7}
+#ringTxt{font:900 16px Orbitron,sans-serif;fill:#fff}
+#ringSub{font:700 8px Orbitron,sans-serif;fill:var(--mut);letter-spacing:.15em}
+#hint{font-size:11px;color:var(--mut);line-height:1.55}
+#hint strong{color:var(--z)}
+.panel{border:1px solid #ffb02055;background:linear-gradient(135deg,rgba(255,176,32,.08),rgba(4,8,14,.6));border-radius:14px;padding:12px 14px;margin-bottom:12px;font-size:12px;line-height:1.5}
+.panel .btn{margin-top:8px}
+.warn{border-color:#ff4f7b66;background:linear-gradient(135deg,rgba(255,79,123,.08),rgba(4,8,14,.6))}
+#deck{position:relative;height:min(64vh,560px);margin-top:4px;perspective:1000px}
+.card{position:absolute;inset:0;border-radius:20px;padding:18px 18px 16px;background:linear-gradient(160deg,#0e1622,#060a11);
+  border:1px solid rgba(255,176,32,.35);box-shadow:0 0 0 1px rgba(255,176,32,.06),0 18px 50px rgba(0,0,0,.6),0 0 40px rgba(255,176,32,.08);
+  display:flex;flex-direction:column;gap:10px;overflow:hidden;touch-action:pan-y;user-select:none;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .35s}
+.card.back1{transform:translateY(14px) scale(.95);opacity:.6;pointer-events:none}
+.card.back1>*,.card.back2>*{visibility:hidden}
+.card.back2{transform:translateY(28px) scale(.9);opacity:.3;pointer-events:none}
+.card.drag{transition:none}
+.card::before{content:"";position:absolute;inset:0;border-radius:20px;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,176,32,.03) 0 1px,transparent 1px 4px)}
+.stamp{position:absolute;top:22px;font:900 22px Orbitron,sans-serif;letter-spacing:.2em;padding:6px 12px;border:3px solid;border-radius:10px;opacity:0;pointer-events:none}
+.stamp.y{right:18px;color:var(--ok);transform:rotate(12deg)}.stamp.n{left:18px;color:var(--no);transform:rotate(-12deg)}
+.top{display:flex;align-items:center;gap:10px}
+.src{font:700 9px Orbitron,sans-serif;letter-spacing:.18em;color:var(--c);border:1px solid #5fd8ff66;padding:5px 9px;border-radius:999px}
+.fit{margin-left:auto;display:flex;align-items:center;gap:8px;font:900 18px Orbitron,sans-serif}
+.fit small{font:700 8px Orbitron,sans-serif;letter-spacing:.2em;color:var(--mut)}
+h2{margin:2px 0 0;font:900 clamp(18px,5vw,24px) Orbitron,sans-serif;letter-spacing:.03em;line-height:1.2;color:#fff}
+.co{font-size:13px;color:var(--z)}
+.meta{display:flex;flex-wrap:wrap;gap:6px}.meta span{font-size:11px;color:#c9d6e3;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:4px 8px;border-radius:8px}
+.why{font-size:12px;color:var(--ok);line-height:1.4}
+.desc{font-size:12px;color:#9fb0c3;line-height:1.5;overflow:auto;flex:1;min-height:40px;mask-image:linear-gradient(#000 75%,transparent)}
+.letter{display:none;flex:1;min-height:120px;width:100%;resize:none;background:rgba(0,0,0,.35);color:#e8eef5;border:1px solid #ffb02055;border-radius:12px;padding:10px;font:12px/1.5 "JetBrains Mono",monospace}
+.card.showLetter .letter{display:block}.card.showLetter .desc{display:none}
+.tools{display:flex;gap:8px;align-items:center}
+.tools button{font:700 9px Orbitron,sans-serif;letter-spacing:.14em;color:var(--mut);background:none;border:1px solid #2a3544;padding:7px 10px;border-radius:999px;cursor:pointer}
+.tools .em{color:var(--ok);border-color:#3dff9a55}
+#acts{display:grid;grid-template-columns:1fr 1fr 2fr;gap:10px;margin-top:14px}
+#acts button{height:58px;border-radius:16px;font:900 12px Orbitron,sans-serif;letter-spacing:.18em;cursor:pointer;border:1px solid}
+#skip{background:rgba(255,79,123,.08);color:var(--no);border-color:#ff4f7b88}
+#save{background:rgba(95,216,255,.08);color:var(--c);border-color:#5fd8ff88}
+#apply{background:linear-gradient(135deg,#ffb020,#ff7a3c);color:#130800;border-color:#ffb020;box-shadow:0 0 28px #ffb02066}
+#apply:active,#skip:active,#save:active{transform:scale(.97)}
+#empty{display:none;text-align:center;padding:40px 10px;color:var(--mut);font-size:13px;line-height:1.6}
+#empty b{display:block;font:900 15px Orbitron,sans-serif;color:var(--z);letter-spacing:.2em;margin-bottom:8px}
+#toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translate(-50%,120px);background:rgba(8,14,22,.96);border:1px solid var(--ok);color:#e8eef5;
+  padding:12px 14px;border-radius:14px;font-size:12px;z-index:9;display:flex;gap:12px;align-items:center;transition:transform .3s;max-width:92vw;box-shadow:0 0 30px rgba(61,255,154,.25)}
+#toast.on{transform:translate(-50%,0)}
+#toast button{font:700 9px Orbitron,sans-serif;letter-spacing:.14em;color:var(--z);background:none;border:1px solid var(--z);border-radius:999px;padding:6px 10px;cursor:pointer}
+#sheet{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:flex-end;justify-content:center;z-index:10}
+#sheet.on{display:flex}
+#sheet .in{width:min(620px,100%);max-height:80vh;overflow:auto;background:#070b12;border:1px solid #3dff9a66;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+#sheet h3{margin:0 0 8px;font:900 13px Orbitron,sans-serif;letter-spacing:.2em;color:var(--ok)}
+#sheet li{font-size:12px;margin:4px 0;color:#c9d6e3}
+@media (min-width:900px){ #deck{height:540px} }
+</style></head><body>
+<canvas id="bg"></canvas>
+<div class="wrap">
+  <header><b>🎯 JOB HUNT · ZEUS</b><button class="btn" id="huntBtn">⟳ HUNT NOW</button><a class="btn" href="javascript:history.length>1?history.back():location.href='home.html'">✕</a></header>
+  <div id="ringRow">
+    <svg id="ring" viewBox="0 0 80 80"><circle cx="40" cy="40" r="33" stroke="#1a2430"/><circle id="arc" cx="40" cy="40" r="33" stroke="#ffb020" stroke-linecap="round" transform="rotate(-90 40 40)" stroke-dasharray="207" stroke-dashoffset="207" style="transition:stroke-dashoffset .6s;filter:drop-shadow(0 0 6px #ffb020)"/>
+      <text id="ringTxt" x="40" y="42" text-anchor="middle">0</text><text id="ringSub" x="40" y="54" text-anchor="middle">OF 50</text></svg>
+    <div id="hint"><strong>TODAY'S APPLICATIONS.</strong> <strong>⚡ APPLY</strong> copies your cover letter and opens the job: paste, submit, come back, the next one's waiting. Swipe right to apply, left to skip.</div>
+  </div>
+  <div id="panels"></div>
+  <div id="deck"></div>
+  <div id="empty"><b>ALL CAUGHT UP</b>ZEUS hunts every morning at 7:50 and again after lunch.<br>More job alerts in JobStreet, LinkedIn and Indeed = more jobs here.<br><br><button class="btn" onclick="hunt()">⟳ HUNT NOW</button></div>
+  <div id="acts"><button id="skip">✕ SKIP</button><button id="save">★ LATER</button><button id="apply">⚡ APPLY</button></div>
+</div>
+<div id="toast"><span id="toastTxt"></span><button id="undo">UNDO</button></div>
+<div id="sheet"><div class="in"><h3>📧 SEND WITH YOUR CV</h3><div id="sheetList"></div><button class="btn" id="sendAll" style="color:var(--ok);border-color:var(--ok);margin-top:12px">✓ SEND ALL</button> <button class="btn" onclick="sheet.classList.remove('on')">CANCEL</button></div></div>
+<script>
+"use strict";
+const $ = s => document.querySelector(s), sheet = $("#sheet");
+let JOBS = [], STATE = {today: 0, target: 50}, last = null;
+const esc = s => String(s || "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const api = (p, body) => fetch(p, body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)}).then(r => r.json());
+const buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
+
+// ---- background: a slow neon grid of drifting sparks (light, 60 fps)
+(() => { const c = $("#bg"), g = c.getContext("2d"); let W, H, P = [];
+  const fit = () => { const d = Math.min(2, devicePixelRatio || 1); W = c.width = innerWidth * d; H = c.height = innerHeight * d; c.style.width = innerWidth + "px"; c.style.height = innerHeight + "px";
+    P = Array.from({length: Math.round(innerWidth * innerHeight / 9000)}, () => ({x: Math.random() * W, y: Math.random() * H, v: .2 + Math.random() * .6, r: Math.random() * 1.6 + .4})); };
+  fit(); addEventListener("resize", fit);
+  (function loop(t){ g.clearRect(0, 0, W, H); const s = Math.min(2, devicePixelRatio || 1), step = 46 * s, off = (t / 60) % step;
+    g.strokeStyle = "rgba(255,176,32,.05)"; g.lineWidth = 1; g.beginPath();
+    for (let x = -off; x < W; x += step){ g.moveTo(x, 0); g.lineTo(x, H); } for (let y = off; y < H; y += step){ g.moveTo(0, y); g.lineTo(W, y); } g.stroke();
+    P.forEach(p => { p.y -= p.v * s; if (p.y < 0){ p.y = H; p.x = Math.random() * W; } g.fillStyle = `rgba(255,176,32,${.25 + p.r / 4})`; g.fillRect(p.x, p.y, p.r * s, p.r * s); });
+    requestAnimationFrame(loop); })(0);
+})();
+
+function ring(){ const k = Math.min(1, STATE.today / Math.max(1, STATE.target)); $("#arc").style.strokeDashoffset = 207 * (1 - k);
+  $("#ringTxt").textContent = STATE.today; $("#ringSub").textContent = `OF ${STATE.target}`; $("#arc").setAttribute("stroke", k >= 1 ? "#3dff9a" : "#ffb020"); }
+const fitCol = f => f >= 75 ? "#3dff9a" : f >= 55 ? "#ffb020" : "#ff7a3c";
+
+function card(j, cls){ const el = document.createElement("div"); el.className = "card " + cls; el.dataset.id = j.id;
+  el.innerHTML = `<div class="stamp y">APPLY</div><div class="stamp n">SKIP</div>
+    <div class="top"><span class="src">${esc(j.source || "JOB")}</span><div class="fit" style="color:${fitCol(j.fit)}">${j.fit || "–"}<small>% FIT</small></div></div>
+    <h2>${esc(j.title)}</h2><div class="co">${esc(j.company)}</div>
+    <div class="meta">${j.location ? `<span>📍 ${esc(j.location)}</span>` : ""}${j.salary ? `<span>💰 ${esc(j.salary)}</span>` : ""}${j.apply_email ? `<span>📧 email apply</span>` : ""}${j.status === "saved" ? "<span>★ saved</span>" : ""}</div>
+    ${j.why ? `<div class="why">✓ ${esc(j.why)}</div>` : ""}
+    <div class="desc">${esc((j.descr || "").slice(0, 1200)) || "Open the job to see the full ad."}</div>
+    <textarea class="letter" spellcheck="false" placeholder="ZEUS is writing your cover letter…"></textarea>
+    <div class="tools"><button class="tl">✎ COVER LETTER</button>${j.apply_email ? `<button class="em">📧 EMAIL IT WITH MY CV</button>` : ""}</div>`;
+  el.querySelector(".tl").onclick = e => { e.stopPropagation(); el.classList.toggle("showLetter"); prep(j, el); };
+  el.querySelector(".em")?.addEventListener("click", e => { e.stopPropagation(); openSheet([j]); });
+  return el; }
+
+async function prep(j, el){ const ta = el.querySelector(".letter"); if (j.cover){ ta.value = j.cover; return j.cover; }
+  try { const d = await api(`/api/jobs/${j.id}/prep`, {}); j.cover = d.cover || ""; } catch { j.cover = ""; }
+  if (!ta.value) ta.value = j.cover; ta.oninput = () => j.cover = ta.value; return j.cover; }
+
+function size(){ const deck = $("#deck"); if (!deck.offsetParent) return; const top = deck.getBoundingClientRect().top + scrollY;
+  deck.style.height = Math.max(330, Math.min(600, innerHeight - top - 58 - 14 - 28)) + "px"; }
+addEventListener("resize", size);
+function render(){
+  const deck = $("#deck"); deck.innerHTML = "";
+  const list = JOBS.slice(0, 3); $("#empty").style.display = list.length ? "none" : "block"; $("#acts").style.display = list.length ? "grid" : "none"; deck.style.display = list.length ? "block" : "none";
+  list.slice().reverse().forEach((j, i, a) => { const k = a.length - 1 - i; const el = card(j, k === 0 ? "" : "back" + k); deck.appendChild(el); if (k === 0) drag(el, j); });
+  JOBS.slice(0, 3).forEach(j => { if (!j.cover) api(`/api/jobs/${j.id}/prep`, {}).then(d => { j.cover = j.cover || d.cover; const ta = deck.querySelector(`[data-id="${j.id}"] .letter`); if (ta && !ta.value) ta.value = j.cover; }).catch(() => {}); });
+  ring(); size();
+}
+
+function copy(text){ try { const t = document.createElement("textarea"); t.value = text; t.style.position = "fixed"; t.style.opacity = "0"; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); } catch {}
+  try { navigator.clipboard?.writeText(text)?.catch?.(() => {}); } catch {} }
+
+function go(action){
+  const j = JOBS[0]; if (!j) return; const el = $("#deck .card:not(.back1):not(.back2)");
+  const dx = action === "skip" ? -1 : action === "apply" ? 1 : 0;
+  if (el){ el.classList.remove("drag"); el.style.transform = dx ? `translateX(${dx * 130}%) rotate(${dx * 18}deg)` : "translateY(-120%) scale(.9)"; el.style.opacity = "0"; }
+  buzz(action === "apply" ? [15, 30, 15] : 10);
+  if (action === "apply"){
+    const letter = j.cover || el?.querySelector(".letter")?.value || ""; if (letter) copy(letter);
+    if (j.url){ if (window.JarvisNative) location.href = j.url; else window.open(j.url, "_blank", "noopener"); }
+  }
+  const status = action === "apply" ? "applied" : action === "skip" ? "skipped" : "saved";
+  api(`/api/jobs/${j.id}/mark`, {status}).then(d => { if (d.today != null){ STATE.today = d.today; ring(); } });
+  if (action === "apply") STATE.today++;
+  last = {j, status}; JOBS.shift(); if (action === "save") JOBS.splice(Math.min(JOBS.length, 6), 0, {...j, status: "saved"});
+  toast(action === "apply" ? (j.url ? "✓ Letter copied. Paste it, submit, come back." : "✓ Marked applied.") : action === "skip" ? "Skipped." : "★ Saved for later.");
+  setTimeout(render, 260);
+}
+function toast(t){ $("#toastTxt").textContent = t; $("#toast").classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => $("#toast").classList.remove("on"), 3800); }
+$("#undo").onclick = () => { if (!last) return; api(`/api/jobs/${last.j.id}/mark`, {status: "new"}); if (last.status === "applied") STATE.today = Math.max(0, STATE.today - 1);
+  JOBS = JOBS.filter(x => x.id !== last.j.id); JOBS.unshift(last.j); last = null; $("#toast").classList.remove("on"); render(); };
+
+function drag(el, j){ let x0 = 0, y0 = 0, dx = 0, on = false;
+  el.addEventListener("pointerdown", e => { if (e.target.closest("button,textarea")) return; on = true; x0 = e.clientX; y0 = e.clientY; dx = 0; el.classList.add("drag"); el.setPointerCapture(e.pointerId); });
+  el.addEventListener("pointermove", e => { if (!on) return; dx = e.clientX - x0; const dy = (e.clientY - y0) * .15; el.style.transform = `translate(${dx}px,${dy}px) rotate(${dx / 18}deg)`;
+    el.querySelector(".stamp.y").style.opacity = Math.max(0, Math.min(1, dx / 90)); el.querySelector(".stamp.n").style.opacity = Math.max(0, Math.min(1, -dx / 90)); });
+  const end = () => { if (!on) return; on = false; el.classList.remove("drag");
+    if (Math.abs(dx) > Math.min(120, innerWidth * .25)) go(dx > 0 ? "apply" : "skip"); else { el.style.transform = ""; el.querySelectorAll(".stamp").forEach(s => s.style.opacity = 0); } };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end); }
+
+function openSheet(list){ $("#sheetList").innerHTML = `<p style="font-size:12px;color:#9fb0c3">These employers take applications by email. ZEUS sends each one your tailored cover letter with your CV attached. Tapping SEND ALL is your yes.</p><ul>${list.map(j => `<li>${esc(j.title)} · ${esc(j.company)} <span style="color:#7d8899">(${esc(j.apply_email)})</span></li>`).join("")}</ul>`;
+  sheet.classList.add("on"); $("#sendAll").onclick = async () => { $("#sendAll").disabled = true; $("#sendAll").textContent = "SENDING…";
+    const d = await api("/api/jobs/send-all", {ids: list.map(j => j.id)}).catch(() => ({error: "couldn't reach the laptop"}));
+    $("#sendAll").disabled = false; $("#sendAll").textContent = "✓ SEND ALL"; sheet.classList.remove("on");
+    if (d.error) toast("⚠ " + d.error); else { toast(`📧 Sent ${d.sent} application${d.sent === 1 ? "" : "s"} with your CV.`); STATE.today = d.today ?? STATE.today; load(); } }; }
+
+function panels(d){ const p = $("#panels"); p.innerHTML = "";
+  if (!d.resume) p.insertAdjacentHTML("beforeend", `<div class="panel warn">📄 <b>Send ZEUS your resume</b> (a PDF on Telegram, caption <b>resume</b>). Then every job is matched to you and every cover letter is written from it.</div>`);
+  if (!d.prefs.roles.length) p.insertAdjacentHTML("beforeend", `<div class="panel">🎯 Tell ZEUS what you want: <i>"ZEUS, I want marketing or events roles, at least $2,800, no sales."</i></div>`);
+  if (d.can_email.length) p.insertAdjacentHTML("beforeend", `<div class="panel" style="border-color:#3dff9a66">📧 <b>${d.can_email.length} job${d.can_email.length === 1 ? "" : "s"}</b> take${d.can_email.length === 1 ? "s" : ""} email applications: ZEUS can send them all now with your CV and a tailored letter.<br><button class="btn" id="emailAll" style="color:var(--ok);border-color:var(--ok)">REVIEW &amp; SEND ALL</button></div>`);
+  $("#emailAll")?.addEventListener("click", () => openSheet(d.can_email.map(x => JOBS.find(j => j.id === x.id) || x))); }
+
+async function load(){ try { const d = await api("/api/jobs"); JOBS = d.jobs; STATE = {today: d.today, target: d.target}; panels(d); render(); }
+  catch { $("#empty").style.display = "block"; $("#empty").innerHTML = "<b>LAPTOP OFFLINE</b>The job hunt runs on your laptop. Open this again when it's on."; $("#acts").style.display = "none"; } }
+async function hunt(){ const b = $("#huntBtn"); b.disabled = true; b.textContent = "HUNTING…"; const d = await api("/api/jobs/hunt", {}).catch(() => ({}));
+  b.disabled = false; b.textContent = "⟳ HUNT NOW"; toast(`🎯 ${d.added || 0} new · ${d.ready || 0} lined up` + ((d.errors || []).length ? ` · ⚠ ${d.errors[0]}` : "")); load(); }
+$("#huntBtn").onclick = hunt;
+$("#skip").onclick = () => go("skip"); $("#save").onclick = () => go("save"); $("#apply").onclick = () => go("apply");
+addEventListener("keydown", e => { if (e.target.tagName === "TEXTAREA") return; if (e.key === "ArrowRight") go("apply"); if (e.key === "ArrowLeft") go("skip"); if (e.key === "ArrowUp") go("save"); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && last?.status === "applied") toast("Back! Next one's ready."); });
+load();
+</script>
+<script src="transitions.js" defer></script>
+</body></html>
