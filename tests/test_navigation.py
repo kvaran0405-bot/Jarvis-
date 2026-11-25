@@ -79,7 +79,7 @@ def test_trip_question_once(monkeypatch):
 
 def test_day_review_and_steps():
     st = Store(":memory:")
-    day = datetime.now(settings.tz).date()
+    day = datetime.now(settings.tz).date() - timedelta(days=1)   # yesterday: a whole day already in the past
     t0 = datetime(day.year, day.month, day.day, 9, 0, tzinfo=settings.tz).timestamp()
     pts = [[t0 + i * 60, HOME[0] + i * .0009, HOME[1], 10, 1.2] for i in range(10)]   # walking ~100 m a minute
     explore.add_points(st, pts)
