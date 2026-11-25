@@ -109,9 +109,9 @@ public class SmartReplies extends NotificationListenerService {
 
     /** Any other app's notification: sent to the notification brain (no replies). Bank apps never get here. */
     private void forward(String pkg, Notification n) {
-        CharSequence t = n.extras.getCharSequence(Notification.EXTRA_TITLE), x = n.extras.getCharSequence(Notification.EXTRA_TEXT);
+        CharSequence t = n.extras.getCharSequence(Notification.EXTRA_TITLE), small = n.extras.getCharSequence(Notification.EXTRA_TEXT);
         CharSequence big = n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT);   // Gmail puts the email preview here
-        if (big != null && big.length() > (x == null ? 0 : x.length())) x = big;
+        final CharSequence x = big != null && big.length() > (small == null ? 0 : small.length()) ? big : small;
         if (t == null || x == null || Net.isFinance(String.valueOf(t)) || Net.isFinance(String.valueOf(x))) return;
         Solo.noteSeen(this, pkg, String.valueOf(t), String.valueOf(x));   // for "what did I miss?", even with the laptop off
         String key = pkg + t + x;
