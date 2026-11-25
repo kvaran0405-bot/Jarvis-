@@ -53,3 +53,10 @@ def test_retired_gemini_models_are_never_used():
     assert not any(m.startswith(("gemini-2.0", "gemini-1.")) for m in brains.GEMINI_SPARES)
     assert "gemini-2.0" not in SOLO.split("const SPARES")[1].split("\n")[0]
     assert "refreshFromGitHub" in (ROOT / "android/app/src/main/java/os/jarvis/app/SoloBrain.java").read_text(encoding="utf-8")
+
+
+def test_backup_voices_are_the_cast_not_the_default():
+    java = (ROOT / "android/app/src/main/java/os/jarvis/app/Voices.java").read_text(encoding="utf-8")
+    assert '"JARVIS",   new Part(GB' in java and "isWoman(code) != wantWoman" in java
+    assert "N.speakAs(id, say, agent)" in SOLO
+    assert "VCACHE.get(vkey(agent, text))" in SOLO   # premium lines are remembered and replayed

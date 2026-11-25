@@ -609,6 +609,21 @@ public class MainActivity extends Activity {
             tts.speak(text, TextToSpeech.QUEUE_ADD, null, id);
         }
 
+        /** Speak as an agent with their own backup voice (never the phone's default voice). */
+        @JavascriptInterface
+        public void speakAs(String id, String text, String agent) {
+            if (!ttsReady) { js("window.__jarvisTTS && window.__jarvisTTS.done(" + JSONObject.quote(id) + ")"); return; }
+            boolean online = false;
+            try {
+                android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
+                android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+                online = nc != null && nc.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+            } catch (Exception ignored) {}
+            android.speech.tts.Voice v = Voices.pick(tts, agent, online);
+            if (v != null) tts.setVoice(v); else tts.setLanguage(Locale.UK);
+            speak(id, text, Voices.pitch(agent), Voices.rate(agent));
+        }
+
         @JavascriptInterface
         public void stopSpeaking() { if (tts != null) tts.stop(); }
 

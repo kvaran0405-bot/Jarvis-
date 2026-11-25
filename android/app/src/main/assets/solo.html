@@ -466,7 +466,7 @@ const voiceOf = n => ({FRIDAY: [1.25, 1.08], VERONICA: [1.1, 1.0], ZEUS: [.8, 1.
 window.__jarvisTTS = {wait: {}, done(id){ const f = this.wait[id]; if (f){ delete this.wait[id]; f(); } }};
 // Long replies are voiced in two parts: the first sentence plays while the rest is still being made.
 function chunks(t){
-  if (t.length < 140) return [t];
+  if (t.length < 320) return [t];   // one premium voice call per normal reply: the free voice allowance is small
   const m = t.match(/^(.{20,160}?[.!?])\s+(.+)$/s); return m ? [m[1], m[2]] : [t];
 }
 // Conversation mode: after JARVIS answers, the mic opens by itself for 8 seconds. Just keep talking.
@@ -495,7 +495,9 @@ function speak(agent, text, follow = true){
     };
     play(0);
     function robot(say){
-    if (N?.ttsAvailable?.()){ const id = uid(), [p, r] = voiceOf(agent); __jarvisTTS.wait[id] = fin; N.speak(id, say, p, r); setTimeout(() => __jarvisTTS.done(id), 4000 + say.length * 90); return; }
+    if (N?.ttsAvailable?.()){ const id = uid(), [p, r] = voiceOf(agent); __jarvisTTS.wait[id] = fin;
+      if (N.speakAs) N.speakAs(id, say, agent); else N.speak(id, say, p, r);   // each agent's own backup voice
+      setTimeout(() => __jarvisTTS.done(id), 4000 + say.length * 90); return; }
     try { const u = new SpeechSynthesisUtterance(say); u.lang = "en-GB"; u.onend = u.onerror = fin; speechSynthesis.speak(u); setTimeout(fin, 3000 + say.length * 80); } catch { fin(); }
     }
   });
@@ -669,7 +671,18 @@ const pcmWav = (b64, rate) => { const pcm = Uint8Array.from(atob(b64), c => c.ch
   v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, pcm.length, true);
   return new Blob([h, pcm], {type: "audio/wav"}); };
 let voiceDown = 0;
+// Lines JARVIS has already said in his premium voice are kept on the phone (up to 300) and replayed for free.
+const VCACHE = (() => { let db = null;
+  const open = () => db || (db = new Promise(res => { try { const r = indexedDB.open("jarvis-voice", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("lines"); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch { res(null); } }));
+  const tx = async (mode, fn) => { const d = await open(); if (!d) return null;
+    return new Promise(res => { try { const t = d.transaction("lines", mode), q = fn(t.objectStore("lines")); q.onsuccess = () => res(q.result); q.onerror = () => res(null); } catch { res(null); } }); };
+  return {get: k => tx("readonly", st => st.get(k)), put: (k, blob) => { if (blob.size < 700e3) tx("readwrite", st => st.put({blob, t: Date.now()}, k)).then(async () => {
+      const keys = await tx("readonly", st => st.getAllKeys()); if (keys && keys.length > 300) tx("readwrite", st => st.delete(keys[0])); }); }};
+})();
+const vkey = (agent, text) => agent + "|" + text.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
 async function premiumVoice(agent, text){
+  try { const hit = await VCACHE.get(vkey(agent, text)); if (hit?.blob) return URL.createObjectURL(hit.blob); } catch {}
   if (!PACK.has?.gemini || !PACK.voices || Date.now() < voiceDown || LS.get("solo:robotvoice", false)) return null;
   const [name, who, mood] = (PACK.voices.cast || {})[agent] || (PACK.voices.cast || {}).JARVIS || ["Charon", "a refined British butler AI", "dry"];
   const h = new Date().getHours(), when = h >= 23 || h < 6 ? "It's late at night: keep it soft, close and unhurried." : h < 11 ? "It's morning: bright and awake, but not loud." : "";
@@ -682,7 +695,8 @@ async function premiumVoice(agent, text){
     if (r.status === 404) continue;
     if (r.status !== 200){ voiceDown = Date.now() + (r.status === 429 ? 900e3 : 120e3); return null; }
     try { const part = JSON.parse(r.text).candidates[0].content.parts.find(p => p.inlineData); const rate = +(part.inlineData.mimeType.match(/rate=(\d+)/) || [0, 24000])[1];
-      return URL.createObjectURL(pcmWav(part.inlineData.data, rate)); } catch { return null; }
+      const wav = pcmWav(part.inlineData.data, rate); if (text.length <= 160) VCACHE.put(vkey(agent, text), wav);
+      return URL.createObjectURL(wav); } catch { return null; }
   }
   return null;
 }
