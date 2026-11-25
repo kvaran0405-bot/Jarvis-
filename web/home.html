@@ -244,7 +244,7 @@ function live(){
     if(ev.type === "speaker") showSpeaker(ev.where);
     else if(ev.type === "throw" && ev.to === "phone"){   // #47: the laptop threw a hologram to the phone
       try { navigator.vibrate?.([20, 40, 80]); } catch {}
-      const v = ev.view, u = ["core", "globe", "figure", "cube"].includes(v) ? `/hands.html?model=${v}&caught=1&nocam=1` : v === "sims" ? "/simulate3d.html" : v === "trailer" ? "/trailer.html" : `/holo.html?view=${v}`;
+      const v = ev.view, u = ["core", "globe", "figure", "cube", "gauntlet", "armor", "king"].includes(v) ? `/hands.html?model=${v}&caught=1&nocam=1` : v === "sims" ? "/simulate3d.html" : v === "trailer" ? "/trailer.html" : `/holo.html?view=${v}`;
       window.HoloTransition ? HoloTransition.leave(u) : location.href = u; }
     else if(ev.type === "delta" && ev.rid && ev.rid === myRid && speakerWhere === "phone"){ streamAgent = ev.agent || "JARVIS"; feed(ev.text, false); }
     else if(ev.type === "delta_end" && ev.rid && ev.rid === myRid && speakerWhere === "phone"){ feed("", true); }

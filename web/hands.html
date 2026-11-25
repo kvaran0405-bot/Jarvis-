@@ -45,6 +45,93 @@ const dot = (() => { const c = document.createElement("canvas"); c.width = c.hei
   gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.3, "rgba(255,255,255,.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const add = (c, op = .9) => ({color: new THREE.Color(c), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false});
 const MODELS = {
+
+  // ---- original hero tech (my own designs, in the spirit of the films)
+  gauntlet(){   // an armored gauntlet: its fingers copy yours, an open palm held still fires the repulsor
+    const g = new THREE.Group(), RED = "#ff4d5e", GOLD = "#ffd23f", CY = "#5fd8ff";
+    const part = (geo, c, op = .16) => { const o = new THREE.Group(); o.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial(add(c, op))));
+      o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 18), new THREE.LineBasicMaterial(add(c, .95)))); return o; };
+    const arm = part(new THREE.CylinderGeometry(.72, .92, 2.4, 10, 1, true), RED); arm.position.y = -2.3; g.add(arm);
+    [-1.25, -2.0, -2.9].forEach((y, i) => { const r = new THREE.Mesh(new THREE.TorusGeometry(i ? .86 : .78, .045, 6, 40), new THREE.MeshBasicMaterial(add(GOLD, .9))); r.rotation.x = Math.PI / 2; r.position.y = y; g.add(r); });
+    const hand = new THREE.Group(); hand.position.y = -.85; g.add(hand);
+    const palm = part(new THREE.BoxGeometry(1.75, 1.55, .55), RED); palm.position.y = .25; hand.add(palm);
+    const back = part(new THREE.BoxGeometry(1.5, 1.25, .12), GOLD, .22); back.position.set(0, .3, -.34); hand.add(back);
+    const rep = new THREE.Mesh(new THREE.CircleGeometry(.3, 32), new THREE.MeshBasicMaterial(add("#e8fbff", .95))); rep.position.set(0, .2, .29); hand.add(rep);
+    const rring = new THREE.Mesh(new THREE.RingGeometry(.34, .42, 32), new THREE.MeshBasicMaterial(add(CY, .9))); rring.position.copy(rep.position); hand.add(rring);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(CY), transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false}));
+    glow.scale.setScalar(1.6); glow.position.set(0, .2, .35); hand.add(glow);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(.22, .5, 8, 20, 1, true), new THREE.MeshBasicMaterial(add("#bff6ff", 0)));
+    beam.rotation.x = Math.PI / 2; beam.position.set(0, .2, 4.3); hand.add(beam);
+    const fingers = [[-.62, .95], [-.21, 1.05], [.21, 1.0], [.62, .8]].map(([x, L]) => { const hinges = []; let parent = new THREE.Group(); parent.position.set(x, 1.0, 0); hand.add(parent);
+      for (let k = 0; k < 3; k++){ const h = k ? new THREE.Group() : parent; if (k){ h.position.y = L * .36; parent.add(h); }
+        const seg = part(new THREE.BoxGeometry(.33, L * .34, .36), k === 1 ? GOLD : RED, .18); seg.position.y = L * .17; h.add(seg); hinges.push(h); parent = h; }
+      return hinges; });
+    const tb = new THREE.Group(); tb.position.set(-.95, .05, .1); tb.rotation.z = .9; hand.add(tb);
+    const t1 = part(new THREE.BoxGeometry(.36, .55, .36), RED, .18); t1.position.y = .27; tb.add(t1);
+    const tk = new THREE.Group(); tk.position.y = .55; tb.add(tk); const t2 = part(new THREE.BoxGeometry(.32, .5, .34), GOLD, .2); t2.position.y = .25; tk.add(t2);
+    let blast = 0, still = 0;
+    g.userData.tick = (t, dt) => {
+      const c = HANDCURL || (() => { const k = (Math.sin(t * 1.3) + 1) / 2 * .85; return [k, k, k, k, k]; })();
+      fingers.forEach((hs, i) => hs.forEach((h, k) => { const want = c[i + 1] * (k === 0 ? 1.15 : 1.25); h.rotation.x += (want - h.rotation.x) * Math.min(1, dt * 12); }));
+      tb.rotation.x += (c[0] * .9 - tb.rotation.x) * Math.min(1, dt * 12); tk.rotation.x += (c[0] * 1.1 - tk.rotation.x) * Math.min(1, dt * 12);
+      if (HANDCURL && !grab && !carry){ spinV.y *= Math.pow(.05, dt); holder.rotation.y += angDiff(0, holder.rotation.y % (Math.PI * 2)) * Math.min(1, dt * 4); holder.rotation.x *= Math.pow(.05, dt); }   // your hand in view: it faces you
+      const openPalm = HANDCURL && Math.max(...HANDCURL.slice(1)) < .25;
+      still = openPalm && HANDSTILL ? still + dt : 0;
+      if (still > .6 && blast <= 0){ blast = 1; still = -1.2; flash("REPULSOR"); sfx("whoosh"); buzz([15, 40, 25]); }
+      const pulse = .85 + Math.sin(t * 6) * .15 + Math.max(0, blast) * 1.5;
+      glow.scale.setScalar(1.6 * pulse); rep.material.opacity = Math.min(1, .7 + Math.max(0, blast));
+      beam.material.opacity = Math.max(0, blast) * .8; beam.scale.set(1 + (1 - blast) * 1.5, 1, 1 + (1 - blast) * 1.5);
+      if (blast > 0) blast -= dt * 1.6;
+    };
+    g.position.y = .6; g.rotation.y = .25; return g; },
+
+  armor(){   // a hovering armored suit: glowing chest reactor, eyes and boot thrusters
+    const g = new THREE.Group(), RED = "#ff4d5e", GOLD = "#ffd23f", CY = "#5fd8ff";
+    const part = (geo, c, p, r = [0, 0, 0], op = .16) => { const o = new THREE.Group(); o.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial(add(c, op))));
+      o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 18), new THREE.LineBasicMaterial(add(c, .95)))); o.position.set(...p); o.rotation.set(...r); g.add(o); return o; };
+    part(new THREE.SphereGeometry(.52, 12, 10), RED, [0, 3.45, 0]);                                     // helmet
+    part(new THREE.BoxGeometry(.62, .55, .2), GOLD, [0, 3.35, .42], [0, 0, 0], .25);                    // faceplate
+    const eyes = [-.15, .15].map(x => { const e = new THREE.Mesh(new THREE.BoxGeometry(.16, .05, .05), new THREE.MeshBasicMaterial(add("#e8fbff", 1))); e.position.set(x, 3.45, .54); g.add(e); return e; });
+    part(new THREE.CylinderGeometry(.95, .7, 1.8, 10), RED, [0, 2.15, 0]);                               // chest
+    part(new THREE.BoxGeometry(1.2, .5, .5), GOLD, [0, 1.05, 0], [0, 0, 0], .2);                         // waist
+    const reactor = new THREE.Mesh(new THREE.CircleGeometry(.2, 32), new THREE.MeshBasicMaterial(add("#e8fbff", 1))); reactor.position.set(0, 2.45, .84); g.add(reactor);
+    const rr = new THREE.Mesh(new THREE.RingGeometry(.24, .32, 32), new THREE.MeshBasicMaterial(add(CY, .95))); rr.position.copy(reactor.position); g.add(rr);
+    const rg = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(CY), transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false})); rg.scale.setScalar(1.3); rg.position.set(0, 2.45, .9); g.add(rg);
+    [-1, 1].forEach(sx => { part(new THREE.SphereGeometry(.38, 10, 8), GOLD, [sx * 1.15, 2.85, 0], [0, 0, 0], .2);   // shoulders
+      part(new THREE.CylinderGeometry(.24, .2, 1.3, 8), RED, [sx * 1.3, 2.1, 0], [0, 0, sx * .12]); part(new THREE.CylinderGeometry(.27, .22, 1.2, 8), GOLD, [sx * 1.42, .95, 0], [0, 0, sx * .06], .2);
+      part(new THREE.CylinderGeometry(.34, .26, 1.5, 8), RED, [sx * .4, -.1, 0]); part(new THREE.CylinderGeometry(.28, .3, 1.5, 8), GOLD, [sx * .42, -1.6, 0], [0, 0, 0], .2);
+      part(new THREE.BoxGeometry(.4, .25, .7), RED, [sx * .42, -2.45, .1]); });
+    const flames = [-1, 1].map(sx => { const f = new THREE.Mesh(new THREE.ConeGeometry(.2, 1, 16, 1, true), new THREE.MeshBasicMaterial(add(CY, .7))); f.rotation.x = Math.PI; f.position.set(sx * .42, -3.05, .1); g.add(f); return f; });
+    const palmGlow = [-1, 1].map(sx => { const s = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(CY), transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false})); s.scale.setScalar(.7); s.position.set(sx * 1.48, .25, 0); g.add(s); return s; });
+    g.userData.tick = t => { g.position.y = -.3 + Math.sin(t * 1.6) * .15;
+      const fl = .8 + Math.random() * .4; flames.forEach(f => { f.scale.set(1, fl, 1); f.material.opacity = .45 + Math.random() * .35; });
+      const p = .85 + Math.sin(t * 3) * .15; rg.scale.setScalar(1.3 * p); palmGlow.forEach(s => s.scale.setScalar(.7 * p)); eyes.forEach(e => e.material.opacity = .7 + Math.sin(t * 5) * .3); };
+    g.scale.setScalar(.82); return g; },
+
+  king(){   // the Iron King: a masked armored sorcerer in a hood, cape rippling, green magic circling his hands
+    const g = new THREE.Group(), STEEL = "#9fb7c9", GREEN = "#3dff9a", DARK = "#2de0c0";
+    const part = (geo, c, p, r = [0, 0, 0], op = .14) => { const o = new THREE.Group(); o.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial(add(c, op))));
+      o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 18), new THREE.LineBasicMaterial(add(c, .9)))); o.position.set(...p); o.rotation.set(...r); g.add(o); return o; };
+    part(new THREE.SphereGeometry(.72, 14, 10, 0, Math.PI * 2, 0, Math.PI * .62), DARK, [0, 3.55, -.05], [0, 0, 0], .1);   // hood
+    part(new THREE.BoxGeometry(.66, .78, .3), STEEL, [0, 3.35, .32], [0, 0, 0], .22);                                        // iron mask
+    [-.15, .15].forEach(x => { const e = new THREE.Mesh(new THREE.BoxGeometry(.17, .06, .05), new THREE.MeshBasicMaterial(add(GREEN, 1))); e.position.set(x, 3.48, .49); g.add(e); });
+    for (let i = 0; i < 4; i++){ const m = new THREE.Mesh(new THREE.BoxGeometry(.04, .2, .04), new THREE.MeshBasicMaterial(add(STEEL, .9))); m.position.set(-.12 + i * .08, 3.12, .49); g.add(m); }   // grille
+    part(new THREE.CylinderGeometry(1.0, .75, 1.9, 10), STEEL, [0, 2.15, 0]);
+    part(new THREE.BoxGeometry(1.3, .3, .55), GREEN, [0, 1.15, 0], [0, 0, 0], .2);                                            // belt
+    [-1, 1].forEach(sx => { part(new THREE.SphereGeometry(.42, 10, 8), STEEL, [sx * 1.15, 2.9, 0], [0, 0, 0], .2);
+      part(new THREE.CylinderGeometry(.24, .2, 1.3, 8), STEEL, [sx * 1.35, 2.1, .1], [0, 0, sx * .25]); part(new THREE.CylinderGeometry(.26, .22, 1.1, 8), STEEL, [sx * 1.65, 1.05, .35], [.4, 0, sx * .35]);
+      part(new THREE.CylinderGeometry(.34, .5, 2.6, 8), DARK, [sx * .38, -.55, 0], [0, 0, 0], .08); });                           // robe legs
+    const cape = new THREE.PlaneGeometry(2.6, 5, 16, 24), base = Float32Array.from(cape.attributes.position.array);
+    const capeMesh = new THREE.Mesh(cape, new THREE.MeshBasicMaterial({...add(DARK, .14), side: THREE.DoubleSide, wireframe: true})); capeMesh.position.set(0, .9, -.75); g.add(capeMesh);
+    const orbs = [-1, 1].map(sx => { const n = 70, pts = new Float32Array(n * 3), geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pts, 3));
+      g.add(new THREE.Points(geo, new THREE.PointsMaterial({size: .14, map: dot, ...add(GREEN, .95)}))); const core = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(GREEN), transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false}));
+      core.scale.setScalar(.9); core.position.set(sx * 1.85, .45, .6); g.add(core); return {pts, geo, core, sx, n}; });
+    g.userData.tick = t => {
+      const a = cape.attributes.position; for (let i = 0; i < a.count; i++){ const x = base[i * 3], y = base[i * 3 + 1], k = (2.5 - y) / 5; a.setZ(i, Math.sin(t * 2 + x * 1.4 + y * .9) * .35 * k - k * .4); } a.needsUpdate = true;
+      orbs.forEach(o => { for (let i = 0; i < o.n; i++){ const ang = t * 2.2 + i / o.n * Math.PI * 2 * 3, r = .35 + (i % 7) * .03; o.pts[i * 3] = o.core.position.x + Math.cos(ang) * r;
+          o.pts[i * 3 + 1] = o.core.position.y + Math.sin(ang * 1.3) * r * .8; o.pts[i * 3 + 2] = o.core.position.z + Math.sin(ang) * r; } o.geo.attributes.position.needsUpdate = true;
+        o.core.scale.setScalar(.9 + Math.sin(t * 4 + o.sx) * .15); }); };
+    g.position.y = -.6; g.scale.setScalar(.85); return g; },
   core(){ const g = new THREE.Group(), n = 5000, p = new Float32Array(n * 3); for (let i = 0; i < n; i++){ const y = 1 - i / (n - 1) * 2, r = Math.sqrt(1 - y * y), t = i * 2.39996, k = 2.2 * (1 + (Math.random() - .5) * .08); p.set([Math.cos(t) * r * k, y * k, Math.sin(t) * r * k], i * 3); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(p, 3)); g.add(new THREE.Points(geo, new THREE.PointsMaterial({size: .12, map: dot, ...add("#ffd23f")})));
     [[3.2, [1.1, .3, 0]], [3.7, [-.5, .8, .2]], [4.2, [.2, -.4, .9]]].forEach(([r, rot], k) => { const m = new THREE.Mesh(new THREE.TorusGeometry(r, .03 + k * .01, 6, 120, Math.PI * 1.5), new THREE.MeshBasicMaterial(add(k % 2 ? "#5fd8ff" : "#ffd23f"))); m.rotation.set(...rot); g.add(m); });
@@ -63,7 +150,8 @@ const MODELS = {
     g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial(add("#5fd8ff", .08)))); g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial(add("#5fd8ff", 1))));
     const inner = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2, 2, 2)), new THREE.LineBasicMaterial(add("#ffd23f", 1))); g.add(inner); g.userData.spin = inner; return g; },
 };
-const ORDER = ["core", "globe", "figure", "cube"];
+const ORDER = ["core", "globe", "figure", "cube", "gauntlet", "armor", "king"];
+let HANDCURL = null, HANDSTILL = false;   // your fingers, for the gauntlet to copy
 let model = MODELS[q.get("model")] ? q.get("model") : "core", obj = null, spinV = {x: 0, y: .4}, scaleT = 1, flying = 0;
 function show(name, entry = "pop"){
   model = name; if (obj) holder.remove(obj); obj = MODELS[name](); holder.add(obj); holder.scale.setScalar(entry === "drop" ? 3 : .2); holder.position.set(0, entry === "drop" ? 8 : 0, 0);
@@ -83,9 +171,9 @@ const flash = t => { msg = {text: t, t: performance.now()}; };
 function layout(){
   const r = Math.min(W, H) * (PHONE && H > W ? .17 : .13), y = H > W ? H * .78 : H * .5;
   const left = [["🌐", "HOLO LAB", () => go("holo.html")], ["🧪", "SIMS", () => go("simulate3d.html")], ["🎬", "TRAILER", () => go("trailer.html")], ["🗺", "MAP", () => go("map.html")]];
-  const right = ORDER.map(m => [{core: "◉", globe: "🌍", figure: "🧍", cube: "◇"}[m], m.toUpperCase(), () => show(m)]);
+  const right = ORDER.map(m => [{core: "◉", globe: "🌍", figure: "🧍", cube: "◇", gauntlet: "🧤", armor: "🦾", king: "👑"}[m], m === "king" ? (PHONE && H > W ? "KING" : "IRON KING") : m === "gauntlet" && PHONE && H > W ? "GLOVE" : m.toUpperCase(), () => show(m)]);
   DIALS = [{cx: H > W ? W * .26 : W * .16, cy: y, r, items: left, title: "OPEN"}, {cx: H > W ? W * .74 : W * .84, cy: y, r, items: right, title: "MODEL"}]
-    .map(d => ({...d, btns: d.items.map((it, i) => { const a = -Math.PI / 2 + i / d.items.length * Math.PI * 2; return {x: d.cx + Math.cos(a) * d.r, y: d.cy + Math.sin(a) * d.r, r: d.r * .36, icon: it[0], label: it[1], fn: it[2], hover: 0}; })}));
+    .map(d => ({...d, btns: d.items.map((it, i) => { const a = -Math.PI / 2 + i / d.items.length * Math.PI * 2; return {x: d.cx + Math.cos(a) * d.r, y: d.cy + Math.sin(a) * d.r, r: d.r * (d.items.length > 5 ? .29 : .36), icon: it[0], label: it[1], fn: it[2], hover: 0}; })}));
   DIALS.push({cx: W / 2, cy: H > W ? H * .14 : H * .12, r: 0, title: "", btns: [{x: W / 2, y: H > W ? H * .14 : H * .12, r: Math.min(W, H) * .06, icon: "⇪", label: PHONE ? "TO LAPTOP" : "TO PHONE", fn: () => throwIt(), hover: 0}]});
 }
 const go = page => { flash("OPENING"); sfx("whoosh"); setTimeout(() => location.href = page, 350); };
@@ -197,8 +285,10 @@ function readPose(h){
   const out = [[8, 6], [12, 10], [16, 14], [20, 18]].map(([t, p]) => D(h[t], h[0]) > D(h[p], h[0]) * 1.12);
   const thumb = D(h[4], h[17]) > D(h[3], h[17]) * 1.05 && D(h[4], h[5]) > size * .45;
   const open = [8, 12, 16, 20].reduce((a, i) => a + D(h[i], palm), 0) / 4 / size;   // ~0.8 fist … ~2 wide open
+  const curl = [[4, 2], [8, 5], [12, 9], [16, 13], [20, 17]].map(([t, m], i) => { const r = D(h[t], h[0]) / Math.max(1, D(h[m], h[0]));
+    return Math.max(0, Math.min(1, i ? (1.9 - r) / 1.0 : (1.7 - D(h[4], h[17]) / size) / .9)); });
   const fingers = out.filter(Boolean).length, thumbsUp = thumb && fingers === 0 && h[4].y < h[5].y - size * .35;
-  return {size, palm, open, fingers, thumb, roll: Math.atan2(h[17].y - h[5].y, h[17].x - h[5].x),
+  return {size, palm, open, fingers, thumb, curl, roll: Math.atan2(h[17].y - h[5].y, h[17].x - h[5].x),
           fist: fingers === 0 && open < 1.15 && !thumbsUp,   // a thumbs-up isn't a grab
           peace: out[0] && out[1] && !out[2] && !out[3], thumbsUp};
 }
@@ -216,6 +306,8 @@ function interact(now, dt){
     if (!pinchTwo) pinchTwo = {d, s: scaleT}; scaleT = Math.max(.4, Math.min(2.6, pinchTwo.s * d / pinchTwo.d)); grab = null; return; } else pinchTwo = null;
   const c = cursors[0];
   DIALS.forEach(dl => dl.btns.forEach(b => { const over = c && Math.hypot(c.x - b.x, c.y - b.y) < b.r; if (over && b.hover === 0) sfx("hover"); b.hover = over ? Math.min(1, b.hover + dt * 1.25) : 0; b.over = over; }));
+  HANDCURL = c?.pose ? c.pose.curl : null;
+  if (c?.pose){ const pv = interact.pv || c.palm; HANDSTILL = Math.hypot(c.palm.x - pv.x, c.palm.y - pv.y) < Math.min(W, H) * .012; interact.pv = c.palm; } else HANDSTILL = false;
   if (!c){ grab = null; wasPinch[0] = false; if (carry) letGo(now); lastOpen = null; twistRoll = null; return; }
   const btn = DIALS.flatMap(d => d.btns).find(b => b.over);
   const nowPinch = c.pinch, edge = nowPinch && !wasPinch[0]; wasPinch[0] = nowPinch;
@@ -325,6 +417,7 @@ function frame(now){
   else holder.scale.setScalar(holder.scale.x + (scaleT - holder.scale.x) * Math.min(1, dt * 6));
   if (!grab && !carry){ spinV.y = Math.max(-25, Math.min(25, spinV.y)); holder.rotation.y += spinV.y * dt; holder.rotation.x += spinV.x * dt; spinV.y += (.35 - spinV.y) * dt * .8; spinV.x *= Math.pow(.2, dt); holder.rotation.x *= Math.pow(.6, dt); }
   if (obj?.userData.spin) obj.userData.spin.rotation.y -= dt * 1.4;
+  obj?.userData.tick?.(now / 1000, dt);
   R.render(scene, cam); drawHUD(now);
   requestAnimationFrame(frame);
 }

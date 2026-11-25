@@ -462,6 +462,16 @@ off. Ask "what are my routines?", or say "routine nudges off" or "routine nudges
 
 ## Holo Hands (#44, #46, #47, #48)
 
+**Hero holograms** (original designs, in the spirit of the films), in the MODEL menu:
+- 🧤 **GAUNTLET:** an armored glove with a glowing palm repulsor. With your hand in view **its fingers copy
+  yours** (open, fist, anything in between) and it turns to face you. Hold your palm **open and still** and it
+  fires the **repulsor** beam.
+- 🦾 **ARMOR:** a hovering armored suit with a pulsing chest reactor, glowing eyes, glowing palms and flickering
+  boot thrusters.
+- 👑 **IRON KING:** a masked, armored sorcerer in a hood, with a rippling cape and green magic orbiting his hands.
+
+All of them work with every gesture: grab, carry, toss, spin and resize.
+
 **One-hand control:**
 - ✋ **Spread your fingers** over the hologram to make it bigger, **squeeze** to make it smaller.
 - ✊ **Make a fist on it** to grab it and carry it anywhere. Let go with a fast throw to **toss** it: it flies,
