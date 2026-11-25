@@ -25,7 +25,7 @@ video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:s
 <canvas id="gl"></canvas><div id="grid"></div><canvas id="hud"></canvas>
 <div class="top"><b>HOLO HANDS</b><div><button id="camBtn">📷 CAMERA</button> <a href="javascript:history.length>1?history.back():location.href='home.html'">✕</a></div></div>
 <div id="status">WAKING THE CAMERA…</div>
-<div id="tip">☝ point · 🤏 pinch to choose · pinch the hologram to grab and spin · two hands to resize · swipe to switch · flick it up to throw it to your other screen</div>
+<div id="tip">✋ spread = bigger · squeeze = smaller · ✊ grab to carry, let go fast to toss · 🔄 twist to spin · 👋 swipe across = spin · ✌ next · 👍 reset · 🤏 pinch to choose · flick up = throw</div>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -182,12 +182,32 @@ function readHands(now){
     TRK = TRK.filter(k => now - k.t < 260);   // a hand that's gone, goes
     hands = TRK.map(k => { const ahead = Math.min(.06, (now - k.t) / 1000);   // predict a few ms ahead: no rubber-band lag
       return k.cur.map(([x, y], i) => ({x: x + k.pts[i][0].dx * ahead * .6, y: y + k.pts[i][1].dx * ahead * .6})); });
-    hands.forEach(h => { const size = Math.hypot(h[0].x - h[9].x, h[0].y - h[9].y) || 1, d = Math.hypot(h[4].x - h[8].x, h[4].y - h[8].y) / size;
-      cursors.push({x: (h[4].x + h[8].x) / 2 * .4 + h[8].x * .6, y: (h[4].y + h[8].y) / 2 * .4 + h[8].y * .6, pinch: d < .34, open: d > .7, palm: h[9], hand: true}); });
+    hands.forEach(h => { const pose = readPose(h), d = Math.hypot(h[4].x - h[8].x, h[4].y - h[8].y) / pose.size;
+      cursors.push({x: (h[4].x + h[8].x) / 2 * .4 + h[8].x * .6, y: (h[4].y + h[8].y) / 2 * .4 + h[8].y * .6, pinch: d < .32 && !pose.fist,
+                    open: pose.fingers >= 4 && pose.open > 1.2, palm: pose.palm, hand: true, pose}); });
     if (track.t0 && now - track.t0 > 1000){ track.hz = Math.round(track.n * 1000 / (now - track.t0)); track.n = 0; track.t0 = now; }
   } else hands = [];
   if (pointer){ cursors.push({x: pointer.x, y: pointer.y, pinch: pointer.down || pointer.tap, open: !pointer.down && !pointer.tap, palm: pointer}); pointer.tap = false; }   // a quick tap is never missed
 }
+// ---------------------------------------------------------------- one-hand gestures
+// How the hand is shaped: which fingers are out, how open it is, the wrist's twist.
+function readPose(h){
+  const D = (a, b) => Math.hypot(a.x - b.x, a.y - b.y), size = D(h[0], h[9]) || 1;
+  const palm = {x: (h[0].x + h[5].x + h[9].x + h[13].x + h[17].x) / 5, y: (h[0].y + h[5].y + h[9].y + h[13].y + h[17].y) / 5};
+  const out = [[8, 6], [12, 10], [16, 14], [20, 18]].map(([t, p]) => D(h[t], h[0]) > D(h[p], h[0]) * 1.12);
+  const thumb = D(h[4], h[17]) > D(h[3], h[17]) * 1.05 && D(h[4], h[5]) > size * .45;
+  const open = [8, 12, 16, 20].reduce((a, i) => a + D(h[i], palm), 0) / 4 / size;   // ~0.8 fist … ~2 wide open
+  const fingers = out.filter(Boolean).length, thumbsUp = thumb && fingers === 0 && h[4].y < h[5].y - size * .35;
+  return {size, palm, open, fingers, thumb, roll: Math.atan2(h[17].y - h[5].y, h[17].x - h[5].x),
+          fist: fingers === 0 && open < 1.15 && !thumbsUp,   // a thumbs-up isn't a grab
+          peace: out[0] && out[1] && !out[2] && !out[3], thumbsUp};
+}
+const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+function toWorld(x, y){ const vh = 2 * Math.tan(cam.fov * Math.PI / 360) * cam.position.z, vw = vh * cam.aspect; return {x: (x / W - .5) * vw, y: -(y / H - .5) * vh}; }
+function holoScreen(){ const v = holder.position.clone().project(cam); return {x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H}; }
+const home = () => ({x: 0, y: H > W ? .9 : 0});
+let carry = null, toss = null, lastOpen = null, sizing = 0, held = {name: "", since: 0, fired: 0}, twistRoll = null;
+
 let wasPinch = [false, false];
 function interact(now, dt){
   const centre = {x: W / 2, y: H > W ? H * .44 : H * .5}, grabR = Math.min(W, H) * .3;
@@ -196,20 +216,65 @@ function interact(now, dt){
     if (!pinchTwo) pinchTwo = {d, s: scaleT}; scaleT = Math.max(.4, Math.min(2.6, pinchTwo.s * d / pinchTwo.d)); grab = null; return; } else pinchTwo = null;
   const c = cursors[0];
   DIALS.forEach(dl => dl.btns.forEach(b => { const over = c && Math.hypot(c.x - b.x, c.y - b.y) < b.r; if (over && b.hover === 0) sfx("hover"); b.hover = over ? Math.min(1, b.hover + dt * 1.25) : 0; b.over = over; }));
-  if (!c){ grab = null; wasPinch[0] = false; return; }
+  if (!c){ grab = null; wasPinch[0] = false; if (carry) letGo(now); lastOpen = null; twistRoll = null; return; }
   const btn = DIALS.flatMap(d => d.btns).find(b => b.over);
   const nowPinch = c.pinch, edge = nowPinch && !wasPinch[0]; wasPinch[0] = nowPinch;
   if (btn && (edge || btn.hover >= 1)){ btn.hover = -.6; sfx("pick"); buzz(15); btn.fn(); return; }   // pinch, or hold your finger there a moment
-  if (edge && Math.hypot(c.x - centre.x, c.y - centre.y) < grabR){ grab = {x: c.x, y: c.y, t: now, track: [{x: c.x, y: c.y, t: now}]}; sfx("grab"); }
+  const hs = holoScreen(), r = Math.min(W, H) * .3 * Math.max(.6, holder.scale.x), p = c.pose, at = c.palm || c, over = Math.hypot(at.x - hs.x, at.y - hs.y) < r * 1.3;
+
+  // ✌ next model · 👍 reset (hold the sign a moment)
+  const sign = p?.peace ? "peace" : p?.thumbsUp ? "thumbs" : "";
+  if (sign !== held.name){ held = {name: sign, since: now, fired: held.fired}; }
+  else if (sign && now - held.since > 650 && now - held.fired > 1400){ held.fired = now;
+    if (sign === "peace"){ const i = ORDER.indexOf(model); show(ORDER[(i + 1) % ORDER.length]); }
+    else { scaleT = 1; spinV = {x: 0, y: .4}; holder.rotation.set(0, 0, 0); toss = null; flash("RESET"); sfx("pop"); }
+    buzz(12); return; }
+
+  // ✊ fist on it = grab: carry it around, twist to spin, let go fast to toss (straight up = throw to your other screen)
+  if (p?.fist && !carry && over && !grab){ const w = toWorld(at.x, at.y); carry = {dx: holder.position.x - w.x, dy: holder.position.y - w.y, track: []}; toss = null; twistRoll = p.roll; sfx("grab"); buzz(10); }
+  if (carry){
+    if (!p?.fist){ letGo(now); }
+    else { const w = toWorld(at.x, at.y); holder.position.x = w.x + carry.dx; holder.position.y = w.y + carry.dy;
+      carry.track.push({x: at.x, y: at.y, t: now}); carry.track = carry.track.filter(q => now - q.t < 160);
+      twist(p, dt); return; }
+  }
+  // 🤏 pinch on it = grab and turn it (drag), twist to spin
+  if (edge && over){ grab = {x: c.x, y: c.y, t: now, track: [{x: c.x, y: c.y, t: now}]}; twistRoll = p ? p.roll : null; sfx("grab"); }
   if (grab && nowPinch){ const dx = c.x - grab.x, dy = c.y - grab.y; holder.rotation.y += dx * .012; holder.rotation.x += dy * .012; spinV = {x: dy * .5, y: dx * .5};
-    grab.x = c.x; grab.y = c.y; grab.track.push({x: c.x, y: c.y, t: now}); grab.track = grab.track.filter(p => now - p.t < 260);
-    const f = grab.track[0]; if (grab.track.length > 3 && (f.y - c.y) > H * .28 && now - f.t < 260){ grab = null; throwIt(); } }   // flick up = throw
-  if (grab && !nowPinch) grab = null;
-  // open-hand swipe = next model
-  if (!nowPinch && c.open && c.hand){ swipeT.push({x: c.x, t: now}); swipeT = swipeT.filter(p => now - p.t < 350);
+    grab.x = c.x; grab.y = c.y; grab.track.push({x: c.x, y: c.y, t: now}); grab.track = grab.track.filter(q => now - q.t < 260);
+    if (p) twist(p, dt);
+    const f = grab.track[0]; if (grab.track.length > 3 && (f.y - c.y) > H * .28 && now - f.t < 260){ grab = null; throwIt(); } return; }   // flick up = throw
+  if (grab && !nowPinch){ grab = null; twistRoll = null; }
+
+  // ✋ open hand over it: spread your fingers = bigger, squeeze = smaller
+  if (p && over && !nowPinch && !p.fist){
+    const speed = swipeT.length > 1 ? Math.abs(swipeT[swipeT.length - 1].x - swipeT[0].x) / Math.max(1, swipeT[swipeT.length - 1].t - swipeT[0].t) * 1000 : 0;
+    if (lastOpen != null && speed < W * .7){ const d = p.open - lastOpen;
+      if (Math.abs(d) > .004){ scaleT = Math.max(.3, Math.min(3, scaleT * Math.exp(d * .9))); sizing = now; } }
+    lastOpen = lastOpen == null ? p.open : lastOpen + (p.open - lastOpen) * .5;
+  } else lastOpen = null;
+
+  // 👋 open-hand swipe: across the hologram = spin it hard; at the sides = next model
+  if (!nowPinch && c.open && c.hand){ swipeT.push({x: c.x, t: now}); swipeT = swipeT.filter(q => now - q.t < 350);
     const dxs = swipeT.length > 3 ? swipeT[swipeT.length - 1].x - swipeT[0].x : 0;
-    if (Math.abs(dxs) > W * .32){ swipeT = []; const i = ORDER.indexOf(model); show(ORDER[(i + (dxs > 0 ? 1 : ORDER.length - 1)) % ORDER.length]); } }
+    if (Math.abs(dxs) > W * .25){ swipeT = [];
+      if (over){ spinV.y += Math.sign(dxs) * (6 + Math.abs(dxs) / W * 10); flash("SPIN"); sfx("whoosh"); buzz(8); }
+      else { const i = ORDER.indexOf(model); show(ORDER[(i + (dxs > 0 ? 1 : ORDER.length - 1)) % ORDER.length]); } } }
   else swipeT = [];
+}
+// turn the wrist like a knob: the hologram spins with it, and keeps spinning when you let go
+function twist(p, dt){
+  if (twistRoll == null){ twistRoll = p.roll; return; }
+  const d = angDiff(p.roll, twistRoll); twistRoll = p.roll;
+  if (Math.abs(d) > .01 && Math.abs(d) < 1){ holder.rotation.y -= d * 1.8; spinV.y = -d / Math.max(dt, .016) * .6; }
+}
+function letGo(now){
+  const t = carry.track; carry = null; twistRoll = null;
+  if (t.length > 2){ const a = t[0], b = t[t.length - 1], ms = Math.max(16, b.t - a.t), vx = (b.x - a.x) / ms * 1000, vy = (b.y - a.y) / ms * 1000;
+    if (-vy > H * 1.8 && Math.abs(vx) < -vy * .7){ throwIt(); return; }            // straight up, fast: to your other screen
+    if (Math.hypot(vx, vy) > Math.min(W, H) * .9){                                   // a toss: it flies, bounces, and floats back
+      const k = toWorld(W / 2 + vx, H / 2 + vy); toss = {vx: k.x * 1.2, vy: k.y * 1.2, t0: now}; spinV.y += vx / W * 8; flash("TOSS!"); sfx("whoosh"); buzz([10, 30, 10]); return; } }
+  sfx("pick");
 }
 
 // ---------------------------------------------------------------- the HUD layer
@@ -235,6 +300,9 @@ function drawHUD(now){
     X.lineWidth = 2.5; X.beginPath(); X.arc(c.x, c.y, r, 0, Math.PI * 2); X.stroke(); X.beginPath(); X.arc(c.x, c.y, 3, 0, Math.PI * 2); X.fillStyle = col; X.fill(); });
   if (camOn && track.mode){ X.font = "600 9px JetBrains Mono, monospace"; X.textAlign = "left"; X.fillStyle = "rgba(159,176,195,.55)";
     X.fillText(`TRACKING ${track.hz} Hz · ${track.mode}${hands.length ? "" : " · SHOW ME YOUR HAND"}`, 14, 58); X.textAlign = "center"; }
+  if (now - sizing < 600){ const hs = holoScreen(); X.save(); X.font = "700 13px Orbitron, sans-serif"; X.fillStyle = "#ffd23f";
+    X.fillText(`SIZE ${Math.round(scaleT * 100)}%`, hs.x, hs.y + Math.min(W, H) * .3 * scaleT + 18); X.restore(); }
+  if (carry){ const hs = holoScreen(); X.strokeStyle = "rgba(255,210,63,.7)"; X.lineWidth = 2; X.setLineDash([3, 7]); X.beginPath(); X.arc(hs.x, hs.y, Math.min(W, H) * .22 * scaleT, 0, Math.PI * 2); X.stroke(); X.setLineDash([]); }
   if (grab){ X.strokeStyle = "rgba(255,210,63,.6)"; X.setLineDash([6, 6]); X.beginPath(); X.arc(W / 2, H > W ? H * .44 : H * .5, Math.min(W, H) * .3, 0, Math.PI * 2); X.stroke(); X.setLineDash([]); }
   // message
   const age = (now - msg.t) / 1000; if (msg.text && age < 1.4){ X.globalAlpha = Math.max(0, 1 - Math.max(0, age - .8) / .6); X.fillStyle = "#ffd23f"; X.shadowColor = "#ffd23f"; X.shadowBlur = 20;
@@ -246,10 +314,16 @@ let last = performance.now();
 function frame(now){
   const dt = Math.min(.05, Math.max(0, (now - last) / 1000)); last = now;
   readHands(now); interact(now, dt);
-  holder.position.y += ((H > W ? .9 : 0) - holder.position.y) * Math.min(1, dt * 6);
+  if (!carry && !flying){
+    if (toss){ holder.position.x += toss.vx * dt; holder.position.y += toss.vy * dt; toss.vx *= Math.pow(.4, dt); toss.vy *= Math.pow(.4, dt);
+      const lim = toWorld(W * .92, H * .1);
+      if (Math.abs(holder.position.x) > Math.abs(lim.x)){ holder.position.x = Math.sign(holder.position.x) * Math.abs(lim.x); toss.vx *= -.7; sfx("hover"); buzz(6); }
+      if (Math.abs(holder.position.y) > Math.abs(lim.y)){ holder.position.y = Math.sign(holder.position.y) * Math.abs(lim.y); toss.vy *= -.7; sfx("hover"); buzz(6); }
+      if (now - toss.t0 > 2600 || Math.hypot(toss.vx, toss.vy) < .25) toss = null; }
+    else { const hm = home(); holder.position.x += (hm.x - holder.position.x) * Math.min(1, dt * 3); holder.position.y += (hm.y - holder.position.y) * Math.min(1, dt * 3); } }
   if (flying){ const k = (now - flying) / 700; holder.position.y = (H > W ? .9 : 0) + k * k * 14; holder.scale.multiplyScalar(.97); if (k >= 1){ flying = 0; holder.scale.setScalar(.2); holder.position.y = 0; show(model); } }
   else holder.scale.setScalar(holder.scale.x + (scaleT - holder.scale.x) * Math.min(1, dt * 6));
-  if (!grab){ holder.rotation.y += spinV.y * dt; holder.rotation.x += spinV.x * dt; spinV.y += (.35 - spinV.y) * dt * .8; spinV.x *= Math.pow(.2, dt); holder.rotation.x *= Math.pow(.6, dt); }
+  if (!grab && !carry){ spinV.y = Math.max(-25, Math.min(25, spinV.y)); holder.rotation.y += spinV.y * dt; holder.rotation.x += spinV.x * dt; spinV.y += (.35 - spinV.y) * dt * .8; spinV.x *= Math.pow(.2, dt); holder.rotation.x *= Math.pow(.6, dt); }
   if (obj?.userData.spin) obj.userData.spin.rotation.y -= dt * 1.4;
   R.render(scene, cam); drawHUD(now);
   requestAnimationFrame(frame);
@@ -258,6 +332,7 @@ addEventListener("resize", resize); resize();
 show(model, q.get("caught") ? "drop" : "pop"); if (q.get("caught")){ flash("CAUGHT IT"); }
 requestAnimationFrame(frame);
 if (!q.get("nocam")) startCam(); else $("#status").textContent = "";
+window.__hands = {readPose, state: () => ({scaleT, carry: !!carry, toss: !!toss, model, rotY: holder.rotation.y, posX: holder.position.x})};
 </script>
 <script src="transitions.js" defer></script>
 </body></html>

@@ -462,6 +462,15 @@ off. Ask "what are my routines?", or say "routine nudges off" or "routine nudges
 
 ## Holo Hands (#44, #46, #47, #48)
 
+**One-hand control:**
+- ✋ **Spread your fingers** over the hologram to make it bigger, **squeeze** to make it smaller.
+- ✊ **Make a fist on it** to grab it and carry it anywhere. Let go with a fast throw to **toss** it: it flies,
+  bounces off the screen edges and floats back. Straight up still throws it to your other screen.
+- 🔄 **Twist your wrist** while holding it (fist or pinch) to spin it like a knob. It keeps spinning when you let go.
+- 👋 **Swipe across it** with an open hand to spin it hard. Swipe at the sides to change the model.
+- ✌ **Peace sign** for the next model, 👍 **thumbs up** to reset.
+- 🤏 **Pinch** still chooses menu items and turns the hologram.
+
 **Smooth and reliable:**
 - The hand tracking runs in its own background thread, on the graphics chip where possible, so the hologram and
   menus stay smooth even while it's working.
