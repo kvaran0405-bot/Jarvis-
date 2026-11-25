@@ -26,3 +26,10 @@ def test_new_lineup_is_solid_and_lit():
     assert "core(){" not in H and "figure(){" not in H                     # replaced
     assert "MeshPhongMaterial" in H and "function rig(" in H               # real lit materials, not flat wireframes
     assert "ALIAS" in H                                                     # old links (core, figure) still open something
+
+
+def test_steady_tracking():
+    assert "function steady(" in H                                  # gestures must hold a moment: no flicker
+    assert "minHandDetectionConfidence: .5" in H                    # no ghost half-hands
+    assert "const ahead" not in H                                   # no overshooting prediction
+    assert "SLOW CAMERA" in H
