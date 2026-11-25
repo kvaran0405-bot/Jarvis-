@@ -23,6 +23,6 @@ def test_signing_key_is_a_jarvis_pkcs12():
 def test_holo_hands_tracks_off_the_main_thread():
     h = (ROOT / "web/hands.html").read_text(encoding="utf-8")
     assert "new Worker(" in h and "importScripts" in h            # hand tracking in its own thread (classic worker)
-    assert "minHandDetectionConfidence: .35" in h                  # finds hands in dim rooms
+    assert "minHandDetectionConfidence: .5" in h                   # real hands only (no ghosts); gestures debounced
     assert "requestVideoFrameCallback" in h and "function filt(" in h   # new frames only; smoothed + predicted
     assert "shadowBlur = 10" not in h and "shadowBlur = 16" not in h    # no per-frame blur glows
