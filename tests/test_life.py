@@ -173,6 +173,8 @@ def test_checkin_delivery_routes_reply_to_same_agent(env, monkeypatch):
     monkeypatch.setattr(tg, "ready", lambda: True)
     monkeypatch.setattr(tg, "send", lambda text, **k: sent.append(text))
     monkeypatch.setattr(settings, "telegram_voice", False)
+    from jarvis import speech
+    monkeypatch.setattr(speech, "in_quiet_hours", lambda *a, **k: False)   # awake: deliver now (asleep is held)
     sc = Scheduler(engine)
     sc.deliver("BANNER", "How did today really go?")
     assert sent == ["BANNER: How did today really go?"]

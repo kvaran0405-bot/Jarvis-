@@ -976,3 +976,16 @@ web/command-centre.html   the HUD dashboard (voice in/out, live activity, Outbox
 web/call.html             📞 live voice call with JARVIS (phone app)
 tests/                    offline tests (pytest)
 ```
+
+## Showcase: the customer demo (KAIROS)
+
+`web/showcase.html` (open `/showcase.html`) is the version of JARVIS a customer sees, under its own brand, **KAIROS**,
+with no Marvel names and none of your personal data. It has:
+
+- a live 3D team you drag to spin and pinch to zoom; tap an agent to see what it did overnight
+- a morning briefing that plays with a different voice per agent, a waveform, and a scrubber to jump between lines
+- a console where people type requests; the right agent answers with a chart, job cards, deadlines, a price graph or
+  laptop gauges. SENTINEL really checks any message you paste for scam signs.
+- the privacy rules, example pricing and a closing call to action
+
+Every figure on it is demo data. Use it to record clips for TikTok/Shorts, or to show a potential customer.

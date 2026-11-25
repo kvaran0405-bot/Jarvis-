@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KAIROS Personal Staff</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one dark holographic deck. Full-width bands, a 1180px inner wrap, the 3D team as the hero, then demo → try → team → privacy → pricing. */
+:root{
+  --void:#03060c; --deck:#071322; --panel:rgba(9,24,42,.74); --line:rgba(96,214,255,.2); --line-hi:rgba(96,214,255,.5);
+  --cyan:#4fe3ff; --amber:#ffbf4a; --ink:#e2f6ff; --dim:#86a2b6; --good:#5dffb0; --bad:#ff5d7a;
+  --f-display:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --t-hero:clamp(2.1rem,4.4vw + 1rem,4.1rem); --t-h2:clamp(1.55rem,2.2vw + 1rem,2.35rem); --t-body:1.0625rem; --t-small:.875rem; --t-micro:.72rem;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{background:var(--void)}
+body{background:var(--void);color:var(--ink);font:400 var(--t-body)/1.6 var(--f-body);margin:0;overflow-x:hidden;
+  background-image:radial-gradient(1200px 600px at 75% -10%,rgba(79,227,255,.12),transparent 60%),radial-gradient(900px 500px at -10% 40%,rgba(255,191,74,.06),transparent 60%);}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0}
+p{margin:0}
+a{color:var(--cyan)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:6px}
+.eyebrow{font:600 var(--t-micro)/1 var(--f-mono);letter-spacing:.22em;text-transform:uppercase;color:var(--cyan)}
+.lead{color:var(--dim);max-width:62ch}
+.btn{display:inline-flex;align-items:center;gap:.55em;padding:.8em 1.25em;border-radius:10px;border:1px solid var(--line-hi);background:rgba(79,227,255,.08);
+  font:600 .95rem/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:background .2s,box-shadow .2s,transform .15s;text-decoration:none;color:var(--ink)}
+.btn:hover{background:rgba(79,227,255,.16);box-shadow:0 0 24px rgba(79,227,255,.25)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--cyan);color:var(--void);border-color:var(--cyan);box-shadow:0 0 30px rgba(79,227,255,.35)}
+.btn.primary:hover{background:#86edff}
+section{padding-block:clamp(56px,8vw,104px)}
+.sec-head{display:grid;gap:14px;margin-bottom:clamp(28px,4vw,44px)}
+.sec-head h2{font-size:var(--t-h2)}
+.demo-tag{display:inline-block;font:600 var(--t-micro)/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--amber);border:1px solid rgba(255,191,74,.4);border-radius:999px;padding:.45em .8em}
+
+/* top bar */
+.top{padding-block:18px;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font:700 1.15rem/1 var(--f-display);letter-spacing:.28em}
+.brand i{width:22px;height:22px;border-radius:50%;border:2px solid var(--cyan);box-shadow:0 0 14px var(--cyan),inset 0 0 8px var(--cyan);display:block}
+.top nav{display:flex;gap:clamp(12px,2.4vw,28px);flex-wrap:wrap}
+.top nav a{color:var(--dim);text-decoration:none;font:500 var(--t-small)/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase}
+.top nav a:hover{color:var(--ink)}
+
+/* hero */
+.hero{padding-block:clamp(28px,5vw,64px) clamp(40px,6vw,80px)}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(20px,4vw,48px);align-items:center}
+.hero-copy{display:grid;gap:22px;min-width:0}
+.hero h1{font-size:var(--t-hero);line-height:1.04}
+.hero h1 em{font-style:normal;color:var(--cyan);text-shadow:0 0 28px rgba(79,227,255,.55)}
+.ctas{display:flex;gap:12px;flex-wrap:wrap}
+.stats{display:flex;gap:clamp(18px,3vw,36px);flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--line)}
+.stat{display:grid;gap:4px;padding-top:14px}
+.stat b{font:700 1.6rem/1 var(--f-display);color:var(--ink);font-variant-numeric:tabular-nums}
+.stat span{font:500 var(--t-micro)/1.3 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.stage{position:relative;aspect-ratio:1/0.92;max-width:100%;min-width:0;border-radius:22px;overflow:hidden;
+  background:radial-gradient(closest-side,rgba(79,227,255,.10),transparent 75%);touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
+.stage.grab{cursor:grabbing}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.stage .frame{position:absolute;inset:10px;border:1px solid rgba(96,214,255,.1);border-radius:16px;pointer-events:none;
+  background:linear-gradient(var(--cyan),var(--cyan)) 0 0/22px 2px,linear-gradient(var(--cyan),var(--cyan)) 0 0/2px 22px,
+  linear-gradient(var(--cyan),var(--cyan)) 100% 100%/22px 2px,linear-gradient(var(--cyan),var(--cyan)) 100% 100%/2px 22px;background-repeat:no-repeat;opacity:.7}
+.labels{position:absolute;inset:0;pointer-events:none}
+.tag{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;border:1px solid color-mix(in srgb,var(--c) 60%,transparent);background:rgba(3,10,20,.72);
+  color:var(--ink);font:600 .68rem/1 var(--f-mono);letter-spacing:.14em;padding:.45em .6em;border-radius:6px;white-space:nowrap;will-change:transform,opacity;transition:background .2s}
+.tag::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c);margin-right:.5em;vertical-align:1px}
+.tag:hover,.tag.on{background:color-mix(in srgb,var(--c) 22%,rgba(3,10,20,.85))}
+.callout{position:absolute;left:18px;right:18px;bottom:18px;display:grid;gap:4px;padding:12px 14px;border-radius:12px;background:rgba(3,10,20,.82);border:1px solid var(--line);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font-size:var(--t-small)}
+.callout b{font:700 .8rem/1 var(--f-mono);letter-spacing:.16em}
+.callout span{color:var(--dim)}
+.hint{position:absolute;top:18px;left:0;right:0;text-align:center;font:500 var(--t-micro)/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim);pointer-events:none}
+.hint .short{display:none}
+.nogl .stage{background:radial-gradient(circle at 50% 48%,rgba(79,227,255,.5) 0 12%,rgba(79,227,255,.12) 13% 30%,transparent 55%)}
+
+/* boardroom */
+.board{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:clamp(18px,3vw,32px);align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 30px 80px -40px rgba(79,227,255,.35)}
+.brief{padding:clamp(16px,2.4vw,26px);display:grid;gap:16px;min-width:0}
+.brief-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.clock{font:600 var(--t-small)/1.2 var(--f-mono);letter-spacing:.08em;color:var(--dim)}
+.clock b{color:var(--ink)}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.toggle{display:inline-flex;align-items:center;gap:8px;font:500 var(--t-small)/1 var(--f-mono);color:var(--dim);cursor:pointer;background:none;border:1px solid var(--line);border-radius:999px;padding:.55em .9em}
+.toggle[aria-pressed="true"]{color:var(--ink);border-color:var(--line-hi)}
+.toggle i{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+.toggle[aria-pressed="true"] i{background:var(--good);box-shadow:0 0 8px var(--good)}
+.scrub{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px}
+.seg{height:22px;border:0;padding:0;background:none;cursor:pointer;display:grid;align-items:center}
+.seg span{display:block;height:4px;border-radius:2px;background:rgba(134,162,182,.25);overflow:hidden}
+.seg span i{display:block;height:100%;width:0;background:var(--c);box-shadow:0 0 8px var(--c)}
+.seg.done span i{width:100%}
+.lines{display:grid;gap:4px;list-style:none;margin:0;padding:0}
+.ln{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;padding:12px;border-radius:12px;transition:background .3s,opacity .3s;cursor:pointer}
+.ln:hover{background:rgba(79,227,255,.04)}
+.ln .who{font:700 .7rem/1 var(--f-mono);letter-spacing:.14em;color:var(--c);display:flex;align-items:center;gap:8px;padding-top:5px;min-width:7.9em}
+.ln .who::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 10px var(--c);flex:none}
+.ln .say{color:var(--ink);min-height:1.6em}
+.ln.wait{opacity:.28}
+.ln.live{background:color-mix(in srgb,var(--c) 9%,transparent);box-shadow:inset 2px 0 0 var(--c)}
+.ln.live .say::after{content:"▍";color:var(--c);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.approve{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px;border:1px dashed rgba(255,191,74,.45);border-radius:12px;background:rgba(255,191,74,.05)}
+.approve p{flex:1 1 220px;font-size:var(--t-small);color:var(--dim)}
+.approve p b{color:var(--amber);font-weight:600}
+.chip{border:1px solid var(--line-hi);background:rgba(79,227,255,.06);border-radius:999px;padding:.55em .95em;font:500 var(--t-small)/1.2 var(--f-body);cursor:pointer;color:var(--ink);text-align:left}
+.chip:hover{background:rgba(79,227,255,.14)}
+.chip.yes{border-color:var(--amber);color:var(--amber);background:rgba(255,191,74,.08)}
+.side{display:grid;gap:14px;min-width:0}
+.why{padding:20px;display:grid;gap:10px}
+.why h3{font-size:1.05rem;letter-spacing:.04em}
+.why p{color:var(--dim);font-size:var(--t-small)}
+.wave{height:56px;display:flex;align-items:center;gap:3px}
+.wave i{flex:1;height:6%;border-radius:2px;background:var(--wc,var(--cyan));opacity:.85;transition:height .08s linear}
+
+/* console */
+.console{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;height:min(640px,82vh);min-height:460px;overflow:hidden}
+.con-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);font:600 var(--t-micro)/1 var(--f-mono);letter-spacing:.16em;color:var(--dim)}
+.con-head .dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 8px var(--good);display:inline-block;margin-right:8px}
+.log{overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;overscroll-behavior:contain}
+.msg{max-width:min(100%,640px);display:grid;gap:10px;animation:rise .35s ease-out both}
+@keyframes rise{from{opacity:.0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.msg.me{align-self:flex-end;background:rgba(79,227,255,.12);border:1px solid var(--line-hi);padding:10px 14px;border-radius:14px 14px 4px 14px}
+.msg.bot{align-self:flex-start;width:100%}
+.msg .who{font:700 .7rem/1 var(--f-mono);letter-spacing:.14em;color:var(--c);display:flex;align-items:center;gap:8px}
+.msg .who::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 10px var(--c)}
+.msg .txt{color:var(--ink)}
+.typing{display:flex;gap:5px;padding:6px 0}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--c,var(--cyan));animation:bob 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes bob{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+.ask{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:14px 18px 18px;border-top:1px solid var(--line)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.chips .chip{flex:none;white-space:nowrap}
+.ask form{display:flex;gap:10px}
+.ask input{flex:1;min-width:0;background:rgba(3,10,20,.7);border:1px solid var(--line-hi);border-radius:10px;padding:.8em 1em;color:var(--ink);font:400 1rem/1.2 var(--f-body)}
+.ask input::placeholder{color:var(--dim)}
+.w{border:1px solid var(--line);border-radius:14px;background:rgba(3,10,20,.55);padding:14px;display:grid;gap:12px}
+.w-title{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font:600 var(--t-micro)/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.pl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.pl div{display:grid;gap:4px}
+.pl span{font:500 var(--t-micro)/1 var(--f-mono);letter-spacing:.12em;color:var(--dim)}
+.pl b{font:700 1.25rem/1 var(--f-display);font-variant-numeric:tabular-nums}
+.bars{display:grid;gap:9px}
+.bar{display:grid;grid-template-columns:6.5em minmax(0,1fr) 7.5em;gap:10px;align-items:center;font-size:var(--t-small)}
+.bar .track{position:relative;height:10px;border-radius:5px;background:rgba(134,162,182,.14)}
+.bar .fill{position:absolute;inset:0 auto 0 0;border-radius:5px;background:var(--cyan);box-shadow:0 0 10px rgba(79,227,255,.5);width:0;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.bar .fill.hot{background:var(--amber);box-shadow:0 0 10px rgba(255,191,74,.5)}
+.bar .cap{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.55;border-radius:1px}
+.bar .num{text-align:right;font:500 .8rem/1 var(--f-mono);color:var(--dim);font-variant-numeric:tabular-nums}
+.jobs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px}
+.job{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:8px;align-content:start}
+.job h4{margin:0;font:600 1rem/1.25 var(--f-display)}
+.job p{font-size:var(--t-small);color:var(--dim)}
+.fit{display:flex;align-items:center;gap:10px;font:600 .8rem/1 var(--f-mono);color:var(--good)}
+.fit svg{width:34px;height:34px;flex:none}
+.rows{display:grid;gap:8px}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;font-size:var(--t-small)}
+.row .ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font:700 .7rem/1 var(--f-mono);background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--c)}
+.row small{display:block;color:var(--dim)}
+.pill{font:600 .68rem/1 var(--f-mono);letter-spacing:.08em;padding:.4em .6em;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.verdict{display:flex;align-items:center;gap:12px;font:700 1.1rem/1.2 var(--f-display)}
+.verdict i{width:14px;height:14px;border-radius:50%;flex:none}
+.flags{display:grid;gap:6px;margin:0;padding:0;list-style:none;font-size:var(--t-small)}
+.flags li{display:flex;gap:8px}
+.flags li::before{content:"!";font:700 .7rem/1.5 var(--f-mono);color:var(--bad);border:1px solid var(--bad);border-radius:4px;width:1.4em;text-align:center;flex:none}
+.flags li.ok::before{content:"✓";color:var(--good);border-color:var(--good)}
+.gauges{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.gauge{display:grid;justify-items:center;gap:4px;text-align:center}
+.gauge svg{width:min(78px,100%);height:auto}
+.gauge span{font:500 var(--t-micro)/1.3 var(--f-mono);letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+.spark{width:100%;height:auto;display:block}
+
+/* team */
+.team{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.agent{padding:18px;display:grid;gap:10px;align-content:start;border-radius:16px;border:1px solid var(--line);background:linear-gradient(180deg,color-mix(in srgb,var(--c) 7%,transparent),transparent 60%);transition:border-color .25s,transform .25s}
+.agent:hover{border-color:color-mix(in srgb,var(--c) 60%,transparent);transform:translateY(-2px)}
+.agent .orb{width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0 6%,var(--c) 22%,transparent 70%);box-shadow:0 0 22px color-mix(in srgb,var(--c) 70%,transparent)}
+.agent h3{font-size:1.05rem;letter-spacing:.16em}
+.agent .role{font:500 var(--t-micro)/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--c)}
+.agent p{font-size:var(--t-small);color:var(--dim)}
+.agent .night{font:400 .8rem/1.45 var(--f-mono);color:var(--ink);border-top:1px solid var(--line);padding-top:10px}
+
+/* privacy */
+.priv{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(20px,4vw,48px);align-items:center}
+.net{width:100%;height:auto;max-width:520px;justify-self:center}
+.net .link{stroke-dasharray:6 8;animation:flow 1.6s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-28}}
+.rules{display:grid;gap:14px;list-style:none;margin:0;padding:0}
+.rules li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:start}
+.rules li b{display:block;font:600 1.02rem/1.3 var(--f-display);letter-spacing:.02em}
+.rules li span{color:var(--dim);font-size:var(--t-small)}
+.rules .ck{width:28px;height:28px;border-radius:8px;border:1px solid var(--good);color:var(--good);display:grid;place-items:center;font:700 .85rem/1 var(--f-mono)}
+
+/* pricing */
+.plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.plan{padding:22px;display:grid;gap:14px;align-content:start}
+.plan.pick{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan),0 30px 80px -40px rgba(79,227,255,.6)}
+.plan h3{font-size:1.15rem;letter-spacing:.12em}
+.price{font:700 2rem/1 var(--f-display);font-variant-numeric:tabular-nums}
+.price small{font:500 .85rem/1 var(--f-mono);color:var(--dim)}
+.plan ul{margin:0;padding-left:1.1em;color:var(--dim);font-size:var(--t-small);display:grid;gap:6px}
+.closing{text-align:center;display:grid;gap:18px;justify-items:center}
+.closing h2{font-size:var(--t-h2);max-width:22ch}
+footer{border-top:1px solid var(--line);padding-block:26px;color:var(--dim);font:400 var(--t-small)/1.5 var(--f-mono)}
+
+@media (max-width:960px){
+  .hero-grid,.board,.priv{grid-template-columns:minmax(0,1fr)}
+  .stage{order:-1;aspect-ratio:1/1}
+  .team{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .plans{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:560px){
+  .team{grid-template-columns:minmax(0,1fr)}
+  .gauges{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bar{grid-template-columns:5.4em minmax(0,1fr) 6.6em}
+  .pl b{font-size:1.05rem}
+  .top nav{display:none}
+  .hint .long{display:none}.hint .short{display:inline}
+  .callout{left:12px;right:12px;bottom:12px;padding:9px 12px;font-size:.8rem}
+  .ln{grid-template-columns:minmax(0,1fr);gap:6px}
+  .ln .who{padding-top:0}
+  .console{height:min(600px,86vh)}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><i></i>KAIROS</div>
+    <nav aria-label="Sections"><a href="#briefing">Briefing</a><a href="#try">Try it</a><a href="#team">Team</a><a href="#privacy">Privacy</a><a href="#plans">Plans</a></nav>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <span class="eyebrow">Personal AI staff · Built in Singapore</span>
+      <h1>Wake up to a team that <em>already did the work.</em></h1>
+      <p class="lead">KAIROS is eight AI agents that run your money, inbox, studies, career and laptop overnight. When you wake up they report in, in their own voices, and they only act when you say yes.</p>
+      <div class="ctas">
+        <button class="btn primary" id="heroPlay" type="button">▶ Hear the morning briefing</button>
+        <a class="btn" href="#try">Give it a command</a>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>8</b><span>Agents on staff</span></div>
+        <div class="stat"><b>24/7</b><span>Laptop, phone, cloud</span></div>
+        <div class="stat"><b>0</b><span>Bank logins needed</span></div>
+      </div>
+    </div>
+    <div class="stage" id="stage" aria-label="Interactive 3D view of the eight agents orbiting the core">
+      <canvas id="gl"></canvas>
+      <div class="frame"></div>
+      <div class="hint"><span class="long">Drag to spin · pinch to zoom · tap an agent</span><span class="short">Drag · pinch · tap an agent</span></div>
+      <div class="labels" id="labels"></div>
+      <div class="callout" id="callout" aria-live="polite"><b style="color:var(--cyan)">KAIROS · CHIEF OF STAFF</b><span>Wrote your 12:04 PM briefing and is holding 1 approval for you.</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="briefing" style="border-top:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">The boardroom</span>
+      <h2>You open your phone. Your staff report in.</h2>
+      <p class="lead">This plays the first time you open KAIROS each day, whenever you wake up. Tap a line or a segment to jump. <span class="demo-tag">Demo data</span></p>
+    </div>
+    <div class="board">
+      <div class="panel brief">
+        <div class="brief-top">
+          <div class="clock">BRIEFING · <b id="clock">—</b></div>
+          <div class="controls">
+            <button class="toggle" id="voiceT" type="button" aria-pressed="true"><i></i>Voices</button>
+            <button class="btn primary" id="play" type="button">▶ Play</button>
+          </div>
+        </div>
+        <div class="scrub" id="scrub" aria-label="Jump to a line"></div>
+        <ol class="lines" id="lines"></ol>
+        <div class="approve" id="approve">
+          <p><b>1 approval waiting.</b> HERMES drafted a reply to your landlord confirming Saturday 11 AM. Nothing goes out until you tap.</p>
+          <button class="chip yes" id="yes" type="button">Yes, send it</button>
+          <button class="chip" id="no" type="button">Not now</button>
+        </div>
+      </div>
+      <div class="side">
+        <div class="panel why">
+          <span class="eyebrow" id="nowWho" style="color:var(--dim)">Speaking</span>
+          <div class="wave" id="wave" aria-hidden="true"></div>
+          <p>Every agent has its own voice and attitude, so you know who is talking without looking.</p>
+        </div>
+        <div class="panel why">
+          <h3>Nothing while you sleep</h3>
+          <p>Overnight news is held quietly and arrives as one “while you slept” report, the moment you open the app. If you haven't opened it by 1 PM, it comes as a voice note on Telegram.</p>
+        </div>
+        <div class="panel why">
+          <h3>Check-ins at 3 PM and 10 PM</h3>
+          <p>Where you stand on spending, tasks and applications, then the one next thing to do.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="try" style="background:linear-gradient(180deg,transparent,rgba(79,227,255,.035) 30%,transparent)">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Try it</span>
+      <h2>Ask your staff anything.</h2>
+      <p class="lead">Type a request or tap a suggestion. The right agent picks it up and answers with what you need to see. Paste any suspicious message and SENTINEL checks it for real. <span class="demo-tag">Demo data</span></p>
+    </div>
+    <div class="panel console">
+      <div class="con-head"><span><span class="dot"></span>STAFF ONLINE · 8/8</span><span>KAIROS CONSOLE</span></div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="ask">
+        <div class="chips" id="chips"></div>
+        <form id="form" autocomplete="off">
+          <input id="q" name="q" type="text" placeholder="e.g. what did I spend this month?" aria-label="Ask your staff">
+          <button class="btn primary" type="submit">Send</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="team" style="border-top:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">The team</span>
+      <h2>Eight specialists. One chief who reports to you.</h2>
+    </div>
+    <div class="team" id="teamGrid"></div>
+  </div>
+</section>
+
+<section id="privacy" style="border-top:1px solid var(--line)">
+  <div class="wrap priv">
+    <div style="display:grid;gap:22px;min-width:0">
+      <div class="sec-head" style="margin:0">
+        <span class="eyebrow">Private by design</span>
+        <h2>Your devices, your network, your rules.</h2>
+        <p class="lead">KAIROS lives on your phone, your computer and a server you own, joined by a private network only your devices can see.</p>
+      </div>
+      <ul class="rules">
+        <li><span class="ck">✓</span><div><b>Never logs into your bank</b><span>PLUTUS reads the alert emails your bank already sends you, with account numbers masked.</span></div></li>
+        <li><span class="ck">✓</span><div><b>One-time codes stay hidden</b><span>OTPs and verification codes are never read out, stored or summarised.</span></div></li>
+        <li><span class="ck">✓</span><div><b>Asks before it speaks for you</b><span>Messages to other people, purchases and job applications wait for your tap.</span></div></li>
+        <li><span class="ck">✓</span><div><b>Works with no internet</b><span>The phone keeps a solo brain for alarms, reminders and quick answers offline.</span></div></li>
+      </ul>
+    </div>
+    <svg class="net" viewBox="0 0 520 420" role="img" aria-label="Phone, computer and your own cloud server joined by a private network">
+      <defs><radialGradient id="ng"><stop offset="0" stop-color="#4fe3ff" stop-opacity=".45"/><stop offset="1" stop-color="#4fe3ff" stop-opacity="0"/></radialGradient></defs>
+      <circle cx="260" cy="200" r="150" fill="url(#ng)"/>
+      <circle cx="260" cy="200" r="118" fill="none" stroke="#4fe3ff" stroke-opacity=".18"/>
+      <g stroke="#4fe3ff" stroke-width="2" fill="none" stroke-opacity=".75">
+        <path class="link" d="M260 82 L120 300"/><path class="link" d="M260 82 L400 300"/><path class="link" d="M120 300 L400 300"/>
+      </g>
+      <g font-family="JetBrains Mono, monospace" font-size="13" letter-spacing="2" text-anchor="middle" fill="#e2f6ff">
+        <circle cx="260" cy="82" r="34" fill="#071322" stroke="#4fe3ff" stroke-width="2"/><rect x="250" y="64" width="20" height="36" rx="4" fill="none" stroke="#4fe3ff" stroke-width="2"/>
+        <text x="260" y="140">PHONE</text>
+        <circle cx="120" cy="300" r="34" fill="#071322" stroke="#ffbf4a" stroke-width="2"/><rect x="102" y="288" width="36" height="22" rx="3" fill="none" stroke="#ffbf4a" stroke-width="2"/><path d="M96 314 H144" stroke="#ffbf4a" stroke-width="2"/>
+        <text x="120" y="358">COMPUTER</text>
+        <circle cx="400" cy="300" r="34" fill="#071322" stroke="#5dffb0" stroke-width="2"/><rect x="386" y="284" width="28" height="10" rx="2" fill="none" stroke="#5dffb0" stroke-width="2"/><rect x="386" y="298" width="28" height="10" rx="2" fill="none" stroke="#5dffb0" stroke-width="2"/>
+        <text x="400" y="358">YOUR CLOUD</text>
+        <text x="260" y="226" fill="#86a2b6" font-size="11">PRIVATE NETWORK</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<section id="plans" style="border-top:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Plans</span>
+      <h2>Set up once. Updates itself.</h2>
+      <p class="lead"><span class="demo-tag">Example prices, not final</span></p>
+    </div>
+    <div class="plans">
+      <div class="panel plan"><h3>SOLO</h3><div class="price">S$0</div>
+        <ul><li>Install it yourself</li><li>Chief, money and inbox agents</li><li>Telegram and phone app</li></ul></div>
+      <div class="panel plan pick"><h3>PERSONAL</h3><div class="price">S$29 <small>/ month</small></div>
+        <ul><li>All eight agents</li><li>We set it up on your devices</li><li>Morning briefing, check-ins, voices</li><li>Nightly self-updates</li></ul></div>
+      <div class="panel plan"><h3>BUSINESS</h3><div class="price">S$99 <small>/ month / outlet</small></div>
+        <ul><li>Bookings and reminders for customers</li><li>Daily sales and expense report</li><li>Staff inbox triage</li><li>Owner approves anything that goes out</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section style="border-top:1px solid var(--line)">
+  <div class="wrap closing">
+    <span class="eyebrow">Your move, boss</span>
+    <h2>Stop managing your life. Start getting briefed on it.</h2>
+    <button class="btn primary" id="again" type="button">▶ Play the briefing again</button>
+  </div>
+</section>
+</main>
+
+<footer><div class="wrap">KAIROS preview build. Every name, figure and message on this page is demo data.</div></footer>
+
+<script src="vendor/three.min.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const AGENTS = [
+  {id:"kairos",  name:"KAIROS",  role:"Chief of staff", c:"#4fe3ff", pitch:.92, rate:1.0,
+   does:"Runs the team, briefs you when you wake, checks in at 3 PM and 10 PM, and holds anything that needs your yes.",
+   night:"Wrote your 12:04 PM briefing and is holding 1 approval for you."},
+  {id:"plutus",  name:"PLUTUS",  role:"Money", c:"#ffbf4a", pitch:1.15, rate:1.0,
+   does:"Reads your bank alert emails (never your banking app), keeps a daily P&L, watches budgets and finds subscriptions.",
+   night:"Logged 6 bank alerts. You spent S$46.80 yesterday."},
+  {id:"zeus",    name:"ZEUS",    role:"Career", c:"#ff8a3d", pitch:.78, rate:.96,
+   does:"Hunts jobs every morning, ranks them against your resume and writes each cover letter. You tap Submit.",
+   night:"Found 50 roles: 12 strong fits, letters drafted."},
+  {id:"hermes",  name:"HERMES",  role:"Inbox", c:"#7cf2c0", pitch:1.05, rate:1.08,
+   does:"Summarises email and chat as they arrive and reads out the ones that matter.",
+   night:"Read 14 emails overnight. 3 need you."},
+  {id:"athena",  name:"ATHENA",  role:"Studies", c:"#b39bff", pitch:1.22, rate:1.0,
+   does:"Tracks every assignment and exam and nudges you while there's still time.",
+   night:"Statistics report due Thursday, 11:59 PM."},
+  {id:"sentinel",name:"SENTINEL",role:"Scam shield", c:"#ff5d7a", pitch:.7, rate:.95,
+   does:"Checks messages and links for scam patterns and warns you before you tap.",
+   night:"Blocked 1 fake parcel-delivery SMS."},
+  {id:"oracle",  name:"ORACLE",  role:"Deals & intel", c:"#5ab8ff", pitch:1.0, rate:.98,
+   does:"Watches prices and your wishlists, and sends a short brief on opportunities.",
+   night:"A game on your wishlist dropped 60%."},
+  {id:"forge",   name:"FORGE",   role:"Laptop care", c:"#9be15d", pitch:.85, rate:1.04,
+   does:"Keeps your laptop clean, backed up and healthy overnight.",
+   night:"Freed 3.2 GB. Backup finished at 4:10 AM."},
+];
+const A = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+
+/* ───────── clock ───────── */
+const now = new Date();
+const clockStr = now.toLocaleDateString("en-SG", {weekday:"short", day:"numeric", month:"short"}).toUpperCase() + " · 12:04 PM";
+$("#clock").textContent = clockStr;
+
+/* ───────── 3D hero ───────── */
+const stage = $("#stage"), canvas = $("#gl"), labelsBox = $("#labels"), callout = $("#callout");
+let three = null;
+function showAgent(a) {
+  callout.innerHTML = `<b style="color:${a.c}">${a.name} · ${a.role.toUpperCase()}</b><span>${a.night}</span>`;
+  labelsBox.querySelectorAll(".tag").forEach(t => t.classList.toggle("on", t.dataset.id === a.id));
+  if (three) three.focus(a.id);
+}
+const tags = AGENTS.map(a => {
+  const b = el("button", "tag", a.name); b.type = "button"; b.dataset.id = a.id; b.style.setProperty("--c", a.c);
+  b.addEventListener("click", e => { e.stopPropagation(); showAgent(a); });
+  labelsBox.appendChild(b); return b;
+});
+
+function initThree() {
+  if (!window.THREE) throw new Error("no three");
+  const T = THREE;
+  const renderer = new T.WebGLRenderer({canvas, antialias:true, alpha:true, powerPreference:"high-performance"});
+  let pr = Math.min(devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(pr);
+  const scene = new T.Scene();
+  const camera = new T.PerspectiveCamera(40, 1, .1, 100);
+  let camZ = 8.2, camZt = 8.2;
+  const rig = new T.Group(); scene.add(rig);
+  const ADD = T.AdditiveBlending;
+
+  // core: fresnel shell + wire icosahedron + hot heart
+  const shellMat = new T.ShaderMaterial({
+    uniforms:{uT:{value:0}, uC:{value:new T.Color(0x4fe3ff)}},
+    vertexShader:`varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix*vec4(position,1.); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }`,
+    fragmentShader:`uniform float uT; uniform vec3 uC; varying vec3 vN; varying vec3 vV;
+      void main(){ float f = pow(1. - max(dot(vN, vV), 0.), 2.3); float scan = .5 + .5*sin(vN.y*28. - uT*3.);
+        gl_FragColor = vec4(uC*(f*1.5 + scan*.05), f*.95 + scan*.03); }`,
+    transparent:true, blending:ADD, depthWrite:false});
+  rig.add(new T.Mesh(new T.SphereGeometry(.95, 48, 32), shellMat));
+  const wire = new T.LineSegments(new T.EdgesGeometry(new T.IcosahedronGeometry(1.12, 1)),
+    new T.LineBasicMaterial({color:0x4fe3ff, transparent:true, opacity:.55, blending:ADD, depthWrite:false}));
+  rig.add(wire);
+  const wire2 = new T.LineSegments(new T.EdgesGeometry(new T.OctahedronGeometry(.55, 0)),
+    new T.LineBasicMaterial({color:0xffbf4a, transparent:true, opacity:.9, blending:ADD, depthWrite:false}));
+  rig.add(wire2);
+
+  function glowTex() {
+    const c = document.createElement("canvas"); c.width = c.height = 128; const g = c.getContext("2d");
+    const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(.18, "rgba(255,255,255,.75)"); r.addColorStop(.45, "rgba(255,255,255,.18)"); r.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = r; g.fillRect(0, 0, 128, 128); return new T.CanvasTexture(c);
+  }
+  const GT = glowTex();
+  const heart = new T.Sprite(new T.SpriteMaterial({map:GT, color:0x9ff3ff, blending:ADD, transparent:true, depthWrite:false}));
+  heart.scale.setScalar(1.6); rig.add(heart);
+
+  // orbit rings
+  function ring(r, tx, tz, color, op) {
+    const pts = []; for (let i = 0; i <= 160; i++) { const a = i / 160 * Math.PI * 2; pts.push(new T.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r)); }
+    const l = new T.LineLoop(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({color, transparent:true, opacity:op, blending:ADD, depthWrite:false}));
+    l.rotation.set(tx, 0, tz); rig.add(l); return l;
+  }
+  const orbit = new T.Group(); orbit.rotation.set(.38, 0, -.12); rig.add(orbit);
+  const R = 2.55;
+  ring(R, .38, -.12, 0x4fe3ff, .35);
+  const r2 = ring(1.55, 1.25, .4, 0xffbf4a, .22), r3 = ring(1.75, -1.0, -.7, 0x4fe3ff, .16);
+
+  // particle disc (animated on the GPU)
+  const N = innerWidth < 700 ? 1100 : 2000;
+  const seed = new Float32Array(N * 3), size = new Float32Array(N), tint = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const rr = 1.5 + Math.pow(Math.random(), .7) * 2.6;
+    seed[i*3] = rr; seed[i*3+1] = Math.random() * Math.PI * 2; seed[i*3+2] = (Math.random() - .5) * .28 * (rr - 1.2);
+    size[i] = .6 + Math.random() * 1.8; tint[i] = Math.random() < .14 ? 1 : 0;
+  }
+  const pg = new T.BufferGeometry();
+  pg.setAttribute("position", new T.BufferAttribute(seed, 3));
+  pg.setAttribute("aSize", new T.BufferAttribute(size, 1));
+  pg.setAttribute("aTint", new T.BufferAttribute(tint, 1));
+  const pMat = new T.ShaderMaterial({
+    uniforms:{uT:{value:0}, uPR:{value:pr}},
+    vertexShader:`attribute float aSize; attribute float aTint; uniform float uT; uniform float uPR; varying float vT; varying float vA;
+      void main(){ float r = position.x; float a = position.y + uT*(.55/r);
+        vec3 p = vec3(cos(a)*r, position.z + sin(a*3. + uT)*.03, sin(a)*r);
+        vec4 mv = modelViewMatrix*vec4(p,1.); gl_Position = projectionMatrix*mv;
+        gl_PointSize = aSize*uPR*(22./-mv.z); vT = aTint; vA = .45 + .55*sin(uT*2.+position.y*9.); }`,
+    fragmentShader:`varying float vT; varying float vA; void main(){ float d = length(gl_PointCoord-.5); float a = smoothstep(.5,.0,d);
+        vec3 c = mix(vec3(.31,.89,1.), vec3(1.,.75,.29), vT); gl_FragColor = vec4(c, a*(.35+.5*vA)); }`,
+    transparent:true, blending:ADD, depthWrite:false});
+  const disc = new T.Points(pg, pMat); disc.rotation.copy(orbit.rotation); rig.add(disc);
+
+  // agents
+  const nodes = AGENTS.map((a, i) => {
+    const g = new T.Group();
+    const s = new T.Sprite(new T.SpriteMaterial({map:GT, color:new T.Color(a.c), blending:ADD, transparent:true, depthWrite:false}));
+    s.scale.setScalar(.7); g.add(s);
+    const dot = new T.Mesh(new T.SphereGeometry(.075, 16, 12), new T.MeshBasicMaterial({color:0xffffff}));
+    g.add(dot);
+    orbit.add(g);
+    return {a, g, s, base:i / AGENTS.length * Math.PI * 2, bob:Math.random() * 6};
+  });
+  const beamPos = new Float32Array(AGENTS.length * 6), beamCol = new Float32Array(AGENTS.length * 6);
+  const beamGeo = new T.BufferGeometry();
+  beamGeo.setAttribute("position", new T.BufferAttribute(beamPos, 3));
+  beamGeo.setAttribute("color", new T.BufferAttribute(beamCol, 3));
+  const beams = new T.LineSegments(beamGeo, new T.LineBasicMaterial({vertexColors:true, transparent:true, opacity:.5, blending:ADD, depthWrite:false}));
+  orbit.add(beams);
+
+  // interaction
+  let rotY = .4, rotX = .08, vY = 0, vX = 0, dragging = false, lastInput = -9e9, focusId = "kairos", pulse = 0;
+  const pts = new Map(); let pinch0 = 0, camZ0 = camZt, pinched = false;
+  stage.addEventListener("pointerdown", e => {
+    if (e.target.closest(".tag")) return;
+    pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if (pts.size === 2) { const [p, q] = [...pts.values()]; pinch0 = Math.hypot(p.x - q.x, p.y - q.y); camZ0 = camZt; }
+    dragging = true; stage.classList.add("grab"); lastInput = performance.now();
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  stage.addEventListener("pointermove", e => {
+    const p = pts.get(e.pointerId); if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0) { camZt = Math.min(11, Math.max(5.4, camZ0 * pinch0 / d)); pinched = true; } }
+    else { vY = dx * .006; vX = dy * .004; rotY += vY; rotX = Math.max(-.6, Math.min(.7, rotX + vX)); }
+    lastInput = performance.now();
+  });
+  const up = e => { pts.delete(e.pointerId); if (!pts.size) { dragging = false; stage.classList.remove("grab"); } pinch0 = 0; };
+  stage.addEventListener("pointerup", up); stage.addEventListener("pointercancel", up);
+
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w / h;
+    camera.fov = w / h < 1.05 ? 46 : 40; camera.updateProjectionMatrix();
+    if (!pinched) camZt = w / h < 1.05 ? 9.3 : 8.2;
+  }
+  new ResizeObserver(resize).observe(stage); resize();
+
+  let visible = true;
+  new IntersectionObserver(es => { visible = es[0].isIntersecting; if (visible) loop(); }, {threshold:0}).observe(stage);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) loop(); });
+
+  const v = new T.Vector3(), cv = new T.Vector3();
+  let t = 0, last = performance.now(), slow = 0, running = false;
+  const color = new T.Color();
+  function frame(nowT) {
+    if (!visible || document.hidden) { running = false; return; }
+    requestAnimationFrame(frame);
+    const dt = Math.min(.05, (nowT - last) / 1000); last = nowT;
+    // adapt: drop resolution if the device is struggling
+    if (dt > .024) { if (++slow > 45 && pr > 1) { pr = 1; renderer.setPixelRatio(pr); pMat.uniforms.uPR.value = pr; resize(); slow = 0; } } else slow = Math.max(0, slow - 1);
+    t += dt * (REDUCED ? .3 : 1);
+    if (!dragging) {
+      vY *= .94; vX *= .9; rotY += vY;
+      if (nowT - lastInput > 1800) rotY += dt * .12;
+      rotX += (.08 - rotX) * .02;
+    }
+    rig.rotation.y = rotY; rig.rotation.x = rotX;
+    camZ += (camZt - camZ) * .12; camera.position.set(0, .35, camZ); camera.lookAt(0, 0, 0);
+    shellMat.uniforms.uT.value = t; pMat.uniforms.uT.value = t;
+    wire.rotation.y = t * .25; wire.rotation.z = t * .1;
+    wire2.rotation.x = -t * .6; wire2.rotation.y = t * .4;
+    r2.rotation.y = t * .3; r3.rotation.y = -t * .22;
+    pulse = Math.max(0, pulse - dt * 1.4);
+    heart.scale.setScalar(1.5 + Math.sin(t * 2.2) * .08 + pulse * .6);
+    const w = stage.clientWidth, h = stage.clientHeight;
+    cv.set(0, 0, 0).applyMatrix4(rig.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+    nodes.forEach((n, i) => {
+      const a = n.base + t * .16;
+      n.g.position.set(Math.cos(a) * R, Math.sin(t * 1.3 + n.bob) * .08, Math.sin(a) * R);
+      const on = n.a.id === focusId;
+      n.s.scale.setScalar((on ? 1.05 : .7) + Math.sin(t * 3 + i) * .05);
+      beamPos.set([0, 0, 0, n.g.position.x, n.g.position.y, n.g.position.z], i * 6);
+      color.set(n.a.c).multiplyScalar(on ? 1 : .35);
+      beamCol.set([color.r * .3, color.g * .3, color.b * .3, color.r, color.g, color.b], i * 6);
+    });
+    beamGeo.attributes.position.needsUpdate = true; beamGeo.attributes.color.needsUpdate = true;
+    scene.updateMatrixWorld();
+    nodes.forEach((n, i) => {
+      n.g.getWorldPosition(v);
+      const z = v.clone().applyMatrix4(camera.matrixWorldInverse).z;
+      v.project(camera);
+      const x = (v.x * .5 + .5) * w, y = (-v.y * .5 + .5) * h;
+      const front = z > cv.z - .2;
+      tags[i].style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-165%)`;
+      tags[i].style.opacity = front ? 1 : .38;
+      tags[i].style.zIndex = front ? 2 : 1;
+    });
+    renderer.render(scene, camera);
+  }
+  function loop() { if (running) return; running = true; last = performance.now(); requestAnimationFrame(frame); }
+  loop();
+  return {focus(id){ focusId = id; pulse = 1; }};
+}
+try { three = initThree(); } catch (err) { document.documentElement.classList.add("nogl"); labelsBox.hidden = true; }
+
+/* ───────── boardroom briefing ───────── */
+const LINES = [
+  {a:"kairos",  t:"Good afternoon, boss. Thirty-one degrees and clear in Tampines, light rain after five. Three things need you today."},
+  {a:"plutus",  t:"Yesterday you spent forty-six eighty, mostly food. This month: two thousand in, eleven eighty-four out. You're up eight hundred and sixteen. Food budget is at eighty-two percent."},
+  {a:"zeus",    t:"I lined up fifty roles overnight. Twelve are strong fits and every cover letter is written. Nine can go by email the moment you tap Send all."},
+  {a:"hermes",  t:"Fourteen emails came in while you slept. Three matter: your landlord confirmed Saturday's viewing, a recruiter wants an interview slot, and your PayNow from Ryan arrived."},
+  {a:"athena",  t:"Your statistics report is due Thursday at eleven fifty-nine. You're forty percent through. Two hours today keeps you safe."},
+  {a:"sentinel",t:"I blocked one scam overnight: a fake parcel message asking for your card details. Don't open links about held parcels."},
+  {a:"oracle",  t:"A game on your wishlist is sixty percent off until Friday. Twenty-three ninety-six, its lowest price this year."},
+  {a:"forge",   t:"Laptop is healthy. I cleared three point two gigabytes and the backup finished at four ten."},
+  {a:"kairos",  t:"One approval is waiting for you below. That's the briefing, boss."},
+];
+// what the screen shows (numbers as numbers) vs what the voice says
+const SHOW = [
+  "Good afternoon, boss. 31°C and clear in Tampines, light rain after 5 PM. Three things need you today.",
+  "Yesterday you spent S$46.80, mostly food. This month: S$2,000 in, S$1,184 out. You're up S$816. Food budget is at 82%.",
+  "I lined up 50 roles overnight. 12 are strong fits and every cover letter is written. 9 can go by email the moment you tap Send all.",
+  "14 emails came in while you slept. 3 matter: your landlord confirmed Saturday's viewing, a recruiter wants an interview slot, and your PayNow from Ryan arrived.",
+  "Your statistics report is due Thursday at 11:59 PM. You're 40% through. Two hours today keeps you safe.",
+  "I blocked 1 scam overnight: a fake parcel message asking for your card details. Don't open links about held parcels.",
+  "A game on your wishlist is 60% off until Friday: S$23.96, its lowest price this year.",
+  "Laptop is healthy. I cleared 3.2 GB and the backup finished at 4:10 AM.",
+  "1 approval is waiting for you below. That's the briefing, boss.",
+];
+const linesBox = $("#lines"), scrub = $("#scrub");
+const rows = LINES.map((L, i) => {
+  const a = A[L.a];
+  const li = el("li", "ln");
+  li.style.setProperty("--c", a.c);
+  li.innerHTML = `<span class="who">${a.name}</span><span class="say"></span>`;
+  li.querySelector(".say").textContent = SHOW[i];
+  li.addEventListener("click", () => play(i));
+  linesBox.appendChild(li);
+  const s = el("button", "seg", "<span><i></i></span>"); s.type = "button"; s.style.setProperty("--c", a.c);
+  s.setAttribute("aria-label", `Jump to ${a.name}`); s.addEventListener("click", () => play(i)); scrub.appendChild(s);
+  return {li, say:li.querySelector(".say"), seg:s, bar:s.querySelector("i")};
+});
+rows.forEach(r => r.seg.classList.add("done"));
+
+// voice
+const synth = window.speechSynthesis;
+let voiceOn = !!synth, voices = [];
+const voiceT = $("#voiceT");
+if (!synth) { voiceT.setAttribute("aria-pressed", "false"); voiceT.disabled = true; voiceT.title = "This browser has no speech"; }
+function loadVoices() { try { voices = synth.getVoices().filter(v => /^en/i.test(v.lang)); } catch (_) { voices = []; } }
+if (synth) { loadVoices(); synth.addEventListener?.("voiceschanged", loadVoices); }
+voiceT.addEventListener("click", () => { voiceOn = !voiceOn; voiceT.setAttribute("aria-pressed", String(voiceOn)); if (!voiceOn) try { synth.cancel(); } catch (_) {} });
+function pickVoice(i) {
+  if (!voices.length) return null;
+  const pref = voices.filter(v => /en-(GB|SG|AU|IN)/i.test(v.lang));
+  const pool = pref.length >= 2 ? pref : voices;
+  return pool[i % pool.length];
+}
+function speak(text, a, my) {
+  return new Promise(res => {
+    if (!voiceOn || !synth) return res();
+    let done = false; const fin = () => { if (!done) { done = true; res(); } };
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      const vi = AGENTS.indexOf(a); const v = pickVoice(vi); if (v) u.voice = v;
+      u.pitch = a.pitch; u.rate = a.rate * 1.02; u.onend = fin; u.onerror = fin;
+      synth.speak(u);
+      setTimeout(fin, text.length * 95 + 4000); // never hang if the browser drops the end event
+    } catch (_) { fin(); }
+  });
+}
+
+// waveform
+const wave = $("#wave"), bars = Array.from({length:40}, () => { const i = el("i"); wave.appendChild(i); return i; });
+let waveC = null, waveLive = false;
+(function waveLoop(t) {
+  requestAnimationFrame(waveLoop);
+  bars.forEach((b, i) => {
+    const h = waveLive ? 18 + Math.abs(Math.sin(t / 140 + i * .7) * Math.sin(t / 330 + i * .23)) * 82 : 6 + Math.sin(t / 900 + i * .4) * 3;
+    b.style.height = h.toFixed(0) + "%";
+  });
+})(0);
+function setSpeaker(a) {
+  waveLive = !!a;
+  wave.style.setProperty("--wc", a ? a.c : "var(--cyan)");
+  const lab = $("#nowWho"); lab.textContent = a ? `Speaking · ${a.name}` : "Speaking"; lab.style.color = a ? a.c : "var(--dim)";
+}
+
+let run = 0;
+const playBtn = $("#play");
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function play(from = 0) {
+  const my = ++run;
+  try { synth && synth.cancel(); } catch (_) {}
+  playBtn.textContent = "■ Stop";
+  rows.forEach((r, i) => { r.li.className = "ln " + (i < from ? "" : "wait"); r.seg.classList.toggle("done", i < from); r.bar.style.width = ""; if (i >= from) r.say.textContent = SHOW[i]; });
+  for (let i = from; i < LINES.length; i++) {
+    if (my !== run) return;
+    const r = rows[i], a = A[LINES[i].a], full = SHOW[i];
+    r.li.className = "ln live"; r.say.textContent = "";
+    r.li.scrollIntoView({block:"nearest", behavior:REDUCED ? "auto" : "smooth"});
+    setSpeaker(a); showAgent(a);
+    const dur = Math.max(1600, full.length * (voiceOn ? 52 : 34));
+    const typing = (async () => {
+      const t0 = performance.now();
+      while (my === run) {
+        const k = Math.min(1, (performance.now() - t0) / dur);
+        r.say.textContent = full.slice(0, Math.ceil(full.length * k)); r.bar.style.width = (k * 100).toFixed(1) + "%";
+        if (k >= 1) break; await sleep(30);
+      }
+    })();
+    await Promise.all([typing, speak(LINES[i].t, a, my), sleep(voiceOn ? 0 : 500)]);
+    if (my !== run) return;
+    r.li.className = "ln"; r.seg.classList.add("done"); r.bar.style.width = "";
+  }
+  if (my === run) { setSpeaker(null); playBtn.textContent = "▶ Play"; $("#approve").animate?.([{boxShadow:"0 0 0 0 rgba(255,191,74,.6)"}, {boxShadow:"0 0 0 14px rgba(255,191,74,0)"}], {duration:900, iterations:2}); }
+}
+function stop() {
+  run++; try { synth && synth.cancel(); } catch (_) {}
+  setSpeaker(null); playBtn.textContent = "▶ Play";
+  rows.forEach((r, i) => { r.li.className = "ln"; r.say.textContent = SHOW[i]; r.seg.classList.add("done"); r.bar.style.width = ""; });
+}
+playBtn.addEventListener("click", () => playBtn.textContent.includes("Stop") ? stop() : play(0));
+const goBrief = () => { $("#briefing").scrollIntoView({behavior:REDUCED ? "auto" : "smooth"}); play(0); };
+$("#heroPlay").addEventListener("click", goBrief);
+$("#again").addEventListener("click", goBrief);
+$("#yes").addEventListener("click", () => { $("#approve").innerHTML = `<p><b style="color:var(--good)">Sent.</b> HERMES replied to your landlord: “Saturday 11 AM works, see you then.” (Demo, nothing was actually sent.)</p>`; });
+$("#no").addEventListener("click", () => { $("#approve").innerHTML = `<p><b>Held.</b> KAIROS will remind you at the 3 PM check-in.</p>`; });
+
+/* ───────── team grid ───────── */
+const teamGrid = $("#teamGrid");
+AGENTS.forEach(a => {
+  const c = el("article", "agent");
+  c.style.setProperty("--c", a.c);
+  c.innerHTML = `<div class="orb"></div><div><h3>${a.name}</h3><div class="role">${a.role}</div></div><p>${a.does}</p><div class="night">Last night: ${a.night}</div>`;
+  c.addEventListener("click", () => { showAgent(a); stage.scrollIntoView({behavior:REDUCED ? "auto" : "smooth", block:"center"}); });
+  teamGrid.appendChild(c);
+});
+
+/* ───────── console ───────── */
+const log = $("#log");
+const money = n => "S$" + n.toLocaleString("en-SG", {minimumFractionDigits:n % 1 ? 2 : 0, maximumFractionDigits:2});
+const W = {
+  money() {
+    const cats = [["Food",412,500],["Transport",138,180],["Shopping",260,300],["Bills",290,300],["Fun",84,150]];
+    const max = 520;
+    return `<div class="w"><div class="w-title"><span>November so far</span><span>From 23 bank alerts</span></div>
+      <div class="pl"><div><span>IN</span><b style="color:var(--good)">${money(2000)}</b></div><div><span>OUT</span><b style="color:var(--bad)">${money(1184)}</b></div><div><span>NET</span><b style="color:var(--cyan)">+${money(816)}</b></div></div>
+      <div class="bars">${cats.map(([n, s, b]) => `<div class="bar"><span>${n}</span><div class="track"><div class="fill${s / b >= .8 ? " hot" : ""}" data-w="${(s / max * 100).toFixed(1)}"></div><div class="cap" style="left:${(b / max * 100).toFixed(1)}%"></div></div><span class="num">${money(s)} / ${b}</span></div>`).join("")}</div>
+      <div class="w-title"><span>│ = your budget · amber = over 80%</span></div></div>`;
+  },
+  jobs() {
+    const J = [["Junior Data Analyst","Northwind Analytics","One-north · Hybrid","S$3.8k–4.6k",91],["Operations Executive","Harbourline Logistics","Changi · On-site","S$3.2k–3.9k",86],["Customer Success Associate","Bluepeak Software","Raffles Place · Hybrid","S$3.5k–4.2k",82]];
+    return `<div class="w"><div class="w-title"><span>Top fits today</span><span>12 strong · 50 found</span></div><div class="jobs">${J.map(([t, c, w, p, f]) => `
+      <div class="job"><div class="fit">${ring(f / 100, "var(--good)")}${f}% fit</div><h4>${t}</h4><p>${c}<br>${w} · ${p}</p><button class="chip" type="button" data-act="letter">Copy letter &amp; open</button></div>`).join("")}</div></div>`;
+  },
+  study() {
+    const D = [["THU 11:59 PM","Statistics report",40,"var(--amber)"],["FRI 2:00 PM","Group presentation slides",70,"var(--cyan)"],["MON 9:00 AM","Quiz 3 (chapters 4–6)",0,"var(--bad)"]];
+    return `<div class="w"><div class="w-title"><span>Due in the next 7 days</span><span>3 items</span></div><div class="rows">${D.map(([d, n, p, c]) => `
+      <div class="row" style="--c:${c}"><span class="ic">${p}%</span><div>${n}<small>${d}</small></div><span class="pill" style="color:${c}">${p === 0 ? "NOT STARTED" : p >= 70 ? "ON TRACK" : "START TODAY"}</span></div>`).join("")}</div></div>`;
+  },
+  inbox() {
+    const M = [["LL","#7cf2c0","Landlord","Saturday viewing confirmed, 11 AM","REPLY DRAFTED"],["RC","#ffbf4a","Recruiter, Northwind","Interview: Mon 3 PM or Tue 10 AM?","NEEDS YOU"],["BK","#5ab8ff","Bank alert","PayNow S$120.00 received · a/c ••21","LOGGED"]];
+    return `<div class="w"><div class="w-title"><span>3 that matter</span><span>11 promos filed</span></div><div class="rows">${M.map(([i, c, f, s, p]) => `
+      <div class="row" style="--c:${c}"><span class="ic">${i}</span><div>${f}<small>${s}</small></div><span class="pill" style="color:${c}">${p}</span></div>`).join("")}</div></div>`;
+  },
+  deals() {
+    const P = [59.9,59.9,47.9,59.9,59.9,41.9,59.9,59.9,35.9,59.9,23.96];
+    const w = 320, h = 90, mx = 64, mn = 20, x = i => 8 + i / (P.length - 1) * (w - 16), y = v => 10 + (1 - (v - mn) / (mx - mn)) * (h - 24);
+    const d = P.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+    return `<div class="w"><div class="w-title"><span>Wishlist · Starfall Tactics</span><span style="color:var(--good)">−60% · until Fri</span></div>
+      <svg class="spark" viewBox="0 0 ${w} ${h}" role="img" aria-label="Price over the last 11 weeks, now S$23.96, the lowest">
+        <line x1="8" x2="${w - 8}" y1="${y(59.9)}" y2="${y(59.9)}" stroke="#86a2b6" stroke-opacity=".3" stroke-dasharray="3 4"/>
+        <path d="${d} L${x(P.length - 1)} ${h - 4} L8 ${h - 4} Z" fill="#5ab8ff" fill-opacity=".12"/>
+        <path d="${d}" fill="none" stroke="#5ab8ff" stroke-width="2"/>
+        <circle cx="${x(P.length - 1)}" cy="${y(23.96)}" r="5" fill="#5dffb0"/>
+        <text x="${w - 14}" y="${y(23.96) - 10}" text-anchor="end" fill="#5dffb0" font-family="JetBrains Mono, monospace" font-size="12">S$23.96</text>
+        <text x="12" y="${y(59.9) - 6}" fill="#86a2b6" font-family="JetBrains Mono, monospace" font-size="11">usual S$59.90</text>
+      </svg></div>`;
+  },
+  laptop() {
+    const G = [["Disk", .61, "61%", "var(--cyan)"],["Battery", .88, "88%", "var(--good)"],["Temp", .52, "52°C", "var(--amber)"],["Backup", 1, "4:10", "var(--good)"]];
+    return `<div class="w"><div class="w-title"><span>Laptop health</span><span>Checked 3:50 AM</span></div><div class="gauges">${G.map(([n, v, l, c]) => `
+      <div class="gauge">${gauge(v, c, l)}<span>${n}</span></div>`).join("")}</div></div>`;
+  },
+};
+function ring(v, c) {
+  const r = 14, C = 2 * Math.PI * r;
+  return `<svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="${r}" fill="none" stroke="#86a2b6" stroke-opacity=".2" stroke-width="3"/><circle cx="17" cy="17" r="${r}" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${(C * v).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 17 17)"/></svg>`;
+}
+function gauge(v, c, label) {
+  const r = 32, C = 2 * Math.PI * r;
+  return `<svg viewBox="0 0 80 80" role="img" aria-label="${label}"><circle cx="40" cy="40" r="${r}" fill="none" stroke="#86a2b6" stroke-opacity=".18" stroke-width="6"/><circle cx="40" cy="40" r="${r}" fill="none" stroke="${c}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(C * v).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 40 40)" style="filter:drop-shadow(0 0 4px ${c})"/><text x="40" y="45" text-anchor="middle" fill="#e2f6ff" font-family="Chakra Petch, sans-serif" font-weight="700" font-size="16">${label}</text></svg>`;
+}
+
+// SENTINEL's real check on whatever message you paste
+function scamCheck(raw) {
+  const m = raw.replace(/^.*?(scam|legit|safe|suspicious)\??[:\s]*/i, "").replace(/^["“']|["”']$/g, "").trim();
+  const text = m.length > 12 ? m : raw;
+  const checks = [
+    [/https?:\/\/|\b[\w-]+\.(co|xyz|top|info|link|cc|io|site|online|click|vip)\b(\/|\s|$)/i, "Has a link. Real companies rarely text you links to pay."],
+    [/24\s?h|urgent|immediately|within \d+|final (notice|reminder)|suspend|expire|today only|last chance/i, "Rushes you with a deadline."],
+    [/pay|fee|s\$|\$\d|card|bank|transfer|otp|pin|password|cvv|verify your/i, "Asks for money, card details or codes."],
+    [/won|winner|prize|reward|free gift|lucky|congratulations|claim/i, "Promises a prize or reward."],
+    [/parcel|delivery|customs|police|ministry|gov|tax|refund|ica|mom\b/i, "Pretends to be a courier or government office."],
+    [/whatsapp me|telegram me|add me|kindly|dear customer|dear sir/i, "Uses scammer phrasing."],
+  ];
+  const hits = checks.filter(([re]) => re.test(text)).map(([, why]) => why);
+  const lvl = hits.length >= 3 ? ["Very likely a scam", "var(--bad)"] : hits.length >= 1 ? ["Be careful", "var(--amber)"] : ["No scam signs found", "var(--good)"];
+  const advice = hits.length >= 3 ? "Don't tap the link or reply. Delete it, and report it to the ScamShield app if you have it." : hits.length ? "Check with the company on its official app or number before doing anything." : "Looks normal. Still never share one-time codes with anyone.";
+  return {say: `${lvl[0]}. ${advice}`, html:`<div class="w"><div class="w-title"><span>SENTINEL check</span><span>${hits.length} of ${checks.length} warning signs</span></div>
+    <div class="verdict" style="color:${lvl[1]}"><i style="background:${lvl[1]};box-shadow:0 0 12px ${lvl[1]}"></i>${lvl[0]}</div>
+    <ul class="flags">${hits.length ? hits.map(h => `<li>${esc(h)}</li>`).join("") : `<li class="ok">No links, pressure, payment asks or impersonation.</li>`}</ul>
+    <div style="font-size:var(--t-small);color:var(--dim)">Checked: “${esc(text.slice(0, 140))}${text.length > 140 ? "…" : ""}”</div></div>`};
+}
+function esc(s) { return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+const SAMPLE_SCAM = "Is this a scam? “Your parcel is on hold. Pay S$1.99 redelivery fee at parcel-redeliver.co within 24h”";
+const INTENTS = [
+  {re:/brief|morning|report in|team report|status/i, run:() => { setTimeout(goBrief, 600); return {a:"kairos", say:"Pulling the team into the boardroom now. Scroll up, it's starting."}; }},
+  {re:/scam|legit|suspicious|is this (safe|real)|phish|sms/i, run:q => { const r = scamCheck(q); return {a:"sentinel", say:r.say, html:r.html}; }},
+  {re:/spen[dt]|money|p&l|p ?and ?l|budget|expense|saving|income|bank|paynow/i, run:() => ({a:"plutus", say:"You're up S$816 this month. Food is the one to watch: S$412 of your S$500 budget with five days left.", html:W.money()})},
+  {re:/job|apply|career|resume|cv|interview|hiring|work/i, run:() => ({a:"zeus", say:"Fifty fresh roles this morning, twelve strong fits. Here are the top three; each letter is already written for you.", html:W.jobs()})},
+  {re:/assign|due|exam|study|deadline|quiz|homework|school|uni/i, run:() => ({a:"athena", say:"Three things in the next week. The statistics report is the urgent one: forty percent done, due Thursday night.", html:W.study()})},
+  {re:/e-?mail|inbox|mail|message|whatsapp|chat/i, run:() => ({a:"hermes", say:"Fourteen came in, three matter. I've drafted the landlord reply; it waits for your yes.", html:W.inbox()})},
+  {re:/deal|sale|price|steam|game|discount|cheap/i, run:() => ({a:"oracle", say:"Your wishlist game hit its lowest price of the year: S$23.96, sixty percent off until Friday.", html:W.deals()})},
+  {re:/laptop|pc|computer|storage|disk|backup|battery|slow/i, run:() => ({a:"forge", say:"All healthy. I cleared 3.2 GB of junk and the backup finished at 4:10 AM.", html:W.laptop()})},
+  {re:/^(hi|hey|hello|yo|sup)\b|who are you|what can you/i, run:() => ({a:"kairos", say:"I'm KAIROS, chief of staff. My team covers your money, jobs, studies, inbox, scams, deals and laptop. Pick one below and I'll hand you to the right agent."})},
+];
+const CHIPS = ["What did I spend this month?", "Find me jobs", SAMPLE_SCAM, "What's due this week?", "Anything important in my inbox?", "Any game deals?", "How's my laptop?", "Brief me"];
+const chipBox = $("#chips");
+CHIPS.forEach(c => { const b = el("button", "chip", esc(c.length > 34 ? "Is this SMS a scam?" : c)); b.type = "button"; b.addEventListener("click", () => ask(c)); chipBox.appendChild(b); });
+
+function addMsg(cls, inner, c) { const m = el("div", "msg " + cls, inner); if (c) m.style.setProperty("--c", c); log.appendChild(m); log.scrollTop = log.scrollHeight; return m; }
+function respond(q) {
+  for (const it of INTENTS) if (it.re.test(q)) return it.run(q);
+  return {a:"kairos", say:"I'm not sure which agent should take that one, so I won't guess. Try one of the suggestions below, or ask about money, jobs, deadlines, email, scams, deals or your laptop."};
+}
+let busy = false; const queue = [];
+async function ask(q, instant) {
+  q = q.trim(); if (!q) return;
+  if (busy) { queue.push(q); return; }   // never drop a request: answer it next
+  busy = true;
+  addMsg("me", esc(q));
+  const r = respond(q), a = A[r.a];
+  const m = addMsg("bot", `<span class="who">${a.name}</span>`, a.c);
+  if (!instant) { const t = el("div", "typing", "<i></i><i></i><i></i>"); m.appendChild(t); log.scrollTop = log.scrollHeight; await sleep(550 + Math.random() * 350); t.remove(); }
+  m.appendChild(el("div", "txt", esc(r.say)));
+  if (r.html) { const box = el("div", "", r.html); m.appendChild(box);
+    requestAnimationFrame(() => requestAnimationFrame(() => box.querySelectorAll(".fill").forEach(f => f.style.width = f.dataset.w + "%")));
+    box.querySelectorAll('[data-act="letter"]').forEach(b => b.addEventListener("click", () => { b.textContent = "Letter copied (demo)"; b.disabled = true; })); }
+  if (voiceOn && !instant && !playBtn.textContent.includes("Stop")) speak(r.say, a);
+  log.scrollTop = log.scrollHeight; busy = false;
+  if (queue.length) ask(queue.shift());
+}
+$("#form").addEventListener("submit", e => { e.preventDefault(); const i = $("#q"); ask(i.value); i.value = ""; });
+// open in a working state
+ask("What did I spend this month?", true);
+})();
+</script>
+
+</html>
