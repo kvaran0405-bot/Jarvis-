@@ -695,7 +695,6 @@ public class MainActivity extends Activity {
         @JavascriptInterface public boolean canSelfUpdate() { return getPackageManager().canRequestPackageInstalls(); }
         @JavascriptInterface public void allowSelfUpdate() { try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Exception ignored) {} }
         @JavascriptInterface public void updateApp() { AppUpdate.check(MainActivity.this, true); }
-        @JavascriptInterface public int appVersion() { return AppUpdate.installed(MainActivity.this); }
         @JavascriptInterface public boolean soloNotesAccess() { return Solo.notesAccess(MainActivity.this); }
         @JavascriptInterface public void openNotesAccess() { try { startActivity(new Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Exception ignored) {} }
 
