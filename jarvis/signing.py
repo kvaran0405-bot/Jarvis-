@@ -65,6 +65,8 @@ def setup() -> int:
         print("Made a permanent signing key for the JARVIS app. Backup:", HOME)
     b64 = base64.b64encode(store.read_bytes()).decode()
     steps = [("JARVIS_KEYSTORE_B64", b64), ("JARVIS_KEYSTORE_PASSWORD", password)]
+    print("\nFirst make sure you're signed in to GitHub in your browser (as the account that owns JARVIS):\n"
+          "a 'Page not found' / 404 page means you're signed out. Sign in, then reload the page.")
     print("\nGitHub needs two secrets. For each one: the page opens, the value is already copied,\n"
           "type the name, paste the value (Ctrl+V), click 'Add secret'.\n")
     for i, (name, value) in enumerate(steps, 1):
