@@ -553,14 +553,50 @@ function burst(){ if(!SEASON || reduce) return; const box = $("#seasonFx"); [...
 (async () => { try { applySeason((await (await fetch("/api/season")).json()).season); } catch {} })();
 // ------------------------------------------------------------------ the showreel: every cinematic, back to back, with sound
 let cinemaOn = false;
-// The trailer (#8): full screen over the dashboard; the old showreel stays as a fallback.
-function trailer(){
-  if(document.getElementById("hudTrailer")) return;
-  const f = document.createElement("iframe"); f.id = "hudTrailer"; f.src = "/trailer.html?autoplay=1"; f.allow = "autoplay; fullscreen";
+// Full-screen experiences over the dashboard: the trailer (#8), Holo Hands (#44), a hologram caught from the phone (#47).
+function overlay(src){
+  document.getElementById("hudTrailer")?.remove(); document.getElementById("hudTrailerX")?.remove();
+  const f = document.createElement("iframe"); f.id = "hudTrailer"; f.src = src; f.allow = "autoplay; fullscreen; camera; microphone";
   f.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0;z-index:9990;background:#000";
   const x = document.createElement("button"); x.textContent = "✕ CLOSE"; x.style.cssText = "position:fixed;top:12px;left:12px;z-index:9991;background:rgba(0,0,0,.6);color:#ffd23f;border:1px solid #ffd23f;font:700 10px Orbitron,sans-serif;letter-spacing:.2em;padding:8px 12px;border-radius:999px;cursor:pointer";
-  x.onclick = () => { f.remove(); x.remove(); }; document.body.append(f, x);
+  x.id = "hudTrailerX"; x.onclick = () => { f.remove(); x.remove(); }; document.body.append(f, x);
 }
+function trailer(){ overlay("/trailer.html?autoplay=1"); }
+window.HoloHands = () => overlay("/hands.html");
+
+// #47: a hologram thrown from the phone flies onto the screen, then opens
+const THROW_URL = v => ["core", "globe", "figure", "cube"].includes(v) ? `/hands.html?model=${v}&caught=1&nocam=1` : v === "sims" ? "/simulate3d.html" : v === "trailer" ? "/trailer.html" : null;
+function caught(view){
+  const orb = document.createElement("div");
+  orb.style.cssText = "position:fixed;left:50%;bottom:-120px;width:120px;height:120px;margin-left:-60px;border-radius:50%;z-index:9995;pointer-events:none;" +
+    "background:radial-gradient(circle,#fff,var(--c,#ffd23f) 35%,transparent 70%);box-shadow:0 0 80px var(--c,#ffd23f);transition:transform .7s cubic-bezier(.2,.8,.2,1),opacity .7s";
+  document.body.appendChild(orb); SFX.whoosh?.(); requestAnimationFrame(() => requestAnimationFrame(() => { orb.style.transform = "translateY(-55vh) scale(2.4)"; orb.style.opacity = ".0"; }));
+  setTimeout(() => { orb.remove(); SFX.boom?.(); toast?.("Caught it from your phone, Sir"); const u = THROW_URL(view); if(u) overlay(u); else window.HOLO?.open(view); }, 720);
+}
+
+// #48: living notifications: phone notifications fly in as hologram cards; swipe them away, or click to catch up
+const noticeCss = document.createElement("style");
+noticeCss.textContent = `#hudNotes{position:fixed;right:18px;top:90px;z-index:9980;display:grid;gap:10px;perspective:900px;pointer-events:none;width:min(340px,80vw)}
+.hn{pointer-events:auto;cursor:grab;padding:12px 14px;border:1px solid var(--nc,#5fd8ff);background:linear-gradient(135deg,rgba(8,20,30,.88),rgba(4,10,16,.78));color:#dce7f2;
+  font:500 12px "JetBrains Mono",monospace;box-shadow:0 0 24px color-mix(in srgb,var(--nc,#5fd8ff) 35%,transparent),inset 0 0 18px color-mix(in srgb,var(--nc,#5fd8ff) 12%,transparent);
+  transform-origin:right center;animation:hnIn .7s cubic-bezier(.2,.9,.2,1);position:relative;overflow:hidden;transition:transform .35s,opacity .35s}
+.hn::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 1px,transparent 1px 3px);pointer-events:none}
+.hn b{display:block;font:700 9px Orbitron,sans-serif;letter-spacing:.24em;color:var(--nc,#5fd8ff);margin-bottom:4px}
+.hn.out{transform:translateX(120%) rotateY(-40deg);opacity:0}
+@keyframes hnIn{0%{transform:translateX(130%) rotateY(-70deg) scale(.7);opacity:0}60%{transform:translateX(-4%) rotateY(8deg) scale(1.03);opacity:1}100%{transform:none}}`;
+document.head.appendChild(noticeCss);
+function notice(ev){
+  let box = document.getElementById("hudNotes"); if(!box){ box = document.createElement("div"); box.id = "hudNotes"; document.body.appendChild(box); }
+  const c = document.createElement("div"); c.className = "hn"; c.style.setProperty("--nc", ev.urgent ? "#ff4d5e" : "#5fd8ff");
+  c.innerHTML = `<b>${ev.urgent ? "⚠ " : ""}${String(ev.app || "PHONE").toUpperCase().replace(/[<>&]/g, "")} · ${String(ev.sender || "").replace(/[<>&]/g, "")}</b>`; c.append(document.createTextNode(String(ev.text || "").slice(0, 160)));
+  const gone = () => { c.classList.add("out"); setTimeout(() => c.remove(), 380); };
+  let sx = null; c.onpointerdown = e => { sx = e.clientX; c.setPointerCapture(e.pointerId); };
+  c.onpointermove = e => { if(sx != null) c.style.transform = `translateX(${Math.max(0, e.clientX - sx)}px)`; };
+  c.onpointerup = e => { const dx = sx == null ? 0 : e.clientX - sx; sx = null; if(dx > 60) gone(); else { c.style.transform = ""; if(Math.abs(dx) < 5) window.sendCommand?.("what did I miss on my phone?", "JARVIS", false); } };
+  box.prepend(c); SFX.whoosh?.(); while(box.children.length > 3) box.lastChild.remove();
+  setTimeout(gone, ev.urgent ? 30000 : 12000);
+}
+window.HoloNotices = {dismissTop(){ const c = document.querySelector("#hudNotes .hn:not(.out)"); if(c){ c.classList.add("out"); setTimeout(() => c.remove(), 380); return true; } return false; }};
 function cinema(){ trailer(); }
 async function showreel(){   // the older showreel, kept for reference
   if(cinemaOn) return; cinemaOn = true; ctx();
@@ -591,7 +627,9 @@ function onEvent4(ev){ _oe3(ev);
   if(ev.type === "dictate"){ const t = $("#hudToast"); if(t){ if(ev.state === "listening"){ t.style.setProperty("--tc", "#ff5c5c");
       t.innerHTML = `<b>🎙 VOICE TYPING</b>Listening… let go to type it`; t.classList.add("on"); clearTimeout(t._h); }
     else if(ev.state === "thinking"){ t.innerHTML = `<b>🎙 VOICE TYPING</b>Writing it down…`; }
-    else { t._h = setTimeout(() => t.classList.remove("on"), 600); } } } if(ev.type === "season"){ applySeason(ev.season); if(ev.season) burst(); SFX.boom(); } if(ev.type === "cinema") cinema(); }
+    else { t._h = setTimeout(() => t.classList.remove("on"), 600); } } } if(ev.type === "season"){ applySeason(ev.season); if(ev.season) burst(); SFX.boom(); } if(ev.type === "cinema") cinema();
+  if(ev.type === "throw" && ev.to === "laptop") caught(ev.view);
+  if(ev.type === "notice") notice(ev); }
 
 window.HUDFX = {speakStart: (c, a) => speakStart(c, a), speakEnd: c => speakEnd(c), onEvent: onEvent4, boot, expo, sfx: SFX, toast, dossier, openRoom, loadBonds, teamCall, teamPhoto, cinema};
 })();

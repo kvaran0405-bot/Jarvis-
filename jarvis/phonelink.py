@@ -220,6 +220,8 @@ def note(store, bus, app: str, sender: str, text: str) -> dict:
     store.execute("INSERT INTO phone_notes (app, sender, text, urgent, created) VALUES (?,?,?,?,?)",
                   (MESSAGING.get(app, app), sender[:80], text[:500], int(c["urgent"]), datetime.now(settings.tz).isoformat()))
     store.execute("DELETE FROM phone_notes WHERE created < ?", ((datetime.now(settings.tz) - timedelta(days=3)).isoformat(),))
+    # living notifications (#48): every one that isn't private flies onto the laptop as a hologram card
+    bus.publish({"type": "notice", "app": MESSAGING.get(app, app), "sender": sender[:60], "text": text[:180], "urgent": bool(c["urgent"])})
     if c["urgent"]:
         from .speech import announce
         bus.publish({"type": "alert", "agent": "SENTINEL", "text": f"{sender}: {text[:120]}"})

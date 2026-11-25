@@ -527,6 +527,13 @@ Also: pages open and close with a holographic iris (#13), and the app opens with
   private.
 - **Suit themes on the phone:** REMOTE → SUIT on the phone sets the theme for both screens. Solo mode uses it too.
 
+## Bank apps and the autopilot
+
+DBS/POSB digibank and other bank apps refuse to run while **any** app has Android's Accessibility switched on, and
+JARVIS's autopilot uses it. JARVIS never touches bank or finance apps, but the bank can't know that. So the moment
+you open a bank or finance app, the autopilot **switches itself off** and leaves a notification. Close and reopen the
+bank app and it works. Turn autopilot back on from that notification, or the phone setup page, when you want it.
+
 ## Faster replies, and talking like a real conversation
 
 - **Instant answers:** "what time is it", "what's next", "my tasks", "how many steps", "phone battery", "weather",

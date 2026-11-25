@@ -15,6 +15,8 @@ document.head.appendChild(css);
 document.body.insertAdjacentHTML("beforeend", `<div id="gestCam" aria-hidden="true"><video playsinline muted></video><b>GESTURES</b><span id="gestSeen"></span></div>`);
 const btn = document.createElement("button"); btn.className = "pill hud"; btn.id = "gestBtn"; btn.title = "Control JARVIS with hand gestures (webcam)"; btn.textContent = "✋ Gestures";
 $("#holoBtn")?.after(btn);
+const hh = document.createElement("button"); hh.className = "pill hud"; hh.title = "Holo Hands: control JARVIS with your hands in the air (neon menus, grab holograms)"; hh.textContent = "🖐 Holo Hands";
+hh.onclick = () => window.HoloHands?.(); btn.after(hh);
 
 const flash = t => { $("#gestSeen").textContent = t; setTimeout(() => { if($("#gestSeen").textContent === t) $("#gestSeen").textContent = ""; }, 1500); };
 const say = (text, agent = "JARVIS") => window.sendCommand?.(text, agent, true);
@@ -30,6 +32,7 @@ const HOLD = {Open_Palm: 600, Thumb_Up: 700, Thumb_Down: 700, Pointing_Up: 700, 
 const VIEWS = ["week", "business", "body", "money", "singapore", "diagnostics", "trophies"];
 
 function swipe(dir){
+  if(dir > 0 && window.HoloNotices?.dismissTop()){ flash("✓ DISMISSED"); return; }
   if(window.HOLO?.isOpen()){ const i = VIEWS.indexOf(window.HOLO.view()); window.HOLO.open(VIEWS[(i + (dir > 0 ? 1 : VIEWS.length - 1)) % VIEWS.length]); }
   else { const tabs = [...document.querySelectorAll(".tabs button")], i = tabs.findIndex(b => b.classList.contains("on"));
     tabs[(i + (dir > 0 ? 1 : tabs.length - 1)) % tabs.length]?.click(); }

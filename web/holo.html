@@ -9,10 +9,13 @@ html,body{margin:0;height:100%;background:#03060a;color:#dce7f2;font-family:"Jet
 #sims{position:fixed;z-index:40;left:max(14px,env(safe-area-inset-left));bottom:calc(96px + env(safe-area-inset-bottom));border:1px solid #ffd23f;color:#ffd23f;
   background:rgba(5,10,16,.85);font:700 10px Orbitron,sans-serif;letter-spacing:.18em;padding:10px 14px;border-radius:999px;text-decoration:none;
   box-shadow:0 0 18px rgba(255,210,63,.3)}
+#throwBtn{position:fixed;z-index:40;right:max(14px,env(safe-area-inset-right));bottom:calc(96px + env(safe-area-inset-bottom));border:1px solid #5fd8ff;color:#5fd8ff;
+  background:rgba(5,10,16,.85);font:700 10px Orbitron,sans-serif;letter-spacing:.18em;padding:10px 14px;border-radius:999px;box-shadow:0 0 18px rgba(95,216,255,.3);display:none}
 #wait{position:fixed;inset:0;display:grid;place-items:center;font:700 11px Orbitron,sans-serif;letter-spacing:.3em;color:#5fd8ff}
 </style></head><body>
 <div id="wait">LOADING HOLOGRAMS…</div>
 <a id="sims" href="simulate3d.html">🧪 HOLO SIMS</a>
+<button id="throwBtn">⇪ TO LAPTOP</button>
 <script>
 // Works from the laptop (/holo.html) and inside the phone app with the laptop off (the app's offline copy of your data).
 window.HOLO_BASE = "";
@@ -27,6 +30,9 @@ addEventListener("click", e => { if(e.target.closest("#holo .x")){ e.stopPropaga
 addEventListener("keydown", e => { if(e.key === "Escape") back(); });
 if (location.protocol === "file:" && !window.__HOLO_DATA) document.getElementById("wait").textContent = "OPEN JARVIS ONCE WITH THE LAPTOP ON TO COPY YOUR HOLOGRAMS";
 else HOLO.open(view).then(() => document.getElementById("wait").remove());
+// #47 throw this hologram to the laptop screen (phone only)
+if (/Android|iPhone/i.test(navigator.userAgent) && location.protocol !== "file:"){ const t = document.getElementById("throwBtn"); t.style.display = "block";
+  t.onclick = () => { fetch("/api/throw", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({view: HOLO.view(), to: "laptop"})}); try { navigator.vibrate?.([20, 40, 60]); } catch {} t.textContent = "✓ SENT"; setTimeout(() => t.textContent = "⇪ TO LAPTOP", 1500); }; }
 </script>
 <script src="transitions.js" defer></script>
 </body></html>

@@ -1450,6 +1450,32 @@ def remote(r: Remote):
     return {"ok": True}
 
 
+class Throw(BaseModel):
+    view: str
+    to: str = "laptop"
+
+
+THROWABLE = {"core", "globe", "figure", "cube", "sims", "trailer", "body", "week", "business", "money", "singapore", "diagnostics", "trophies"}
+
+
+def throw_url(view: str) -> str:
+    if view in ("core", "globe", "figure", "cube"):
+        return f"/hands.html?model={view}&caught=1&nocam=1"
+    return {"sims": "/simulate3d.html", "trailer": "/trailer.html"}.get(view, f"/holo.html?view={view}")
+
+
+@app.post("/api/throw")
+def throw(t: Throw):
+    """#47: flick a hologram from the phone to the laptop (or back). The other screen catches it."""
+    if t.view not in THROWABLE or t.to not in ("laptop", "phone"):
+        raise HTTPException(400, "can't throw that")
+    bus.publish({"type": "throw", "view": t.view, "to": t.to})
+    if t.to == "phone":   # in case the phone app isn't open on its home screen: a tap-to-open notification
+        from . import phonelink
+        phonelink.queue(store, "open", url=throw_url(t.view), title="JARVIS · incoming hologram", text="Tap to catch it")
+    return {"ok": True}
+
+
 class Handoff(BaseModel):
     agent: str = "JARVIS"
 

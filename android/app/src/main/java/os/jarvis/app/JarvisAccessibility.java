@@ -21,7 +21,26 @@ public class JarvisAccessibility extends AccessibilityService {
     static volatile JarvisAccessibility instance;
 
     @Override protected void onServiceConnected() { instance = this; }
-    @Override public void onAccessibilityEvent(AccessibilityEvent e) {}
+    /** Bank apps (DBS/POSB digibank and others) refuse to run while any app has Accessibility on. The moment one
+     *  opens, the autopilot switches itself off and says so: JARVIS never gets in the way of your bank. */
+    @Override public void onAccessibilityEvent(AccessibilityEvent e) {
+        if (e == null || e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || e.getPackageName() == null) return;
+        String pkg = e.getPackageName().toString();
+        if (!Net.isFinance(pkg) || pkg.equals(getPackageName())) return;
+        try {
+            JarvisLink.channels(this);
+            android.content.Intent open = new android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            android.app.PendingIntent pi = android.app.PendingIntent.getActivity(this, 4242, open, android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT);
+            android.app.Notification n = new android.app.Notification.Builder(this, JarvisLink.ALERTS)
+                    .setSmallIcon(android.R.drawable.ic_lock_lock).setContentTitle("Autopilot is off so your bank app works")
+                    .setContentText("Close and reopen your bank app. Tap here to turn autopilot back on later.")
+                    .setStyle(new android.app.Notification.BigTextStyle().bigText("Bank apps won't run while any app has Accessibility on, so JARVIS switched its autopilot off. Close and reopen your bank app. When you want autopilot again, tap here."))
+                    .setColor(android.graphics.Color.parseColor("#FFD23F")).setContentIntent(pi).setAutoCancel(true).build();
+            getSystemService(android.app.NotificationManager.class).notify(4242, n);
+        } catch (Exception ignored) {}
+        instance = null;
+        disableSelf();
+    }
     @Override public void onInterrupt() {}
     @Override public boolean onUnbind(Intent i) { instance = null; return super.onUnbind(i); }
 

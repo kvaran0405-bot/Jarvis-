@@ -38,6 +38,8 @@ header .r{display:flex;align-items:center;gap:10px}
 .grid a span,.grid button span{font-size:22px;letter-spacing:0}
 .grid .holo{border-color:color-mix(in srgb,var(--c) 45%,var(--line));box-shadow:inset 0 0 18px color-mix(in srgb,var(--c) 12%,transparent)}
 .grid .on{border-color:var(--c);color:var(--c);box-shadow:0 0 14px color-mix(in srgb,var(--c) 30%,transparent)}
+.shows{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.show.alt{background:transparent;color:var(--c);border:1px solid var(--c)}
 .show{display:block;margin-top:10px;padding:15px;text-align:center;text-decoration:none;font:700 11px Orbitron,sans-serif;letter-spacing:.2em;color:#02040a;background:var(--c);
   box-shadow:0 0 24px color-mix(in srgb,var(--c) 45%,transparent);border-radius:2px}
 h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin:20px 0 8px}
@@ -63,7 +65,7 @@ h2{font:700 10px Orbitron,sans-serif;letter-spacing:.3em;color:var(--dim);margin
   <a href="/simulate3d.html" class="holo"><span>🧪</span>HOLO SIMS</a>
   <a href="/map.html"><span>🗺</span>MAP</a>
 </div>
-<a class="show" href="/trailer.html?autoplay=1">🎬 SHOW OFF · PLAY THE TRAILER</a>
+<div class="shows"><a class="show" href="/trailer.html?autoplay=1">🎬 SHOW OFF</a><a class="show alt" href="/hands.html">🖐 HOLO HANDS</a></div>
 <div id="remote">
   <h2>LAPTOP SCREEN</h2>
   <div class="chips">
@@ -224,6 +226,10 @@ function live(){
   const es = new EventSource("/api/stream");
   es.onmessage = e => { let ev; try { ev = JSON.parse(e.data); } catch { return; }
     if(ev.type === "speaker") showSpeaker(ev.where);
+    else if(ev.type === "throw" && ev.to === "phone"){   // #47: the laptop threw a hologram to the phone
+      try { navigator.vibrate?.([20, 40, 80]); } catch {}
+      const v = ev.view, u = ["core", "globe", "figure", "cube"].includes(v) ? `/hands.html?model=${v}&caught=1&nocam=1` : v === "sims" ? "/simulate3d.html" : v === "trailer" ? "/trailer.html" : `/holo.html?view=${v}`;
+      window.HoloTransition ? HoloTransition.leave(u) : location.href = u; }
     else if(ev.type === "delta" && ev.rid && ev.rid === myRid && speakerWhere === "phone"){ streamAgent = ev.agent || "JARVIS"; feed(ev.text, false); }
     else if(ev.type === "delta_end" && ev.rid && ev.rid === myRid && speakerWhere === "phone"){ feed("", true); }
     else if(ev.type === "speak"){ if(ev.rid && ev.rid === myRid) return; show(ev.agent, ev.text); if(speakerWhere === "phone" && !speaking) speak(ev.agent, ev.text); }
