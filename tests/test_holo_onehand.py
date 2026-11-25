@@ -18,3 +18,11 @@ def test_hero_holograms():
     assert '"gauntlet", "armor", "king"' in H and "HANDCURL" in H and "REPULSOR" in H
     for f in ("web/home.html", "web/hud-fx.js"):   # they can be thrown between screens too
         assert '"gauntlet", "armor", "king"' in (ROOT / f).read_text(encoding="utf-8")
+
+
+def test_new_lineup_is_solid_and_lit():
+    for m in ("reactor(){", "helmet(){", "car(){", "missiles(){"):
+        assert m in H, m
+    assert "core(){" not in H and "figure(){" not in H                     # replaced
+    assert "MeshPhongMaterial" in H and "function rig(" in H               # real lit materials, not flat wireframes
+    assert "ALIAS" in H                                                     # old links (core, figure) still open something

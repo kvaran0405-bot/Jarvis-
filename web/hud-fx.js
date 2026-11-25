@@ -565,7 +565,7 @@ function trailer(){ overlay("/trailer.html?autoplay=1"); }
 window.HoloHands = () => overlay("/hands.html");
 
 // #47: a hologram thrown from the phone flies onto the screen, then opens
-const THROW_URL = v => ["core", "globe", "figure", "cube", "gauntlet", "armor", "king"].includes(v) ? `/hands.html?model=${v}&caught=1&nocam=1` : v === "sims" ? "/simulate3d.html" : v === "trailer" ? "/trailer.html" : null;
+const THROW_URL = v => ["core", "globe", "figure", "cube", "reactor", "helmet", "gauntlet", "armor", "king", "car", "missiles"].includes(v) ? `/hands.html?model=${v}&caught=1&nocam=1` : v === "sims" ? "/simulate3d.html" : v === "trailer" ? "/trailer.html" : null;
 function caught(view){
   const orb = document.createElement("div");
   orb.style.cssText = "position:fixed;left:50%;bottom:-120px;width:120px;height:120px;margin-left:-60px;border-radius:50%;z-index:9995;pointer-events:none;" +

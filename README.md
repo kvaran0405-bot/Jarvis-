@@ -462,15 +462,21 @@ off. Ask "what are my routines?", or say "routine nudges off" or "routine nudges
 
 ## Holo Hands (#44, #46, #47, #48)
 
-**Hero holograms** (original designs, in the spirit of the films), in the MODEL menu:
-- 🧤 **GAUNTLET:** an armored glove with a glowing palm repulsor. With your hand in view **its fingers copy
-  yours** (open, fist, anything in between) and it turns to face you. Hold your palm **open and still** and it
-  fires the **repulsor** beam.
-- 🦾 **ARMOR:** a hovering armored suit with a pulsing chest reactor, glowing eyes, glowing palms and flickering
-  boot thrusters.
-- 👑 **IRON KING:** a masked, armored sorcerer in a hood, with a rippling cape and green magic orbiting his hands.
-
-All of them work with every gesture: grab, carry, toss, spin and resize.
+**Hero holograms** (original designs, in the spirit of the films), in the MODEL menu. They're sculpted and lit like
+real polished metal and cloth, not flat wireframes:
+- ⚛ **ARC REACTOR:** a ring of spinning copper coils around a blazing heart.
+- ⛑ **HELMET:** a sculpted red-and-gold helmet. **Make a fist and the faceplate snaps shut** (eyes light up);
+  **open your hand and it lifts**.
+- 🧤 **GAUNTLET:** copies your fingers; hold your palm **open and still** to fire the **repulsor**.
+- 🦾 **ARMOR:** a hovering armored suit with a pulsing chest reactor and flickering boot thrusters.
+- 👑 **IRON KING:**
+  - a sculpted iron mask (brow, eye sockets, nose ridge, mouth slit, rivets) in a deep green hood
+  - a heavy cloak moving in the wind, with chained clasps, grid chest armor and polished shoulder plates
+  - green lightning crackling in his raised hand
+- 🏎 **SUPERCAR:** a glossy red hypercar with real wheels, headlight beams and neon underglow, racing over a road grid.
+- 🚀 **MICRO-MISSILES:** a pod that fires salvos in curving arcs with trails that burst. Hold your palm open and
+  still to fire.
+- 🌍 **GLOBE** stays.
 
 **One-hand control:**
 - ✋ **Spread your fingers** over the hologram to make it bigger, **squeeze** to make it smaller.

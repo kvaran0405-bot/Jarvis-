@@ -44,14 +44,122 @@ const holder = new THREE.Group(); scene.add(holder);
 const dot = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.3, "rgba(255,255,255,.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const add = (c, op = .9) => ({color: new THREE.Color(c), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false});
+// real-looking metal: lit, polished (the glow effects stay additive on top)
+const solid = (c, shine = 80) => new THREE.MeshPhongMaterial({color: new THREE.Color(c).multiplyScalar(.55), specular: 0x8d949b, shininess: shine,
+  emissive: new THREE.Color(c).multiplyScalar(.05)});
+function rig(g, rimC = 0x5fd8ff){ g.add(new THREE.AmbientLight(0x2a3038, .55)); const k = new THREE.DirectionalLight(0xffffff, .85); k.position.set(3, 5, 6); g.add(k);
+  const f = new THREE.DirectionalLight(0x8fa3b8, .3); f.position.set(-4, 1, 3); g.add(f); const r = new THREE.PointLight(rimC, 1.4, 14); r.position.set(-1.5, 3, -4); g.add(r); }
 const MODELS = {
 
   // ---- original hero tech (my own designs, in the spirit of the films)
+
+  reactor(){   // the arc reactor: a ring of spinning coils around a blazing heart
+    const g = new THREE.Group(), CY = "#5fd8ff", W1 = "#e8fbff", CU = "#ffb347";
+    const ring = (r, t, c, op = .9, seg = 96) => { const m = new THREE.Mesh(new THREE.TorusGeometry(r, t, 8, seg), new THREE.MeshBasicMaterial(add(c, op))); g.add(m); return m; };
+    ring(2.35, .09, CY); ring(2.05, .03, CY, .6); ring(1.15, .07, W1, .95); ring(.82, .03, CY, .7);
+    const coils = new THREE.Group(); g.add(coils);
+    for (let i = 0; i < 10; i++){ const a = i / 10 * Math.PI * 2, c = new THREE.Group(); c.position.set(Math.cos(a) * 1.6, Math.sin(a) * 1.6, 0); c.rotation.z = a;
+      const box = new THREE.BoxGeometry(.62, .3, .34); c.add(new THREE.Mesh(box, new THREE.MeshBasicMaterial(add(CU, .22))));
+      c.add(new THREE.LineSegments(new THREE.EdgesGeometry(box), new THREE.LineBasicMaterial(add(CU, .95))));
+      for (let k = -2; k <= 2; k++){ const w = new THREE.Mesh(new THREE.TorusGeometry(.17, .018, 4, 16), new THREE.MeshBasicMaterial(add(CU, .9))); w.rotation.y = Math.PI / 2; w.position.x = k * .11; c.add(w); }
+      coils.add(c); }
+    const tri = new THREE.Shape([[0, .62], [-.54, -.31], [.54, -.31]].map(([x, y]) => new THREE.Vector2(x, y)));
+    const triM = new THREE.Mesh(new THREE.ShapeGeometry(tri), new THREE.MeshBasicMaterial(add(W1, .5))); g.add(triM);
+    const heart = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(CY), transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false})); heart.scale.setScalar(3.2); g.add(heart);
+    const n = 900, pts = new Float32Array(n * 3), geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pts, 3));
+    g.add(new THREE.Points(geo, new THREE.PointsMaterial({size: .07, map: dot, ...add(CY, .9)})));
+    g.userData.tick = t => { coils.rotation.z = t * .35; triM.rotation.z = -t * .6; const pulse = .85 + Math.sin(t * 4) * .15; heart.scale.setScalar(3.2 * pulse); triM.material.opacity = .35 + .25 * pulse;
+      for (let i = 0; i < n; i++){ const a = i / n * Math.PI * 2 * 7 + t * (1 + (i % 3) * .4), r = .9 + (i % 9) * .13 + Math.sin(t * 2 + i) * .03; pts[i * 3] = Math.cos(a) * r; pts[i * 3 + 1] = Math.sin(a) * r; pts[i * 3 + 2] = Math.sin(a * 3 + t) * .12; }
+      geo.attributes.position.needsUpdate = true; };
+    return g; },
+
+  helmet(){   // an armored helmet, sculpted: make a fist and the faceplate snaps shut, open your hand and it lifts
+    const g = new THREE.Group(), W1 = "#e8fbff";
+    rig(g);
+    const RED = new THREE.MeshPhongMaterial({color: 0x7a111b, specular: 0x8a5a5a, shininess: 70, emissive: 0x0a0102});
+    const GOLD = new THREE.MeshPhongMaterial({color: 0xa07c26, specular: 0xb8a070, shininess: 80, emissive: 0x0a0702});
+    const sculpt = (geo, fn) => { const pa = geo.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < pa.count; i++){ v.fromBufferAttribute(pa, i); fn(v); pa.setXYZ(i, v.x, v.y, v.z); } geo.computeVertexNormals(); return geo; };
+    const G = (x, s) => Math.exp(-(x / s) * (x / s));
+    // the shell: a rounded skull, flat sides, a crest down the middle
+    const shell = new THREE.Mesh(sculpt(new THREE.SphereGeometry(1.6, 72, 56), v => { v.x *= .86; v.y *= 1.12; v.z *= 1.02;
+      v.x *= 1 - .12 * G(v.y - .1, .9) * Math.abs(v.x) / 1.4; v.y += .07 * G(v.x, .12) * (v.y > 0 ? 1 : 0); if (v.y < -1.2) v.y = -1.2 + (v.y + 1.2) * .3; }), RED);
+    g.add(shell);
+    [-1, 1].forEach(sx => { const ear = new THREE.Mesh(new THREE.CylinderGeometry(.42, .5, .18, 40), GOLD); ear.rotation.z = Math.PI / 2; ear.position.set(sx * 1.36, -.15, .05); g.add(ear); });
+    const jaw = new THREE.Mesh(sculpt(new THREE.SphereGeometry(1, 48, 32, 0, Math.PI * 2, Math.PI * .45, Math.PI * .4), v => { v.x *= 1.15; v.y *= .8; v.z *= 1.05; }), RED);
+    jaw.position.set(0, -.75, .2); g.add(jaw);
+    // the faceplate: brow, angled eye slits, cheek lines, mouth line; hinged at the top
+    const hinge = new THREE.Group(); hinge.position.set(0, 1.25, .85); g.add(hinge);
+    const fp = sculpt(new THREE.SphereGeometry(1, 72, 72, Math.PI / 2 - Math.PI * .3, Math.PI * .6, Math.PI * .2, Math.PI * .6), v => {
+      const x = v.x, y = v.y; let z = v.z * .55 + .45; z += .07 * G(y - .28, .06) * G(x, .45);                     // brow
+      z -= .09 * (G(x - .3, .14) * G(y - .12 + (x - .3) * .25, .045) + G(x + .3, .14) * G(y - .12 - (x + .3) * .25, .045));   // eye slits
+      z += .06 * G(x, .05) * G(y + .1, .25); z -= .035 * G(Math.abs(x) - .2, .025) * G(y + .3, .18); z -= .03 * G(y + .45, .02) * G(x, .25);
+      v.set(x * 1.18, y * 1.25, z); });
+    const face = new THREE.Mesh(fp, GOLD); face.position.set(0, -1.15, -.15); face.scale.setScalar(1.12); hinge.add(face);
+    const eyes = [-.36, .36].map(x => { const e = new THREE.Mesh(new THREE.BoxGeometry(.42, .07, .05), new THREE.MeshBasicMaterial(add(W1, 1))); e.position.set(x, .27, 1.035); e.rotation.z = x < 0 ? -.24 : .24; face.add(e); return e; });
+    const eg = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color("#5fd8ff"), transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false})); eg.scale.set(2.4, .7, 1); eg.position.set(0, .27, 1.1); face.add(eg);
+    let shut = 1;
+    g.userData.tick = (t, dt) => {
+      const want = HANDCURL ? (Math.max(...HANDCURL.slice(1)) > .6 ? 1 : 0) : (Math.sin(t * .9) > -.3 ? 1 : 0);   // fist = shut, open hand = open
+      shut += (want - shut) * Math.min(1, dt * 7); hinge.rotation.x = -(1 - shut) * 1.05;
+      const lit = .45 + shut * .55 * (.85 + Math.sin(t * 5) * .15); eyes.forEach(e => e.material.opacity = lit); eg.material.opacity = .8 * shut;
+      if (HANDCURL && !grab && !carry){ spinV.y *= Math.pow(.05, dt); holder.rotation.y += angDiff(0, holder.rotation.y % (Math.PI * 2)) * Math.min(1, dt * 4); }
+    };
+    g.position.y = .2; g.scale.setScalar(1.1); return g; },
+
+  car(){   // a neon hypercar racing over a road grid
+    const g = new THREE.Group(), RED = "#ff4d5e", CY = "#5fd8ff", PINK = "#ff3df0";
+    const side = new THREE.Shape(); [[-3, -.35], [3.05, -.35], [3.15, .05], [2.7, .3], [1.2, .45], [.45, 1.0], [-.9, 1.05], [-2.0, .55], [-3.05, .45], [-3.1, 0]].forEach(([x, y], i) => i ? side.lineTo(x, y) : side.moveTo(x, y));
+    const body = new THREE.ExtrudeGeometry(side, {depth: 1.9, bevelEnabled: true, bevelThickness: .12, bevelSize: .1, bevelSegments: 2}); body.translate(0, 0, -.95);
+    rig(g, 0xff3df0);
+    g.add(new THREE.Mesh(body, new THREE.MeshPhongMaterial({color: 0x8a0d18, specular: 0x6a4a4a, shininess: 70, emissive: 0x0c0102})));
+    g.add(new THREE.LineSegments(new THREE.EdgesGeometry(body, 30), new THREE.LineBasicMaterial(add(RED, .35))));
+    const glass = new THREE.Shape(); [[.35, .98], [-.85, 1.02], [-1.85, .58], [1.1, .5]].forEach(([x, y], i) => i ? glass.lineTo(x, y) : glass.moveTo(x, y));
+    const gl = new THREE.ExtrudeGeometry(glass, {depth: 1.5, bevelEnabled: false}); gl.translate(0, .02, -.75); g.add(new THREE.Mesh(gl, new THREE.MeshPhongMaterial({color: 0x0a1622, specular: 0xbfe8ff, shininess: 160, transparent: true, opacity: .85})));
+    const wheels = [[2.05, 1.0], [2.05, -1.0], [-2.05, 1.0], [-2.05, -1.0]].map(([x, z]) => { const w = new THREE.Group(); w.position.set(x, -.35, z); g.add(w);
+      const tyre = new THREE.Mesh(new THREE.TorusGeometry(.4, .15, 16, 40), new THREE.MeshPhongMaterial({color: 0x121418, specular: 0x333333, shininess: 20})); w.add(tyre);
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(.3, .3, .2, 32), new THREE.MeshPhongMaterial({color: 0x8f9aa3, specular: 0xffffff, shininess: 150})); rim.rotation.x = Math.PI / 2; w.add(rim);
+      const glowRing = new THREE.Mesh(new THREE.TorusGeometry(.31, .012, 6, 40), new THREE.MeshBasicMaterial(add(CY, .9))); glowRing.position.z = z > 0 ? .11 : -.11; w.add(glowRing);
+      for (let k = 0; k < 5; k++){ const sp = new THREE.Mesh(new THREE.BoxGeometry(.04, .5, .04), new THREE.MeshPhongMaterial({color: 0xcfd6dc, shininess: 120})); sp.rotation.z = k / 5 * Math.PI; sp.position.z = z > 0 ? .1 : -.1; w.add(sp); } return w; });
+    [-.6, .6].forEach(z => { const h = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color("#e8fbff"), transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false})); h.scale.setScalar(.7); h.position.set(3.1, .1, z); g.add(h);
+      const beam = new THREE.Mesh(new THREE.ConeGeometry(.9, 4, 20, 1, true), new THREE.MeshBasicMaterial(add("#bff6ff", .08))); beam.rotation.z = Math.PI / 2; beam.position.set(5.1, .05, z); g.add(beam); });
+    const under = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 2.2), new THREE.MeshBasicMaterial(add(PINK, .25))); under.rotation.x = -Math.PI / 2; under.position.y = -.8; g.add(under);
+    const road = new THREE.GridHelper(30, 30, new THREE.Color(PINK), new THREE.Color(CY)); road.material.transparent = true; road.material.opacity = .25; road.position.y = -.78; g.add(road);
+    g.userData.tick = (t, dt) => { wheels.forEach(w => w.rotation.z -= dt * 14); road.position.x = -((t * 9) % 1); under.material.opacity = .18 + Math.sin(t * 6) * .07; g.position.y = -.2 + Math.sin(t * 9) * .02; };
+    g.rotation.y = -.5; g.scale.setScalar(.85); return g; },
+
+  missiles(){   // a micro-missile pod: salvos curve out with trails and burst (open palm held still = fire)
+    const g = new THREE.Group(), RED = "#ff4d5e", GOLD = "#ffd23f", CY = "#5fd8ff";
+    rig(g); const podG = new THREE.BoxGeometry(2.2, 1.4, 1.6); g.add(new THREE.Mesh(podG, solid(RED, 100))); g.add(new THREE.LineSegments(new THREE.EdgesGeometry(podG), new THREE.LineBasicMaterial(add(RED, .35))));
+    const tubes = []; for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++){ const tb = new THREE.Mesh(new THREE.CylinderGeometry(.2, .2, .24, 28), solid(GOLD, 120)); tb.rotation.x = Math.PI / 2; tb.position.set(-.6 + c * .6, .3 - r * .6, .82); g.add(tb); tubes.push(tb); }
+    const mk = () => { const m = new THREE.Group(); m.add(new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .55, 16), new THREE.MeshPhongMaterial({color: 0xdfe5ea, specular: 0xffffff, shininess: 120})));
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(.07, .2, 8), new THREE.MeshBasicMaterial(add(RED, .95))); nose.position.y = .35; m.add(nose); m.visible = false; g.add(m); return m; };
+    const shots = tubes.map(tb => ({m: mk(), tb, t: -1, p0: null, p1: null, p2: null}));
+    const N = 1400, pts = new Float32Array(N * 3), cols = new Float32Array(N * 3), life = new Float32Array(N), vel = new Float32Array(N * 3); let head = 0;
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pts, 3)); geo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+    g.add(new THREE.Points(geo, new THREE.PointsMaterial({size: .16, map: dot, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false})));
+    const puff = (x, y, z, c, v = .2, l = .8) => { const i = head++ % N; pts.set([x, y, z], i * 3); cols.set(c, i * 3); life[i] = l; vel.set([(Math.random() - .5) * v, (Math.random() - .5) * v, (Math.random() - .5) * v], i * 3); };
+    const salvo = () => { shots.forEach((s, k) => { s.t = -k * .12; const a = (k - 2.5) * .55; s.p0 = s.tb.position.clone().add(new THREE.Vector3(0, 0, .2));
+      s.p1 = new THREE.Vector3(Math.sin(a) * 4, 3 + Math.random() * 2, 3); s.p2 = new THREE.Vector3(Math.sin(a) * 6 + (Math.random() - .5) * 2, -1 + Math.random() * 3, 6 + Math.random() * 2); }); sfx("whoosh"); buzz([10, 20, 10, 20]); };
+    let next = .4, armed = 0;
+    g.userData.tick = (t, dt) => {
+      const openPalm = HANDCURL && Math.max(...HANDCURL.slice(1)) < .25; armed = openPalm && HANDSTILL ? armed + dt : 0;
+      if (armed > .5 && shots.every(s => s.t < 0 || s.t > 1)){ armed = -1.5; flash("FIRE!"); salvo(); next = t + 99; }
+      if (!HANDCURL && t > next){ salvo(); next = t + 4; }
+      shots.forEach(s => { if (s.t < 0 && s.p0 && s.t > -1){ s.t += dt; return; } if (!s.p0 || s.t > 1 || s.t < 0){ s.m.visible = false; return; }
+        s.t += dt * .9; const k = Math.min(1, s.t), a = s.p0.clone().multiplyScalar((1 - k) ** 2).add(s.p1.clone().multiplyScalar(2 * k * (1 - k))).add(s.p2.clone().multiplyScalar(k * k));
+        const b = s.p0.clone().multiplyScalar((1 - k - .02) ** 2).add(s.p1.clone().multiplyScalar(2 * (k + .02) * (1 - k - .02))).add(s.p2.clone().multiplyScalar((k + .02) ** 2));
+        s.m.visible = true; s.m.position.copy(a); s.m.lookAt(b); s.m.rotateX(Math.PI / 2); puff(a.x, a.y, a.z, [1, .6, .25], .05, .5);
+        if (s.t >= 1){ s.m.visible = false; for (let i = 0; i < 60; i++) puff(a.x, a.y, a.z, i % 2 ? [1, .82, .25] : [.37, .85, 1], 1.6, 1); } });
+      for (let i = 0; i < N; i++){ if (life[i] <= 0) continue; life[i] -= dt; pts[i * 3] += vel[i * 3] * dt * 3; pts[i * 3 + 1] += vel[i * 3 + 1] * dt * 3; pts[i * 3 + 2] += vel[i * 3 + 2] * dt * 3;
+        const f = Math.max(0, life[i]); cols[i * 3] *= .985; cols[i * 3 + 1] *= .985; cols[i * 3 + 2] *= .985; if (f <= 0) pts.set([0, -99, 0], i * 3); }
+      geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true; };
+    g.position.y = -.6; return g; },
   gauntlet(){   // an armored gauntlet: its fingers copy yours, an open palm held still fires the repulsor
     const g = new THREE.Group(), RED = "#ff4d5e", GOLD = "#ffd23f", CY = "#5fd8ff";
-    const part = (geo, c, op = .16) => { const o = new THREE.Group(); o.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial(add(c, op))));
-      o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 18), new THREE.LineBasicMaterial(add(c, .95)))); return o; };
-    const arm = part(new THREE.CylinderGeometry(.72, .92, 2.4, 10, 1, true), RED); arm.position.y = -2.3; g.add(arm);
+    const part = (geo, c, op = .16) => { const o = new THREE.Group(); o.add(new THREE.Mesh(geo, solid(c, 90)));
+      o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), new THREE.LineBasicMaterial(add(c, .3)))); return o; };
+    rig(g);
+    const arm = part(new THREE.CylinderGeometry(.72, .92, 2.4, 32, 1, true), RED); arm.position.y = -2.3; g.add(arm);
     [-1.25, -2.0, -2.9].forEach((y, i) => { const r = new THREE.Mesh(new THREE.TorusGeometry(i ? .86 : .78, .045, 6, 40), new THREE.MeshBasicMaterial(add(GOLD, .9))); r.rotation.x = Math.PI / 2; r.position.y = y; g.add(r); });
     const hand = new THREE.Group(); hand.position.y = -.85; g.add(hand);
     const palm = part(new THREE.BoxGeometry(1.75, 1.55, .55), RED); palm.position.y = .25; hand.add(palm);
@@ -64,11 +172,11 @@ const MODELS = {
     beam.rotation.x = Math.PI / 2; beam.position.set(0, .2, 4.3); hand.add(beam);
     const fingers = [[-.62, .95], [-.21, 1.05], [.21, 1.0], [.62, .8]].map(([x, L]) => { const hinges = []; let parent = new THREE.Group(); parent.position.set(x, 1.0, 0); hand.add(parent);
       for (let k = 0; k < 3; k++){ const h = k ? new THREE.Group() : parent; if (k){ h.position.y = L * .36; parent.add(h); }
-        const seg = part(new THREE.BoxGeometry(.33, L * .34, .36), k === 1 ? GOLD : RED, .18); seg.position.y = L * .17; h.add(seg); hinges.push(h); parent = h; }
+        const seg = part(new THREE.CylinderGeometry(.15, .17, L * .34, 24), k === 1 ? GOLD : RED, .18); const knuckle = new THREE.Mesh(new THREE.SphereGeometry(.17, 20, 14), solid(k === 1 ? GOLD : RED, 90)); h.add(knuckle); seg.position.y = L * .17; h.add(seg); hinges.push(h); parent = h; }
       return hinges; });
     const tb = new THREE.Group(); tb.position.set(-.95, .05, .1); tb.rotation.z = .9; hand.add(tb);
-    const t1 = part(new THREE.BoxGeometry(.36, .55, .36), RED, .18); t1.position.y = .27; tb.add(t1);
-    const tk = new THREE.Group(); tk.position.y = .55; tb.add(tk); const t2 = part(new THREE.BoxGeometry(.32, .5, .34), GOLD, .2); t2.position.y = .25; tk.add(t2);
+    const t1 = part(new THREE.CylinderGeometry(.17, .19, .55, 24), RED, .18); t1.position.y = .27; tb.add(t1);
+    const tk = new THREE.Group(); tk.position.y = .55; tb.add(tk); const t2 = part(new THREE.CylinderGeometry(.15, .17, .5, 24), GOLD, .2); t2.position.y = .25; tk.add(t2);
     let blast = 0, still = 0;
     g.userData.tick = (t, dt) => {
       const c = HANDCURL || (() => { const k = (Math.sin(t * 1.3) + 1) / 2 * .85; return [k, k, k, k, k]; })();
@@ -87,19 +195,20 @@ const MODELS = {
 
   armor(){   // a hovering armored suit: glowing chest reactor, eyes and boot thrusters
     const g = new THREE.Group(), RED = "#ff4d5e", GOLD = "#ffd23f", CY = "#5fd8ff";
-    const part = (geo, c, p, r = [0, 0, 0], op = .16) => { const o = new THREE.Group(); o.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial(add(c, op))));
-      o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 18), new THREE.LineBasicMaterial(add(c, .95)))); o.position.set(...p); o.rotation.set(...r); g.add(o); return o; };
-    part(new THREE.SphereGeometry(.52, 12, 10), RED, [0, 3.45, 0]);                                     // helmet
+    const part = (geo, c, p, r = [0, 0, 0], op = .16) => { const o = new THREE.Group(); o.add(new THREE.Mesh(geo, solid(c, 90)));
+      o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), new THREE.LineBasicMaterial(add(c, .3)))); o.position.set(...p); o.rotation.set(...r); g.add(o); return o; };
+    rig(g);
+    part(new THREE.SphereGeometry(.52, 32, 24), RED, [0, 3.45, 0]);                                     // helmet
     part(new THREE.BoxGeometry(.62, .55, .2), GOLD, [0, 3.35, .42], [0, 0, 0], .25);                    // faceplate
     const eyes = [-.15, .15].map(x => { const e = new THREE.Mesh(new THREE.BoxGeometry(.16, .05, .05), new THREE.MeshBasicMaterial(add("#e8fbff", 1))); e.position.set(x, 3.45, .54); g.add(e); return e; });
-    part(new THREE.CylinderGeometry(.95, .7, 1.8, 10), RED, [0, 2.15, 0]);                               // chest
+    part(new THREE.CylinderGeometry(.95, .7, 1.8, 28), RED, [0, 2.15, 0]);                               // chest
     part(new THREE.BoxGeometry(1.2, .5, .5), GOLD, [0, 1.05, 0], [0, 0, 0], .2);                         // waist
     const reactor = new THREE.Mesh(new THREE.CircleGeometry(.2, 32), new THREE.MeshBasicMaterial(add("#e8fbff", 1))); reactor.position.set(0, 2.45, .84); g.add(reactor);
     const rr = new THREE.Mesh(new THREE.RingGeometry(.24, .32, 32), new THREE.MeshBasicMaterial(add(CY, .95))); rr.position.copy(reactor.position); g.add(rr);
     const rg = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(CY), transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false})); rg.scale.setScalar(1.3); rg.position.set(0, 2.45, .9); g.add(rg);
-    [-1, 1].forEach(sx => { part(new THREE.SphereGeometry(.38, 10, 8), GOLD, [sx * 1.15, 2.85, 0], [0, 0, 0], .2);   // shoulders
-      part(new THREE.CylinderGeometry(.24, .2, 1.3, 8), RED, [sx * 1.3, 2.1, 0], [0, 0, sx * .12]); part(new THREE.CylinderGeometry(.27, .22, 1.2, 8), GOLD, [sx * 1.42, .95, 0], [0, 0, sx * .06], .2);
-      part(new THREE.CylinderGeometry(.34, .26, 1.5, 8), RED, [sx * .4, -.1, 0]); part(new THREE.CylinderGeometry(.28, .3, 1.5, 8), GOLD, [sx * .42, -1.6, 0], [0, 0, 0], .2);
+    [-1, 1].forEach(sx => { part(new THREE.SphereGeometry(.38, 28, 20), GOLD, [sx * 1.15, 2.85, 0], [0, 0, 0], .2);   // shoulders
+      part(new THREE.CylinderGeometry(.24, .2, 1.3, 28), RED, [sx * 1.3, 2.1, 0], [0, 0, sx * .12]); part(new THREE.CylinderGeometry(.27, .22, 1.2, 28), GOLD, [sx * 1.42, .95, 0], [0, 0, sx * .06], .2);
+      part(new THREE.CylinderGeometry(.34, .26, 1.5, 28), RED, [sx * .4, -.1, 0]); part(new THREE.CylinderGeometry(.28, .3, 1.5, 28), GOLD, [sx * .42, -1.6, 0], [0, 0, 0], .2);
       part(new THREE.BoxGeometry(.4, .25, .7), RED, [sx * .42, -2.45, .1]); });
     const flames = [-1, 1].map(sx => { const f = new THREE.Mesh(new THREE.ConeGeometry(.2, 1, 16, 1, true), new THREE.MeshBasicMaterial(add(CY, .7))); f.rotation.x = Math.PI; f.position.set(sx * .42, -3.05, .1); g.add(f); return f; });
     const palmGlow = [-1, 1].map(sx => { const s = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(CY), transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false})); s.scale.setScalar(.7); s.position.set(sx * 1.48, .25, 0); g.add(s); return s; });
@@ -108,51 +217,109 @@ const MODELS = {
       const p = .85 + Math.sin(t * 3) * .15; rg.scale.setScalar(1.3 * p); palmGlow.forEach(s => s.scale.setScalar(.7 * p)); eyes.forEach(e => e.material.opacity = .7 + Math.sin(t * 5) * .3); };
     g.scale.setScalar(.82); return g; },
 
-  king(){   // the Iron King: a masked armored sorcerer in a hood, cape rippling, green magic circling his hands
-    const g = new THREE.Group(), STEEL = "#9fb7c9", GREEN = "#3dff9a", DARK = "#2de0c0";
-    const part = (geo, c, p, r = [0, 0, 0], op = .14) => { const o = new THREE.Group(); o.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial(add(c, op))));
-      o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 18), new THREE.LineBasicMaterial(add(c, .9)))); o.position.set(...p); o.rotation.set(...r); g.add(o); return o; };
-    part(new THREE.SphereGeometry(.72, 14, 10, 0, Math.PI * 2, 0, Math.PI * .62), DARK, [0, 3.55, -.05], [0, 0, 0], .1);   // hood
-    part(new THREE.BoxGeometry(.66, .78, .3), STEEL, [0, 3.35, .32], [0, 0, 0], .22);                                        // iron mask
-    [-.15, .15].forEach(x => { const e = new THREE.Mesh(new THREE.BoxGeometry(.17, .06, .05), new THREE.MeshBasicMaterial(add(GREEN, 1))); e.position.set(x, 3.48, .49); g.add(e); });
-    for (let i = 0; i < 4; i++){ const m = new THREE.Mesh(new THREE.BoxGeometry(.04, .2, .04), new THREE.MeshBasicMaterial(add(STEEL, .9))); m.position.set(-.12 + i * .08, 3.12, .49); g.add(m); }   // grille
-    part(new THREE.CylinderGeometry(1.0, .75, 1.9, 10), STEEL, [0, 2.15, 0]);
-    part(new THREE.BoxGeometry(1.3, .3, .55), GREEN, [0, 1.15, 0], [0, 0, 0], .2);                                            // belt
-    [-1, 1].forEach(sx => { part(new THREE.SphereGeometry(.42, 10, 8), STEEL, [sx * 1.15, 2.9, 0], [0, 0, 0], .2);
-      part(new THREE.CylinderGeometry(.24, .2, 1.3, 8), STEEL, [sx * 1.35, 2.1, .1], [0, 0, sx * .25]); part(new THREE.CylinderGeometry(.26, .22, 1.1, 8), STEEL, [sx * 1.65, 1.05, .35], [.4, 0, sx * .35]);
-      part(new THREE.CylinderGeometry(.34, .5, 2.6, 8), DARK, [sx * .38, -.55, 0], [0, 0, 0], .08); });                           // robe legs
-    const cape = new THREE.PlaneGeometry(2.6, 5, 16, 24), base = Float32Array.from(cape.attributes.position.array);
-    const capeMesh = new THREE.Mesh(cape, new THREE.MeshBasicMaterial({...add(DARK, .14), side: THREE.DoubleSide, wireframe: true})); capeMesh.position.set(0, .9, -.75); g.add(capeMesh);
-    const orbs = [-1, 1].map(sx => { const n = 70, pts = new Float32Array(n * 3), geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pts, 3));
-      g.add(new THREE.Points(geo, new THREE.PointsMaterial({size: .14, map: dot, ...add(GREEN, .95)}))); const core = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(GREEN), transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false}));
-      core.scale.setScalar(.9); core.position.set(sx * 1.85, .45, .6); g.add(core); return {pts, geo, core, sx, n}; });
+  king(){   // the Iron King: sculpted iron mask, heavy green hood and cloak, grid armor, chained clasps, green sorcery
+    const g = new THREE.Group();
+    const IRON = new THREE.MeshPhongMaterial({color: 0x6f7a82, specular: 0x9aa4ab, shininess: 55, emissive: 0x030504});
+    const DARKIRON = new THREE.MeshPhongMaterial({color: 0x434b51, specular: 0x7d878e, shininess: 45, emissive: 0x020302});
+    const CLOTH = new THREE.MeshPhongMaterial({color: 0x0c3a1d, specular: 0x0a2414, shininess: 5, emissive: 0x010603, side: THREE.DoubleSide});
+    const CLOTH2 = new THREE.MeshPhongMaterial({color: 0x0a2e17, specular: 0x081c10, shininess: 4, emissive: 0x010402, side: THREE.DoubleSide});
+    const add3 = (geo, mat, pos, rot = [0, 0, 0], sc) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.rotation.set(...rot); if (sc) m.scale.set(...sc); g.add(m); return m; };
+    // light: a cold key light, green magic from below-front, a green rim from behind
+    g.add(new THREE.AmbientLight(0x1c2620, .55));
+    const key = new THREE.DirectionalLight(0xe8f0ff, .75); key.position.set(3, 5, 6); g.add(key);
+    const fill = new THREE.DirectionalLight(0x6f8f7f, .25); fill.position.set(-4, 2, 3); g.add(fill);
+    const magic = new THREE.PointLight(0x3dff9a, 1.1, 7); magic.position.set(1.6, 1.4, 2.4); g.add(magic);
+    const rim = new THREE.PointLight(0x3dff9a, 1.2, 9); rim.position.set(-1.2, 4.6, -2.6); g.add(rim);
+
+    // the mask: a sphere sculpted into brow, eye sockets, nose ridge, cheek grooves and a mouth slit
+    const mg = new THREE.SphereGeometry(1, 72, 72), mp = mg.attributes.position, v = new THREE.Vector3();
+    const G = (x, s) => Math.exp(-(x / s) * (x / s));
+    for (let i = 0; i < mp.count; i++){ v.fromBufferAttribute(mp, i);
+      let x = v.x * .8, y = v.y * 1.06, z = v.z * .9;
+      if (z > 0){ const f = Math.min(1, z * 1.6); let d = 0;
+        z = z * .72 + .2 * f;                                                          // a flatter, mask-like front
+        d += .085 * G(y - .3, .06) * G(x, .5);                                         // brow ridge
+        d -= .13 * (G(x - .27, .12) * G(y - .16, .065) + G(x + .27, .12) * G(y - .16, .065));   // eye sockets
+        d += .11 * G(x, .055) * G(y + .02, .2);                                        // nose ridge
+        d -= .05 * G(Math.abs(x) - .26, .03) * G(y + .28, .2);                         // cheek grooves
+        d -= .07 * G(y + .4, .022) * G(x, .2);                                         // mouth slit
+        d += .04 * G(y + .62, .08) * G(x, .3);                                         // chin plate
+        z += d * f * 1.5; }
+      mp.setXYZ(i, x, y, z); }
+    mg.computeVertexNormals();
+    const mask = add3(mg, IRON, [0, 3.42, .14], [0, 0, 0], [.63, .63, .63]);
+    const rivet = new THREE.SphereGeometry(.035, 10, 8);
+    for (let i = 0; i < 14; i++){ const a = -Math.PI * .85 + i / 13 * Math.PI * 1.7; add3(rivet, DARKIRON, [Math.sin(a) * .47, 3.42 + Math.cos(a) * .6, .12 + .38 * Math.cos(a * .5)]); }
+    [-1, 1].forEach(sx => { const e = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(0x3dff9a), transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false}));
+      e.scale.setScalar(.22); e.position.set(sx * .165, 3.52, .5); g.add(e); });
+
+    // the hood: open at the face, folds in the cloth
+    const hg = new THREE.SphereGeometry(1, 64, 40, Math.PI / 2 + .78, Math.PI * 2 - 1.56, 0, Math.PI * .8), hp = hg.attributes.position;
+    for (let i = 0; i < hp.count; i++){ v.fromBufferAttribute(hp, i); const ang = Math.atan2(v.z, v.x), k = 1 + .035 * Math.sin(ang * 9) * Math.max(0, -v.y + .3); hp.setXYZ(i, v.x * k, v.y, v.z * k); }
+    hg.computeVertexNormals(); add3(hg, CLOTH, [0, 3.48, -.02], [0, 0, 0], [.86, 1.0, .9]);
+    add3(new THREE.CylinderGeometry(.62, 1.35, 1.0, 48, 1, true), CLOTH, [0, 2.55, -.05]);        // the hood's mantle over the shoulders
+
+    // body: green tunic, grid chest armor, belt
+    add3(new THREE.CylinderGeometry(.9, .78, 1.9, 40), CLOTH2, [0, 1.75, 0]);
+    const chest = add3(new THREE.BoxGeometry(1.25, 1.05, .3, 1, 1, 1), DARKIRON, [0, 2.0, .62]);
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) add3(new THREE.BoxGeometry(.25, .2, .08), IRON, [-.42 + c * .28, 2.38 - r * .25, .8]);
+    add3(new THREE.TorusGeometry(.86, .07, 12, 48), IRON, [0, .86, 0], [Math.PI / 2, 0, 0]);
+    add3(new THREE.BoxGeometry(.36, .26, .1), IRON, [0, .86, .86]);
+    add3(new THREE.CylinderGeometry(.82, 1.25, 1.9, 40, 1, true), CLOTH2, [0, -.15, 0]);          // tunic skirt
+    // shoulders and the chained clasps
+    [-1, 1].forEach(sx => { add3(new THREE.SphereGeometry(.48, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), IRON, [sx * 1.02, 2.62, 0], [0, 0, sx * -.35], [1, .8, 1]);
+      add3(new THREE.CylinderGeometry(.22, .22, .07, 32), IRON, [sx * .58, 2.6, .72], [Math.PI / 2, 0, 0]); });
+    for (let i = 0; i <= 12; i++){ const t = i / 12, x = -.58 + t * 1.16, y = 2.6 - Math.sin(t * Math.PI) * .32;
+      add3(new THREE.TorusGeometry(.05, .016, 6, 12), IRON, [x, y, .76], [0, i % 2 ? Math.PI / 2 : 0, 0]); }
+
+    // arms: iron sleeves and segmented gauntlets; the right hand raised, crackling
+    const arm = (sx, raised) => { const top = new THREE.Vector3(sx * 1.12, 2.45, .05);
+      const elbow = raised ? new THREE.Vector3(sx * 1.55, 1.75, .75) : new THREE.Vector3(sx * 1.35, 1.25, .15);
+      const hand = raised ? new THREE.Vector3(sx * 1.45, 1.9, 1.75) : new THREE.Vector3(sx * 1.32, .1, .3);
+      const seg = (a, b, r1, r2, mat) => { const d = b.clone().sub(a), m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, d.length(), 24), mat);
+        m.position.copy(a.clone().add(b).multiplyScalar(.5)); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); g.add(m); return m; };
+      seg(top, elbow, .25, .21, CLOTH2); seg(elbow, hand, .24, .2, DARKIRON);
+      for (let k = 1; k <= 3; k++){ const t = k / 4, pnt = elbow.clone().lerp(hand, t), ring = seg(pnt.clone().addScaledVector(hand.clone().sub(elbow).normalize(), -.03), pnt.clone().addScaledVector(hand.clone().sub(elbow).normalize(), .03), .26, .26, IRON); }
+      const fist = new THREE.Mesh(new THREE.SphereGeometry(.2, 24, 16), DARKIRON); fist.position.copy(hand); fist.scale.set(1, 1.1, 1.2); g.add(fist); return hand; };
+    arm(-1, false); const castHand = arm(1, true);
+    // legs: iron greaves under the tunic
+    [-1, 1].forEach(sx => { add3(new THREE.CylinderGeometry(.24, .2, 1.6, 24), DARKIRON, [sx * .38, -1.7, 0]); add3(new THREE.BoxGeometry(.4, .22, .62), IRON, [sx * .38, -2.55, .12]); });
+
+    // the cloak: hangs from the shoulders, open at the front, moving in the wind
+    const cg = new THREE.CylinderGeometry(1.2, 2.5, 5.6, 72, 28, true, .75, Math.PI * 2 - 1.5), cbase = Float32Array.from(cg.attributes.position.array);
+    const cloak = add3(cg, CLOTH, [0, -.2, -.1]);
+    // the sorcery: a green core, sparks and lightning in the raised hand
+    const orb = new THREE.Sprite(new THREE.SpriteMaterial({map: dot, color: new THREE.Color(0x3dff9a), transparent: true, opacity: .95, blending: THREE.AdditiveBlending, depthWrite: false}));
+    orb.scale.setScalar(1.1); orb.position.copy(castHand).add(new THREE.Vector3(0, 0, .25)); g.add(orb);
+    const n = 160, sp = new Float32Array(n * 3), sgeo = new THREE.BufferGeometry(); sgeo.setAttribute("position", new THREE.BufferAttribute(sp, 3));
+    g.add(new THREE.Points(sgeo, new THREE.PointsMaterial({size: .09, map: dot, ...add("#3dff9a", .95)})));
+    const bolts = [0, 1, 2].map(() => { const bg = new THREE.BufferGeometry(); bg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(10 * 3), 3));
+      const l = new THREE.Line(bg, new THREE.LineBasicMaterial(add("#b8ffd8", .9))); g.add(l); return l; });
     g.userData.tick = t => {
-      const a = cape.attributes.position; for (let i = 0; i < a.count; i++){ const x = base[i * 3], y = base[i * 3 + 1], k = (2.5 - y) / 5; a.setZ(i, Math.sin(t * 2 + x * 1.4 + y * .9) * .35 * k - k * .4); } a.needsUpdate = true;
-      orbs.forEach(o => { for (let i = 0; i < o.n; i++){ const ang = t * 2.2 + i / o.n * Math.PI * 2 * 3, r = .35 + (i % 7) * .03; o.pts[i * 3] = o.core.position.x + Math.cos(ang) * r;
-          o.pts[i * 3 + 1] = o.core.position.y + Math.sin(ang * 1.3) * r * .8; o.pts[i * 3 + 2] = o.core.position.z + Math.sin(ang) * r; } o.geo.attributes.position.needsUpdate = true;
-        o.core.scale.setScalar(.9 + Math.sin(t * 4 + o.sx) * .15); }); };
-    g.position.y = -.6; g.scale.setScalar(.85); return g; },
-  core(){ const g = new THREE.Group(), n = 5000, p = new Float32Array(n * 3); for (let i = 0; i < n; i++){ const y = 1 - i / (n - 1) * 2, r = Math.sqrt(1 - y * y), t = i * 2.39996, k = 2.2 * (1 + (Math.random() - .5) * .08); p.set([Math.cos(t) * r * k, y * k, Math.sin(t) * r * k], i * 3); }
-    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(p, 3)); g.add(new THREE.Points(geo, new THREE.PointsMaterial({size: .12, map: dot, ...add("#ffd23f")})));
-    [[3.2, [1.1, .3, 0]], [3.7, [-.5, .8, .2]], [4.2, [.2, -.4, .9]]].forEach(([r, rot], k) => { const m = new THREE.Mesh(new THREE.TorusGeometry(r, .03 + k * .01, 6, 120, Math.PI * 1.5), new THREE.MeshBasicMaterial(add(k % 2 ? "#5fd8ff" : "#ffd23f"))); m.rotation.set(...rot); g.add(m); });
-    return g; },
+      const a = cg.attributes.position;
+      for (let i = 0; i < a.count; i++){ const x = cbase[i * 3], y = cbase[i * 3 + 1], z = cbase[i * 3 + 2], k = (2.8 - y) / 5.6, ang = Math.atan2(x, z);
+        const fold = 1 + .06 * Math.sin(ang * 11) * (.3 + k), wind = .18 * k * Math.sin(t * 1.8 + ang * 2 + y * .8);
+        a.setXYZ(i, x * fold, y, z * fold - wind - k * .25); }
+      a.needsUpdate = true; cg.computeVertexNormals();
+      const c = orb.position, pulse = 1 + Math.sin(t * 7) * .15; orb.scale.setScalar(1.1 * pulse); magic.intensity = .9 + Math.sin(t * 9) * .25 + Math.random() * .2;
+      for (let i = 0; i < n; i++){ const ang = t * 3 + i * 2.39996, r = .25 + (i % 11) * .04 + Math.sin(t * 5 + i) * .05; sp[i * 3] = c.x + Math.cos(ang) * r; sp[i * 3 + 1] = c.y + Math.sin(ang * 1.7) * r * .8; sp[i * 3 + 2] = c.z + Math.sin(ang) * r; }
+      sgeo.attributes.position.needsUpdate = true;
+      bolts.forEach((l, j) => { const arr = l.geometry.attributes.position.array, dir = new THREE.Vector3(Math.cos(t * 3 + j * 2.1), Math.sin(t * 2.3 + j), Math.sin(t * 2 + j * 1.3)).normalize();
+        for (let k = 0; k < 10; k++){ const q = c.clone().addScaledVector(dir, k * .12).add(new THREE.Vector3((Math.random() - .5) * .14, (Math.random() - .5) * .14, (Math.random() - .5) * .14)); arr.set([q.x, q.y, q.z], k * 3); }
+        l.geometry.attributes.position.needsUpdate = true; l.material.opacity = Math.random() > .25 ? .9 : .2; });
+    };
+    g.position.y = -.75; g.scale.setScalar(.78); return g; },
+
   globe(){ const g = new THREE.Group(); g.add(new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.SphereGeometry(2.8, 24, 16)), new THREE.LineBasicMaterial(add("#5fd8ff", .35))));
     const n = 400, p = new Float32Array(n * 3); for (let i = 0; i < n; i++){ const a = Math.random() * 6.283, b = Math.acos(2 * Math.random() - 1); p.set([2.85 * Math.sin(b) * Math.cos(a), 2.85 * Math.cos(b), 2.85 * Math.sin(b) * Math.sin(a)], i * 3); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(p, 3)); g.add(new THREE.Points(geo, new THREE.PointsMaterial({size: .14, map: dot, ...add("#ffd23f")})));
     const sg = new THREE.Mesh(new THREE.SphereGeometry(.16, 12, 12), new THREE.MeshBasicMaterial(add("#ff4d5e", 1))); const la = 1.35 * Math.PI / 180, lo = 103.8 * Math.PI / 180;
     sg.position.set(2.85 * Math.cos(la) * Math.cos(lo), 2.85 * Math.sin(la), -2.85 * Math.cos(la) * Math.sin(lo)); g.add(sg); return g; },
-  figure(){ const g = new THREE.Group(), wire = (geo, p, r = [0, 0, 0]) => { const l = new THREE.LineSegments(new THREE.WireframeGeometry(geo), new THREE.LineBasicMaterial(add("#5fd8ff", .6))); l.position.set(...p); l.rotation.set(...r); g.add(l); };
-    wire(new THREE.SphereGeometry(.5, 12, 10), [0, 3.4, 0]); wire(new THREE.CylinderGeometry(.85, .6, 1.9, 12, 3), [0, 2, 0]); wire(new THREE.CylinderGeometry(.6, .65, .7, 12), [0, .75, 0]);
-    [-1, 1].forEach(s => { wire(new THREE.CylinderGeometry(.2, .17, 1.5, 8), [s * 1.12, 2.05, 0], [0, 0, s * .18]); wire(new THREE.CylinderGeometry(.16, .12, 1.4, 8), [s * 1.38, .7, 0], [0, 0, s * .08]);
-      wire(new THREE.CylinderGeometry(.28, .21, 1.7, 8), [s * .34, -.4, 0]); wire(new THREE.CylinderGeometry(.21, .14, 1.7, 8), [s * .35, -2.1, 0]); });
-    g.position.y = -.5; return g; },
-  cube(){ const g = new THREE.Group(), geo = new THREE.IcosahedronGeometry(2.4, 1);
-    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial(add("#5fd8ff", .08)))); g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial(add("#5fd8ff", 1))));
-    const inner = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2, 2, 2)), new THREE.LineBasicMaterial(add("#ffd23f", 1))); g.add(inner); g.userData.spin = inner; return g; },
 };
-const ORDER = ["core", "globe", "figure", "cube", "gauntlet", "armor", "king"];
+const ORDER = ["reactor", "globe", "helmet", "gauntlet", "armor", "king", "car", "missiles"];
+const ALIAS = {core: "reactor", figure: "helmet", cube: "reactor"};   // older names still open something
 let HANDCURL = null, HANDSTILL = false;   // your fingers, for the gauntlet to copy
-let model = MODELS[q.get("model")] ? q.get("model") : "core", obj = null, spinV = {x: 0, y: .4}, scaleT = 1, flying = 0;
+let model = MODELS[q.get("model")] ? q.get("model") : ALIAS[q.get("model")] || "reactor", obj = null, spinV = {x: 0, y: .4}, scaleT = 1, flying = 0;
 function show(name, entry = "pop"){
   model = name; if (obj) holder.remove(obj); obj = MODELS[name](); holder.add(obj); holder.scale.setScalar(entry === "drop" ? 3 : .2); holder.position.set(0, entry === "drop" ? 8 : 0, 0);
   flash(name.toUpperCase()); sfx("pop");
@@ -171,7 +338,7 @@ const flash = t => { msg = {text: t, t: performance.now()}; };
 function layout(){
   const r = Math.min(W, H) * (PHONE && H > W ? .17 : .13), y = H > W ? H * .78 : H * .5;
   const left = [["🌐", "HOLO LAB", () => go("holo.html")], ["🧪", "SIMS", () => go("simulate3d.html")], ["🎬", "TRAILER", () => go("trailer.html")], ["🗺", "MAP", () => go("map.html")]];
-  const right = ORDER.map(m => [{core: "◉", globe: "🌍", figure: "🧍", cube: "◇", gauntlet: "🧤", armor: "🦾", king: "👑"}[m], m === "king" ? (PHONE && H > W ? "KING" : "IRON KING") : m === "gauntlet" && PHONE && H > W ? "GLOVE" : m.toUpperCase(), () => show(m)]);
+  const right = ORDER.map(m => [{reactor: "⚛", globe: "🌍", helmet: "⛑", gauntlet: "🧤", armor: "🦾", king: "👑", car: "🏎", missiles: "🚀"}[m], ({king: PHONE && H > W ? "KING" : "IRON KING", gauntlet: PHONE && H > W ? "GLOVE" : "GAUNTLET", car: "SUPERCAR", missiles: PHONE && H > W ? "MISSILES" : "MICRO-MISSILES"})[m] || m.toUpperCase(), () => show(m)]);
   DIALS = [{cx: H > W ? W * .26 : W * .16, cy: y, r, items: left, title: "OPEN"}, {cx: H > W ? W * .74 : W * .84, cy: y, r, items: right, title: "MODEL"}]
     .map(d => ({...d, btns: d.items.map((it, i) => { const a = -Math.PI / 2 + i / d.items.length * Math.PI * 2; return {x: d.cx + Math.cos(a) * d.r, y: d.cy + Math.sin(a) * d.r, r: d.r * (d.items.length > 5 ? .29 : .36), icon: it[0], label: it[1], fn: it[2], hover: 0}; })}));
   DIALS.push({cx: W / 2, cy: H > W ? H * .14 : H * .12, r: 0, title: "", btns: [{x: W / 2, y: H > W ? H * .14 : H * .12, r: Math.min(W, H) * .06, icon: "⇪", label: PHONE ? "TO LAPTOP" : "TO PHONE", fn: () => throwIt(), hover: 0}]});
