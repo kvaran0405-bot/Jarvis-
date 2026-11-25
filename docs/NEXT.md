@@ -2,12 +2,9 @@
 
 Pick-up list for the next session. Remove an item when it ships (and add its Training mission, see CLAUDE.md).
 
-## Owner to-dos (after exams)
-1. Restart the laptop, then send `/update` on Telegram (check: `/installapp` replies with the app link).
-2. `/installapp` -> install the newest phone app (Play Protect off for a minute, then back on).
-3. Phone: say "setup" -> ALLOW NEXT, including "Location: all the time".
-4. `/gemini` (fast mode) and `/email` (Gmail).
-5. Try "show me my map" and Training Mode.
+## Owner to-dos
+The full, current list is **docs/DO-THIS-NOW.md** (update, Gmail, resume, permanent app key, reinstall once,
+permissions, Gmail/bank/job alerts, Steam). When the owner asks "what do I need to do", give them that list.
 
 ## TOP PRIORITY: premium polish on laptop + phone (display, voice, aesthetics)
 Owner: "I want JARVIS laptop and phone display to be top notch, voice top notch, aesthetic amazing."
