@@ -352,8 +352,17 @@ const DECL = [
 
 // ---------------------------------------------------------------- the brain: Gemini, straight from the phone
 const MODEL = () => PACK.model || "gemini-flash-latest";
+// Each free model has its own daily allowance: if one is used up, the next one answers.
+const SPARES = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-flash-lite-latest"];
 async function gemini(body){
-  return json(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`, {method: "POST", body: JSON.stringify(body)});
+  const spent = LS.get("solo:spent", {}), now = Date.now(); let last;
+  for (const m of [...new Set([MODEL(), ...SPARES])]){
+    if ((spent[m] || 0) > now) continue;
+    try { return await json(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {method: "POST", body: JSON.stringify(body)}); }
+    catch (e) { last = e; if (/HTTP 429/.test(e.message)){ spent[m] = now + (/PerDay|per day/i.test(e.message) ? 3600e3 : 120e3); LS.set("solo:spent", spent); continue; }
+      if (/HTTP 404/.test(e.message)) continue; throw e; }
+  }
+  throw last || new Error("HTTP 429: all free models used up");
 }
 function guestPrompt(){
   return `You are JARVIS, the owner's personal AI (Iron Man's JARVIS: dry British wit, theatrical, charming). Right now the owner is showing you off to friends or family.

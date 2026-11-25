@@ -357,3 +357,13 @@ def test_voicecheck_reports_and_sends_sample(monkeypatch, tmp_path):
     assert "Test voice note: sent" in report and sent
     monkeypatch.setattr(voice, "provider", lambda: "browser")
     assert "can't make voice notes" in tg.voice_check()
+
+
+def test_search_email_asks_the_server(env, monkeypatch):
+    store, ctx, _ = env
+    monkeypatch.setattr(ch, "email_read_ready", lambda: True)
+    monkeypatch.setattr(ch, "recent_mail", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no full download")))
+    monkeypatch.setattr(ch, "search_mail", lambda q, days=60, limit=15: [
+        {"uid": 9, "from": "Murdoch University <admissions@murdoch.edu.au>", "date": "Tue", "subject": "Your offer", "body": "Welcome"}])
+    out, err = execute("search_email", ctx, {"query": "Murdoch"})
+    assert not err and "Your offer" in out

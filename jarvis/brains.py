@@ -274,17 +274,49 @@ def gemini_tools(tool_names: list[str]) -> list[dict]:
 _quick_ok = {"on": True}
 
 
-def _gemini_call(body: dict, model: str | None = None) -> dict:
-    req = urllib.request.Request(GEMINI_URL.format(model=model or settings.gemini_model), data=json.dumps(body).encode(),
+# Each free Gemini model has its own daily allowance: when one is used up, the next one answers instead.
+GEMINI_SPARES = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite",
+                 "gemini-flash-lite-latest"]
+_gem_spent: dict[str, float] = {}   # model -> time its allowance is expected back
+
+
+def gemini_resting() -> bool:
+    """True when every free Gemini model is used up for now (so fast mode goes straight to the main brain)."""
+    import time
+    now = time.time()
+    return all(_gem_spent.get(m, 0) > now for m in dict.fromkeys([settings.gemini_model, *GEMINI_SPARES]))
+
+
+def _gemini_once(body: dict, model: str) -> dict:
+    req = urllib.request.Request(GEMINI_URL.format(model=model), data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json", "x-goog-api-key": settings.gemini_key})
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")[:400]
-        if exc.code == 429:
-            raise LimitReached(f"Gemini free limit reached: {detail}") from None
-        raise BrainError(f"Gemini error {exc.code}: {detail}") from None
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        return json.loads(resp.read())
+
+
+def _gemini_call(body: dict, model: str | None = None) -> dict:
+    import time
+    first = model or settings.gemini_model
+    order = [first] if model and model != settings.gemini_model else list(dict.fromkeys([first, *GEMINI_SPARES]))
+    last = ""
+    for m in order:
+        if _gem_spent.get(m, 0) > time.time():
+            continue
+        try:
+            return _gemini_once(body, m)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:400]
+            if exc.code == 429:
+                _gem_spent[m] = time.time() + (3600 if "PerDay" in detail or "per day" in detail.lower() else 120)
+                last = detail
+                continue
+            if exc.code == 404:
+                continue
+            if exc.code == 400 and "thinking" in detail.lower() and "thinkingConfig" in json.dumps(body.get("generationConfig", {})):
+                plain = {**body, "generationConfig": {k: v for k, v in body["generationConfig"].items() if k != "thinkingConfig"}}
+                return _gemini_call(plain, m)
+            raise BrainError(f"Gemini error {exc.code}: {detail}") from None
+    raise LimitReached("Gemini's free allowance is used up for now" + (" (it refills daily)" if "day" in last.lower() else ""))
 
 
 def run_gemini(agent, contents: list, system_text: str, tool_names: list[str], ctx, *,

@@ -76,7 +76,7 @@ def _text_of(msg: email.message.Message) -> str:
 
 
 def _imap() -> imaplib.IMAP4_SSL:
-    box = imaplib.IMAP4_SSL(settings.imap_host)
+    box = imaplib.IMAP4_SSL(settings.imap_host, timeout=20)
     box.login(settings.smtp_user, settings.smtp_password)
     box.select("INBOX", readonly=True)  # read-only: agents never mark mail as read or delete it
     return box
@@ -118,6 +118,39 @@ def recent_mail(days: int = 7, limit: int = 200) -> list[dict]:
             m = email.message_from_bytes(raw)
             out.append({"uid": uid, "from": _hdr(m["From"]), "subject": _hdr(m["Subject"]), "date": m["Date"],
                         "body": _text_of(m)[:2500]})
+        return out
+    finally:
+        box.logout()
+
+
+def search_mail(query: str, days: int = 60, limit: int = 15) -> list[dict]:
+    """Let the mail server do the searching (seconds), then fetch only the newest matches."""
+    from datetime import date, timedelta
+    words = [w for w in re.findall(r"[\w@.'-]+", query) if len(w) > 1][:6]
+    if not words:
+        return []
+    box = _imap()
+    try:
+        since = (date.today() - timedelta(days=days)).strftime("%d-%b-%Y")
+        uids: list[int] = []
+        if "gmail" in settings.imap_host.lower():   # Gmail's own search: same as the search box in Gmail
+            raw = " ".join(words) + f" newer_than:{days}d"
+            typ, data = box.uid("search", "CHARSET", "UTF-8", "X-GM-RAW", '"' + raw.replace('"', "") + '"')
+            if typ == "OK":
+                uids = [int(u) for u in (data[0] or b"").split()]
+        if not uids:
+            for w in words:
+                w = w.replace('"', "")
+                typ, data = box.uid("search", None, f'(SINCE {since} OR OR FROM "{w}" SUBJECT "{w}" BODY "{w}")')
+                if typ == "OK":
+                    uids += [int(u) for u in (data[0] or b"").split()]
+        out = []
+        for uid in sorted(set(uids), reverse=True)[:limit]:
+            _, msg_data = box.uid("fetch", str(uid), "(BODY.PEEK[])")
+            raw_msg = next((p[1] for p in msg_data if isinstance(p, tuple)), b"")
+            m = email.message_from_bytes(raw_msg)
+            out.append({"uid": uid, "from": _hdr(m["From"]), "subject": _hdr(m["Subject"]), "date": m["Date"],
+                        "body": _text_of(m)[:1500]})
         return out
     finally:
         box.logout()
