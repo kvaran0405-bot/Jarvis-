@@ -100,5 +100,5 @@ def test_times_are_stored_in_owner_timezone(monkeypatch):
 def test_pages_are_never_stale():
     from fastapi.testclient import TestClient
     from jarvis import server
-    r = TestClient(server.app).get("/gestures.js")
+    r = TestClient(server.app).get("/sw.js")   # an open file (the rest need the PIN or the laptop itself)
     assert r.status_code == 200 and r.headers.get("cache-control") == "no-cache"
