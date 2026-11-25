@@ -262,6 +262,8 @@ class BrainMode(BaseModel):
 class Speech(BaseModel):
     agent: str
     text: str
+    cinematic: bool = False   # the trailer: worth waiting for the premium voice
+    engine: str = ""          # "free": the free online voice only (so a whole trailer sounds the same)
 
 
 @app.get("/")
@@ -477,7 +479,10 @@ async def tts(sp: Speech):
     if not voice.enabled():
         raise HTTPException(404, "No voice service - the browser's own voice is used instead")
     try:
-        path = await asyncio.to_thread(voice.synthesize, sp.agent, sp.text, True)
+        if sp.engine == "free":
+            path = await asyncio.to_thread(voice.synthesize_free, sp.agent, sp.text)
+        else:
+            path = await asyncio.to_thread(voice.synthesize, sp.agent, sp.text, not sp.cinematic)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(502, f"Voice service error: {exc}") from exc
     return FileResponse(path, media_type="audio/wav" if path.suffix == ".wav" else "audio/mpeg")
@@ -1356,6 +1361,14 @@ def phone_solo_sync(body: SoloSync):
     """What the phone did on its own while the laptop was away, merged back so both stay the same JARVIS."""
     from . import solo
     return solo.merge(store, bus, body.items)
+
+
+@app.get("/api/phone/trailer-page")
+def trailer_page():
+    """The newest trailer, so the phone's SHOW OFF updates without reinstalling the app."""
+    from fastapi.responses import FileResponse
+    from .config import ROOT as _ROOT
+    return FileResponse(_ROOT / "web" / "trailer.html", media_type="text/html")
 
 
 @app.get("/api/phone/solo-page")

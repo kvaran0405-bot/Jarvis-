@@ -69,6 +69,10 @@ final class Solo {
             lastPack = System.currentTimeMillis();
             if (pack != null) backupReminders(c, pack.optJSONArray("reminders"));
         } catch (Exception ignored) { return; }
+        try {   // the newest trailer too
+            String t = Net.call(c, "/api/phone/trailer-page", null, 20000);
+            if (t.contains("JARVIS-TRAILER")) savePage(c, "trailer.html", t);
+        } catch (Exception ignored) {}
         try {   // the newest solo page, so "update" on the laptop updates the phone's own JARVIS too
             String page = Net.call(c, "/api/phone/solo-page", null, 20000);
             if (page.contains("SOLO-JARVIS")) {
@@ -94,11 +98,34 @@ final class Solo {
                 ByteArrayOutputStream b = new ByteArrayOutputStream();
                 try (InputStream in = h.getInputStream()) { byte[] buf = new byte[16384]; for (int n; (n = in.read(buf)) > 0; ) b.write(buf, 0, n); }
                 String page = b.toString(StandardCharsets.UTF_8.name());
-                if (!page.contains("SOLO-JARVIS")) return;
-                File f = new File(c.getFilesDir(), "solo.html");
-                try (FileOutputStream o = new FileOutputStream(f)) { o.write(page.getBytes(StandardCharsets.UTF_8)); }
+                if (page.contains("SOLO-JARVIS")) savePage(c, "solo.html", page);
+            } catch (Exception ignored) {}
+            try {
+                String t = gitGet("web/trailer.html");
+                if (t != null && t.contains("JARVIS-TRAILER")) savePage(c, "trailer.html", t);
             } catch (Exception ignored) {}
         }).start();
+    }
+
+    private static String gitGet(String path) throws Exception {
+        HttpURLConnection h = (HttpURLConnection) new URL("https://raw.githubusercontent.com/kvaran0405-bot/Jarvis-/" + BuildConfig.BRANCH + "/" + path).openConnection();
+        h.setConnectTimeout(15000); h.setReadTimeout(30000);
+        if (h.getResponseCode() != 200) return null;
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        try (InputStream in = h.getInputStream()) { byte[] buf = new byte[16384]; for (int n; (n = in.read(buf)) > 0; ) b.write(buf, 0, n); }
+        return b.toString(StandardCharsets.UTF_8.name());
+    }
+
+    static void savePage(Context c, String name, String page) throws Exception {
+        File tmp = new File(c.getFilesDir(), name + ".tmp");
+        try (FileOutputStream o = new FileOutputStream(tmp)) { o.write(page.getBytes(StandardCharsets.UTF_8)); }
+        if (!tmp.renameTo(new File(c.getFilesDir(), name))) tmp.delete();
+    }
+
+    /** The app's newest copy of a page (updated from the laptop or GitHub), else the one built into the app. */
+    static String localPage(Context c, String name) {
+        File f = new File(c.getFilesDir(), name);
+        return f.exists() ? Uri.fromFile(f).toString() : "file:///android_asset/" + name;
     }
 
     static String pageUrl(Context c) {

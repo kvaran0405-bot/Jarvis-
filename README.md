@@ -501,26 +501,52 @@ particles:
 
 It takes each agent's colour and your suit theme. On a device without 3D graphics, the classic reactor shows instead.
 
-## The trailer: show off (#8 to #14), version 2
+## The trailer: show off (#8 to #14), version 3
 
-A beat-synced 3D film starring you. Every cut lands on the beat of an original track that's synthesised live:
-drums, bass, arpeggios, risers, braams, a silence before every drop. There are no copyrighted tracks, so you can
-post it.
+A 3D film starring you, with an original soundtrack that's made live: drums, bass, arpeggios, risers, braams, and
+a silence before every drop. There are no copyrighted tracks, so you can post it.
 
-- **The film:**
-  - a data-rain cold open, then a drop where the J.A.R.V.I.S logo slams in with a shockwave
-  - a montage: "I LISTEN" (the core), "I LEARN" (your city with light trails), "I PLAN" (life sims), "I PROTECT"
-    (a body scan), "I'M NEVER ALONE" (the team flying in), "WHEREVER YOU GO" (phone ⇄ laptop ⇄ cloud data
-    beams), and your photos or "I RUN THE NUMBERS"
-  - stats strobing on the beat, warp speed, and a slow-motion moment
-  - the final drop: **STARRING** with your name in particles, then a post-credits scene with FRIDAY
-- **The look:** real bloom glow, chromatic aberration that pumps with the kick, glitch slices on cuts, camera
-  shake, film grain, widescreen bars, and kinetic titles that slam in with an RGB split. JARVIS narrates.
+**Version 3 is rebuilt so that the voice drives the edit.** Every line JARVIS says is loaded before the film starts
+(a progress bar shows "Warming up the voices… 3/9"). Each line's real length decides how long its shot lasts, and
+the cut lands on the next beat after the line finishes. Nothing is cut off or runs late.
+
+- **Titles match the voice word for word.** He says "And I never work alone." and that's the title.
+- **Captions light up word by word** as each line is spoken (karaoke style), on a dark band so they're always readable.
+- **The music ducks** under the voice.
+
+**Smooth on phones too:**
+- The particles move on the graphics chip.
+- The 3D and the titles are two layers, with no copying every frame.
+- Glowing titles are drawn once, not every frame.
+- Quality adapts by itself (resolution, then particle count) to hold a smooth frame rate.
+
+**The voice:**
+- With the laptop: JARVIS's real voice, the cinematic Gemini one, always the same voice for a character.
+- On the phone alone: the Gemini voice through your free key. Each line is remembered on the phone, so it costs
+  nothing the second time.
+- If Google's free allowance is used up: each agent's own backup voice.
+
+**The film:**
+- a data-rain cold open that fades up, then a drop where the J.A.R.V.I.S logo slams in with a shockwave ("Just A
+  Rather Very Intelligent System")
+- a montage: "I listen." (the core), "I learn." (your city with light trails), "I plan." (life sims), "I protect."
+  (a body scan), "And I never work alone." (the team flying in), "Wherever you go, I go." (phone ⇄ laptop ⇄ cloud
+  data beams), and your photos ("This is your story.") or "I run the numbers."
+- stats on the beat, warp speed, and a slow-motion "And when you need me most..."
+- a charge-up, then the final drop: **STARRING** with your name in particles. JARVIS says it.
+- the end card "I'm always online, Sir." (with your dedication), then a post-credits scene with FRIDAY
+
+**Options:**
+- **The look:** bloom glow, chromatic aberration that pumps with the kick, glitch slices, camera shake, film grain
+  and widescreen bars.
 - **Styles:** ⚡ EPIC (gold, 120 BPM), 🔥 HYPE (neon magenta, 140 BPM), 🖤 NOIR (silver and red, 96 BPM).
-- **Cuts:** 🎬 FULL (about a minute) or 📱 REEL (30 seconds, always vertical 9:16, for Instagram and TikTok).
-- **Make it yours:** add up to 6 of your photos (they appear as floating holograms) and a dedication
-  ("for Mum"), which JARVIS says at the end.
+- **Cuts:** 🎬 FULL (about a minute) or 📱 REEL (about 45 seconds, always vertical 9:16, for Instagram and TikTok).
+- **Make it yours:** add up to 6 of your photos (they appear as floating holograms) and a dedication ("for Mum"),
+  which JARVIS says at the end.
 - **⬇ PLAY & SAVE VIDEO** records it, and the laptop sends it to your phone on Telegram, ready to post.
+- **Updates by itself on the phone:** it's refreshed from the laptop, or from GitHub when the laptop is away, with
+  no reinstall.
+
 - It only shows safe-to-share things: counts, places (home shows as "HQ") and the team. Never messages, tasks or
   money.
 - **Phone:** tap **🎬 SHOW OFF** (works with the laptop off too). **Laptop:** say "show off mode".

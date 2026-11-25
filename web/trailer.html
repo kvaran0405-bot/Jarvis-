@@ -3,16 +3,16 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JARVIS Trailer</title>
 <meta name="theme-color" content="#000000">
-<script src="vendor/three.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-/* The JARVIS trailer v2: a beat-synced 3D film starring the owner. Original score made live, every cut on the beat,
-   bloom + chromatic aberration, shockwaves, slow motion, a montage of JARVIS's powers, kinetic titles, three styles,
-   a 30-second vertical Reel, your own photos as holograms, a dedication, and a post-credits scene.
-   Everything is drawn into one canvas, so "SAVE VIDEO" records exactly what you see and hear. */
+/* JARVIS-TRAILER v3. The voice drives the edit: every line is loaded first, its real length decides how long its
+   shot lasts, and cuts land on the next beat after it finishes, so captions and titles always match what you hear.
+   Speed: particles move on the graphics chip, the 3D and the titles are two layers (no per-frame copying), titles
+   are pre-drawn once, and quality adapts to the device to hold 60 fps. */
 html,body{margin:0;height:100%;background:#000;overflow:hidden;color:#dce7f2;font-family:"JetBrains Mono",monospace;-webkit-tap-highlight-color:transparent}
-#gl{display:none}
-#out{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:block;background:#000}
+#stage{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%)}
+#stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#rec{display:none}
 #start{position:fixed;inset:0;overflow:auto;display:grid;place-items:center;background:radial-gradient(circle at 50% 35%,#101b28,#000 70%);z-index:5;transition:opacity .6s}
 #start.off{opacity:0;pointer-events:none}
 .in{width:min(560px,92vw);display:grid;gap:12px;padding:22px 0;text-align:center}
@@ -26,13 +26,14 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;color:#dce7f2;fon
 #ded:focus{border-color:#ffd23f}
 .big{font:900 13px Orbitron,sans-serif;letter-spacing:.26em;padding:17px 22px;border-radius:999px;border:1px solid #ffd23f;cursor:pointer}
 #play{background:#ffd23f;color:#000;box-shadow:0 0 34px #ffd23f77}
-#rec{background:transparent;color:#ffd23f}
+#recBtn{background:transparent;color:#ffd23f}
 #status{font-size:11px;color:#8a95a7;min-height:16px}
+#bar{height:3px;border-radius:3px;background:#1a2430;overflow:hidden}#bar i{display:block;height:100%;width:0;background:#ffd23f;box-shadow:0 0 10px #ffd23f;transition:width .3s}
 #thumbs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
 #thumbs img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid #ffd23f55}
 #skip{position:fixed;top:max(12px,env(safe-area-inset-top));right:12px;z-index:4;background:rgba(0,0,0,.4);border:1px solid #333;color:#888;font:700 9px Orbitron,sans-serif;letter-spacing:.2em;padding:8px 12px;border-radius:999px;display:none}
 </style></head><body>
-<canvas id="gl"></canvas><canvas id="out"></canvas>
+<div id="stage"><canvas id="gl"></canvas><canvas id="fx"></canvas></div><canvas id="rec"></canvas>
 <button id="skip">✕</button>
 <div id="start"><div class="in">
   <div class="k">A JARVIS PRODUCTION</div>
@@ -41,26 +42,37 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;color:#dce7f2;fon
   <div class="lbl">STYLE</div>
   <div class="row" id="styles"><button class="opt on" data-s="epic" style="--c:#ffd23f">⚡ EPIC</button><button class="opt" data-s="hype" style="--c:#ff3df0">🔥 HYPE</button><button class="opt" data-s="noir" style="--c:#c9d3df">🖤 NOIR</button></div>
   <div class="lbl">CUT</div>
-  <div class="row" id="cuts"><button class="opt on" data-c="full">🎬 FULL · 60s</button><button class="opt" data-c="reel">📱 REEL · 30s VERTICAL</button></div>
+  <div class="row" id="cuts"><button class="opt on" data-c="full">🎬 FULL · ~60s</button><button class="opt" data-c="reel">📱 REEL · ~45s VERTICAL</button></div>
   <div class="lbl">MAKE IT YOURS</div>
   <div class="row"><button class="opt" id="photosBtn">🖼 ADD YOUR PHOTOS</button><input type="file" id="photos" accept="image/*" multiple hidden></div>
   <div id="thumbs"></div>
   <input id="ded" maxlength="28" placeholder="Dedicate it (optional): e.g. for Mum">
   <button class="big" id="play">▶ PLAY</button>
-  <button class="big" id="rec">⬇ PLAY &amp; SAVE VIDEO</button>
+  <button class="big" id="recBtn">⬇ PLAY &amp; SAVE VIDEO</button>
+  <div id="bar"><i></i></div>
   <div id="status">Loading your story…</div>
 </div></div>
 <script>
+// three.js from wherever this page lives: the laptop, the app's built-in copy, or an updated copy in the app's storage
+(function load(srcs){ const s = document.createElement("script"); s.src = srcs[0];
+  s.onload = () => window.trailerMain(); s.onerror = () => srcs.length > 1 ? load(srcs.slice(1)) : (document.getElementById("status").textContent = "Couldn't load the 3D engine.");
+  document.head.appendChild(s); })(["vendor/three.min.js", "file:///android_asset/vendor/three.min.js", "/vendor/three.min.js"]);
+</script>
+<script>
 "use strict";
+window.trailerMain = function(){
 const $ = s => document.querySelector(s);
 const N = window.JarvisNative || null;
+const PHONE = /Android|iPhone|iPad/i.test(navigator.userAgent) || Math.min(screen.width, screen.height) < 600;
+const Q = {np: PHONE ? 9000 : 18000, res: 1, blurDiv: PHONE ? 4 : 2, blurIters: PHONE ? 1 : 2, maxDpr: PHONE ? 1.25 : 1.5};
+
 const DEMO = {owner: "SIR", team: [["JARVIS", "Chief of staff", "#ffd23f"], ["FRIDAY", "Operations", "#ff5fa2"], ["ZEUS", "Career", "#ff7a3c"], ["ATHENA", "Studies", "#b06bff"],
   ["ORACLE", "Analyst", "#5fd8ff"], ["STEVE", "Fitness", "#3dff9a"], ["PEPPER", "Business", "#ffb347"], ["VERONICA", "Money", "#ff4d5e"]].map(([name, title, color]) => ({name, title, color})),
   stats: {steps_week: 52440, tasks_done_week: 17, events_week: 12, memories: 64, places_explored: 23, trophies: 5},
   outline: [[103.615,1.32],[103.64,1.29],[103.68,1.27],[103.72,1.25],[103.76,1.26],[103.8,1.265],[103.84,1.27],[103.86,1.28],[103.88,1.295],[103.92,1.3],[103.96,1.31],[104,1.33],[104.03,1.36],
     [104.03,1.39],[103.99,1.41],[103.95,1.4],[103.91,1.42],[103.87,1.44],[103.83,1.46],[103.79,1.45],[103.75,1.45],[103.71,1.43],[103.68,1.41],[103.65,1.38],[103.63,1.35],[103.615,1.32]],
   places: [{name: "HQ", lat: 1.353, lon: 103.944}, {name: "SMU", lat: 1.2966, lon: 103.8502}, {name: "JEWEL", lat: 1.3602, lon: 103.9897}, {name: "ORCHARD", lat: 1.304, lon: 103.832}], trail: []};
-let D = DEMO;
+let D = DEMO, PACK = null;
 const STYLES = {
   epic: {bpm: 120, c: ["#ffd23f", "#5fd8ff", "#ff7a3c"], roots: [55, 43.65, 65.41, 49], chords: [[220, 261.6, 329.6, 440], [174.6, 220, 261.6, 349.2], [261.6, 329.6, 392, 523.3], [196, 246.9, 293.7, 392]], grit: 1},
   hype: {bpm: 140, c: ["#ff3df0", "#3dfcff", "#ffe23d"], roots: [55, 43.65, 65.41, 49], chords: [[440, 523.3, 659.3, 880], [349.2, 440, 523.3, 698.5], [523.3, 659.3, 784, 1046.5], [392, 493.9, 587.3, 784]], grit: 1.4},
@@ -68,37 +80,34 @@ const STYLES = {
 };
 let STYLE = STYLES.epic, STYLE_NAME = "epic", CUT = "full", PHOTOS = [], DEDIC = "";
 
-// ---------------------------------------------------------------- stage
-const GL = $("#gl"), OUT = $("#out"), X = OUT.getContext("2d");
-const R = new THREE.WebGLRenderer({canvas: GL, antialias: false, alpha: false, preserveDrawingBuffer: true}); R.setClearColor(0x000000);
+// ================================================================ stage: a 3D layer and a titles layer, stacked
+const STAGE = $("#stage"), GL = $("#gl"), FXC = $("#fx"), X = FXC.getContext("2d"), REC = $("#rec"), RX = REC.getContext("2d");
+const R = new THREE.WebGLRenderer({canvas: GL, antialias: false, alpha: false, powerPreference: "high-performance"}); R.setClearColor(0x000000);
 const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(50, 1, .1, 800);
-scene.fog = new THREE.FogExp2(0x000000, .01);
-let W = 0, H = 0, DPR = 1, rtS = null, rtA = null, rtB = null;
-const portrait = () => H > W;
+let W = 0, H = 0, OW = 0, OH = 0, CW = 0, CH = 0, rtS = null, rtA = null, rtB = null;
+const portrait = () => CH > CW;
 
-// ---------------------------------------------------------------- post-processing: bloom, chromatic aberration, glitch, grain
 const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quadScene = new THREE.Scene(), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quadScene.add(quad);
 const VQ = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }`;
-const blurMat = () => new THREE.ShaderMaterial({uniforms: {t: {value: null}, px: {value: new THREE.Vector2()}}, vertexShader: VQ,
+const blurMat = () => new THREE.ShaderMaterial({uniforms: {t: {value: null}, px: {value: new THREE.Vector2()}}, vertexShader: VQ, depthTest: false, depthWrite: false,
   fragmentShader: `uniform sampler2D t; uniform vec2 px; varying vec2 vUv; void main(){ vec3 c = texture2D(t, vUv).rgb * .2;
     c += (texture2D(t, vUv + px * 1.5).rgb + texture2D(t, vUv - px * 1.5).rgb) * .2; c += (texture2D(t, vUv + px * 3.5).rgb + texture2D(t, vUv - px * 3.5).rgb) * .13;
     c += (texture2D(t, vUv + px * 6.).rgb + texture2D(t, vUv - px * 6.).rgb) * .07; gl_FragColor = vec4(c, 1.); }`});
 const POST = {
-  bright: new THREE.ShaderMaterial({uniforms: {t: {value: null}, th: {value: .46}}, vertexShader: VQ,
+  bright: new THREE.ShaderMaterial({uniforms: {t: {value: null}, th: {value: .46}}, vertexShader: VQ, depthTest: false, depthWrite: false,
     fragmentShader: `uniform sampler2D t; uniform float th; varying vec2 vUv; void main(){ vec3 c = texture2D(t, vUv).rgb; float l = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(c * smoothstep(th, th + .3, l), 1.); }`}),
   blurH: blurMat(), blurV: blurMat(),
-  final: new THREE.ShaderMaterial({uniforms: {tS: {value: null}, tB: {value: null}, strength: {value: 1.6}, ca: {value: .004}, time: {value: 0}, flash: {value: 0}, glitch: {value: 0}, fade: {value: 1}, tint: {value: new THREE.Color(1, 1, 1)}},
-    vertexShader: VQ, fragmentShader: `
+  final: new THREE.ShaderMaterial({uniforms: {tS: {value: null}, tB: {value: null}, strength: {value: 1.2}, ca: {value: .004}, time: {value: 0}, flash: {value: 0}, glitch: {value: 0}, fade: {value: 1}, tint: {value: new THREE.Color(1, 1, 1)}},
+    vertexShader: VQ, depthTest: false, depthWrite: false, fragmentShader: `
       uniform sampler2D tS, tB; uniform float strength, ca, time, flash, glitch, fade; uniform vec3 tint; varying vec2 vUv;
       float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       void main(){ vec2 uv = vUv; float band = floor(uv.y * 28.);
         uv.x += glitch * step(.55, rnd(vec2(band, floor(time * 24.)))) * (rnd(vec2(band, time)) - .5) * .16;
         vec2 d = (uv - .5) * (ca + glitch * .03);
         vec3 c = vec3(texture2D(tS, uv + d).r, texture2D(tS, uv).g, texture2D(tS, uv - d).b);
-        vec3 b = vec3(texture2D(tB, uv + d * 2.).r, texture2D(tB, uv).g, texture2D(tB, uv - d * 2.).b);
-        c += b * strength; c *= tint;
+        c += texture2D(tB, uv).rgb * strength; c *= tint;
         c *= smoothstep(1.05, .3, length(vUv - .5));
-        c += (rnd(vUv * 1000. + time) - .5) * .07;
+        c += (rnd(vUv * 1000. + time) - .5) * .06;
         c = mix(c, vec3(1.), flash); c *= 1. - fade;
         gl_FragColor = vec4(c, 1.); }`}),
 };
@@ -106,44 +115,67 @@ function pass(mat, target){ quad.material = mat; R.setRenderTarget(target); R.re
 function render(){
   R.setRenderTarget(rtS); R.render(scene, cam);
   POST.bright.uniforms.t.value = rtS.texture; pass(POST.bright, rtA);
-  for (let i = 0; i < 2; i++){ POST.blurH.uniforms.t.value = rtA.texture; pass(POST.blurH, rtB); POST.blurV.uniforms.t.value = rtB.texture; pass(POST.blurV, rtA); }
+  for (let i = 0; i < Q.blurIters; i++){ POST.blurH.uniforms.t.value = rtA.texture; pass(POST.blurH, rtB); POST.blurV.uniforms.t.value = rtB.texture; pass(POST.blurV, rtA); }
   POST.final.uniforms.tS.value = rtS.texture; POST.final.uniforms.tB.value = rtA.texture; pass(POST.final, null);
 }
 function resize(){
-  DPR = Math.min(1.5, devicePixelRatio || 1);
   let w = innerWidth, h = innerHeight;
   if (CUT === "reel" && w / h > 9 / 16) w = Math.round(h * 9 / 16);      // the Reel is always vertical
-  W = Math.round(w * DPR); H = Math.round(h * DPR);
-  OUT.width = W; OUT.height = H; OUT.style.width = w + "px"; OUT.style.height = h + "px";
+  CW = w; CH = h; STAGE.style.width = w + "px"; STAGE.style.height = h + "px";
+  const dpr = Math.min(Q.maxDpr, devicePixelRatio || 1);
+  W = Math.max(2, Math.round(w * dpr * Q.res)); H = Math.max(2, Math.round(h * dpr * Q.res));
+  OW = Math.round(w * Math.min(2, devicePixelRatio || 1)); OH = Math.round(h * Math.min(2, devicePixelRatio || 1));
+  FXC.width = OW; FXC.height = OH; REC.width = OW; REC.height = OH;
   R.setPixelRatio(1); R.setSize(W, H, false); cam.aspect = W / H; cam.updateProjectionMatrix();
   [rtS, rtA, rtB].forEach(r => r && r.dispose());
-  rtS = new THREE.WebGLRenderTarget(W, H); rtA = new THREE.WebGLRenderTarget(W >> 1, H >> 1); rtB = new THREE.WebGLRenderTarget(W >> 1, H >> 1);
-  POST.blurH.uniforms.px.value.set(1 / (W >> 1), 0); POST.blurV.uniforms.px.value.set(0, 1 / (H >> 1));
+  const bw = Math.max(2, Math.round(W / Q.blurDiv)), bh = Math.max(2, Math.round(H / Q.blurDiv));
+  rtS = new THREE.WebGLRenderTarget(W, H); rtA = new THREE.WebGLRenderTarget(bw, bh); rtB = new THREE.WebGLRenderTarget(bw, bh);
+  POST.blurH.uniforms.px.value.set(1 / bw, 0); POST.blurV.uniforms.px.value.set(0, 1 / bh);
+  if (PU) PU.uPx.value = H / 2;
+  rainCols = []; SL.cache = null;
 }
-addEventListener("resize", resize); resize();
 
-const dot = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.3, "rgba(255,255,255,.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const hex = h => { const c = new THREE.Color(h); return [c.r, c.g, c.b]; };
 const C = c => new THREE.Color(c);
 const glowMat = (c, op = .9) => new THREE.MeshBasicMaterial({color: C(c), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide});
 const lineMat = (c, op = .9) => new THREE.LineBasicMaterial({color: C(c), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false});
+const dotTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.3, "rgba(255,255,255,.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 
-// ---------------------------------------------------------------- the particle swarm: morphs, explodes, drifts
+// ================================================================ the particle swarm, animated on the graphics chip
 let clock = 0;
-const NP = 16000, pos = new Float32Array(NP * 3), col = new Float32Array(NP * 3), from = new Float32Array(NP * 3), to = new Float32Array(NP * 3), vel = new Float32Array(NP * 3), seed = new Float32Array(NP);
+const NP = Q.np;
+const from = new Float32Array(NP * 3), to = new Float32Array(NP * 3), col = new Float32Array(NP * 3), vel = new Float32Array(NP * 3), seed = new Float32Array(NP);
 for (let i = 0; i < NP; i++){ seed[i] = Math.random(); const r = 60 + Math.random() * 90, a = Math.random() * 6.283, b = Math.acos(2 * Math.random() - 1);
-  pos.set([r * Math.sin(b) * Math.cos(a), r * Math.cos(b), r * Math.sin(b) * Math.sin(a)], i * 3); col.set([1, .82, .25], i * 3); }
-to.set(pos);
-const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3)); pg.setAttribute("color", new THREE.BufferAttribute(col, 3));
-const pm = new THREE.PointsMaterial({size: .3, map: dot, vertexColors: true, transparent: true, opacity: .95, blending: THREE.AdditiveBlending, depthWrite: false});
-const swarm = new THREE.Points(pg, pm); scene.add(swarm);
-let morph = null, exploding = 0, SPIN = .05;
-function shape(fn){ for (let i = 0; i < NP; i++){ const p = fn(i, seed[i]); to[i * 3] = p[0]; to[i * 3 + 1] = p[1]; to[i * 3 + 2] = p[2]; } }
-function morphTo(fn, dur){ from.set(pos); shape(fn); morph = {t0: clock, dur}; exploding = 0; }
-function explode(force = 1){ for (let i = 0; i < NP; i++){ const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2], l = Math.hypot(x, y, z) || 1, s = (8 + seed[i] * 40) * force;
-    vel[i * 3] = x / l * s + (Math.random() - .5) * 6; vel[i * 3 + 1] = y / l * s + (Math.random() - .5) * 6; vel[i * 3 + 2] = z / l * s + (Math.random() - .5) * 6; } morph = null; exploding = 1; }
-function tint(fn){ for (let i = 0; i < NP; i++){ const c = fn(i, seed[i]); col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2]; } pg.attributes.color.needsUpdate = true; }
+  from.set([r * Math.sin(b) * Math.cos(a), r * Math.cos(b), r * Math.sin(b) * Math.sin(a)], i * 3); col.set([1, .82, .25], i * 3); }
+to.set(from);
+const pg = new THREE.BufferGeometry();
+pg.setAttribute("position", new THREE.BufferAttribute(from, 3)); pg.setAttribute("aTo", new THREE.BufferAttribute(to, 3));
+pg.setAttribute("aCol", new THREE.BufferAttribute(col, 3)); pg.setAttribute("aVel", new THREE.BufferAttribute(vel, 3)); pg.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
+const PU = {uMorph: {value: 1}, uTime: {value: 0}, uBoom: {value: 0}, uSize: {value: .3}, uPx: {value: 400}};
+const pm = new THREE.ShaderMaterial({uniforms: PU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexShader: `
+    attribute vec3 aTo, aCol, aVel; attribute float aSeed; uniform float uMorph, uTime, uBoom, uSize, uPx; varying vec3 vC;
+    void main(){ vec3 p = mix(position, aTo, uMorph);
+      p.y += sin(uTime * 1.3 + aSeed * 40.) * .05;
+      if (uBoom > 0.) p += aVel * (1. - exp(-uBoom * 1.6)) / 1.6;
+      vec4 mv = modelViewMatrix * vec4(p, 1.); gl_Position = projectionMatrix * mv;
+      gl_PointSize = clamp(uSize * uPx / max(.1, -mv.z), 0., 64.); vC = aCol; }`,
+  fragmentShader: `uniform sampler2D map; varying vec3 vC; void main(){ float d = length(gl_PointCoord - .5); float a = pow(max(0., 1. - d * 2.), 1.6); if (a < .01) discard; gl_FragColor = vec4(vC, a); }`});
+const swarm = new THREE.Points(pg, pm); swarm.frustumCulled = false; scene.add(swarm);
+let morph = null, boomT0 = -1, SPIN = .05;
+const ease = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+function current(){   // where every particle is right now (once per shot, never per frame)
+  const e = morph ? ease(Math.min(1, (clock - morph.t0) / morph.dur)) : 1, b = boomT0 >= 0 ? (1 - Math.exp(-(clock - boomT0) * 1.6)) / 1.6 : 0;
+  for (let i = 0; i < NP * 3; i++) from[i] = from[i] + (to[i] - from[i]) * e + vel[i] * b;
+}
+function morphTo(fn, dur){ current(); for (let i = 0; i < NP; i++){ const p = fn(i, seed[i]); to[i * 3] = p[0]; to[i * 3 + 1] = p[1]; to[i * 3 + 2] = p[2]; }
+  vel.fill(0); boomT0 = -1; morph = {t0: clock, dur}; PU.uMorph.value = 0;
+  ["position", "aTo", "aVel"].forEach(k => pg.attributes[k].needsUpdate = true); }
+function explode(force = 1){ current(); to.set(from);
+  for (let i = 0; i < NP; i++){ const x = from[i * 3], y = from[i * 3 + 1], z = from[i * 3 + 2], l = Math.hypot(x, y, z) || 1, s = (8 + seed[i] * 40) * force;
+    vel[i * 3] = x / l * s + (Math.random() - .5) * 6; vel[i * 3 + 1] = y / l * s + (Math.random() - .5) * 6; vel[i * 3 + 2] = z / l * s + (Math.random() - .5) * 6; }
+  morph = null; PU.uMorph.value = 1; boomT0 = clock; ["position", "aTo", "aVel"].forEach(k => pg.attributes[k].needsUpdate = true); }
+function tint(fn){ for (let i = 0; i < NP; i++){ const c = fn(i, seed[i]); col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2]; } pg.attributes.aCol.needsUpdate = true; }
 const styleTint = (i, s) => hex(STYLE.c[s < .7 ? 0 : s < .92 ? 1 : 2]).map(v => v * (.55 + s * .45));
 const dim = (c, k) => () => hex(c).map(v => v * k);
 const still = () => { swarm.rotation.set(0, 0, 0); SPIN = 0; };
@@ -152,6 +184,7 @@ const scatter = k => (i, s) => { const r = (50 + s * 110) * k, a = s * 999, b = 
 const vortex = (i, s) => { const a = s * 40 + i * .002, r = 2 + s * 28; return [Math.cos(a) * r, (s - .5) * 3 + Math.sin(a * 3) * .6, Math.sin(a) * r]; };
 const ringShape = r => (i, s) => { const a = (i / NP) * 6.283 * 3, rr = r + Math.sin(i * 12.9898) * 1.4; return [Math.cos(a) * rr, Math.sin(i * 78.233) * 1.1, Math.sin(a) * rr]; };
 const tunnel = (i, s) => { const a = s * 6.283 * 7 + i, r = 7 + (i % 5) * .7; return [Math.cos(a) * r, Math.sin(a) * r, 20 - (i / NP) * 260]; };
+const point = (i, s) => [(s - .5) * .3, ((i * 7.1) % 1 - .5) * .3, ((i * 3.3) % 1 - .5) * .3];
 function textPts(txt, width){
   const c = document.createElement("canvas"), g = c.getContext("2d"); c.width = 1400; c.height = 300;
   g.fillStyle = "#fff"; let fs = 210; g.font = `900 ${fs}px Orbitron, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
@@ -171,11 +204,11 @@ function cityShape(){
   return (i, s) => { if (i < NP * .35){ const e = edge[i % edge.length]; return [e[0], (s - .5) * .2, e[1]]; } const f = fill[i % fill.length] || [0, 0]; return [f[0] + (s - .5) * .3, -.2 + s * .15, f[1] + (s - .5) * .3]; };
 }
 
-// ---------------------------------------------------------------- props per shot
+// ================================================================ props per shot
 const props = new THREE.Group(); scene.add(props);
-let anims = [];
-function clearProps(){ while (props.children.length){ const o = props.children[0]; props.remove(o); o.geometry?.dispose?.(); } anims = []; }
-function ring(r, c, w, rot, len = 1.4){ const m = new THREE.Mesh(new THREE.TorusGeometry(r, w, 6, 160, Math.PI * len), glowMat(c, .9)); m.rotation.set(...rot); props.add(m); return m; }
+let anims = [], shotT0 = 0;
+function clearProps(){ while (props.children.length){ const o = props.children[0]; props.remove(o); o.geometry?.dispose?.(); if (o.material?.map && o.material.map !== dotTex) o.material.map.dispose?.(); } anims = []; }
+function ring(r, c, w, rot, len = 1.4){ const m = new THREE.Mesh(new THREE.TorusGeometry(r, w, 6, PHONE ? 96 : 160, Math.PI * len), glowMat(c, .9)); m.rotation.set(...rot); props.add(m); return m; }
 function card(a){ const c = document.createElement("canvas"); c.width = 512; c.height = 160; const g = c.getContext("2d");
   g.strokeStyle = a.color; g.lineWidth = 4; g.shadowColor = a.color; g.shadowBlur = 18; g.strokeRect(10, 10, 492, 140); g.fillStyle = "rgba(5,10,16,.75)"; g.fillRect(12, 12, 488, 136);
   g.shadowBlur = 22; g.fillStyle = a.color; g.font = "900 58px Orbitron, sans-serif"; g.fillText(a.name, 34, 84); g.shadowBlur = 0; g.fillStyle = "#c9d6e3"; g.font = "600 26px JetBrains Mono, monospace"; g.fillText((a.title || "").toUpperCase(), 36, 124);
@@ -183,17 +216,18 @@ function card(a){ const c = document.createElement("canvas"); c.width = 512; c.h
 const waves = [];
 function shockwave(c = STYLE.c[0]){ const m = new THREE.Mesh(new THREE.RingGeometry(.9, 1, 96), glowMat(c, 1)); scene.add(m); waves.push({m, t0: clock}); }
 
-// ---------------------------------------------------------------- music: original, beat-based, made live (and recorded with the video)
-let AC = null, MASTER = null, REC_DEST = null, REVERB = null, DELAY = null, MUSIC = null, NOISE = null;
+// ================================================================ the score: original, made live, scheduled a moment ahead
+let AC = null, MASTER = null, REC_DEST = null, REVERB = null, DELAY = null, MUSIC = null, VOX = null, NOISE = null;
 function audio(){
-  AC = new (window.AudioContext || window.webkitAudioContext)(); MASTER = AC.createGain(); MASTER.gain.value = .9;
+  AC = new (window.AudioContext || window.webkitAudioContext)({latencyHint: "interactive"}); MASTER = AC.createGain(); MASTER.gain.value = .9;
   const comp = AC.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 5; comp.attack.value = .003; comp.release.value = .2;
   MASTER.connect(comp); comp.connect(AC.destination); REC_DEST = AC.createMediaStreamDestination(); comp.connect(REC_DEST);
   MUSIC = AC.createGain(); MUSIC.connect(MASTER);
-  REVERB = AC.createConvolver(); const len = AC.sampleRate * 3, ir = AC.createBuffer(2, len, AC.sampleRate);
+  VOX = AC.createGain(); VOX.gain.value = 1.5; VOX.connect(MASTER);     // the voice sits on top: music ducks under it
+  REVERB = AC.createConvolver(); const len = AC.sampleRate * 2.5, ir = AC.createBuffer(2, len, AC.sampleRate);
   for (let c = 0; c < 2; c++){ const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
-  REVERB.buffer = ir; const rv = AC.createGain(); rv.gain.value = .4; REVERB.connect(rv); rv.connect(MASTER);
-  DELAY = AC.createDelay(1); DELAY.delayTime.value = .375; const fb = AC.createGain(), dw = AC.createGain(); fb.gain.value = .38; dw.gain.value = .35; DELAY.connect(fb); fb.connect(DELAY); DELAY.connect(dw); dw.connect(MUSIC);
+  REVERB.buffer = ir; const rv = AC.createGain(); rv.gain.value = .35; REVERB.connect(rv); rv.connect(MASTER);
+  DELAY = AC.createDelay(1); DELAY.delayTime.value = .375; const fb = AC.createGain(), dw = AC.createGain(); fb.gain.value = .35; dw.gain.value = .3; DELAY.connect(fb); fb.connect(DELAY); DELAY.connect(dw); dw.connect(MUSIC);
   NOISE = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate); const nd = NOISE.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
 }
 const toBus = (node, wet = .25, bus = MUSIC) => { node.connect(bus); if (wet){ const g = AC.createGain(); g.gain.value = wet; node.connect(g); g.connect(REVERB); } };
@@ -208,12 +242,12 @@ const I = {
   clap(t){ [0, .012, .024].forEach(d => { const n = nsrc(t + d, .1), bp = AC.createBiquadFilter(), g = AC.createGain(); bp.type = "bandpass"; bp.frequency.value = 1300; env(g, t + d, .001, .35, .08); n.connect(bp); bp.connect(g); toBus(g, .4); }); },
   bass(t, f, dur){ const o = AC.createOscillator(), o2 = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain(); o.type = "sawtooth"; o2.type = "square"; o.frequency.value = f; o2.frequency.value = f / 2;
     lp.type = "lowpass"; lp.Q.value = 6; lp.frequency.setValueAtTime(140, t); lp.frequency.exponentialRampToValueAtTime(900 * STYLE.grit, t + .05); lp.frequency.exponentialRampToValueAtTime(160, t + dur * .9);
-    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.32, t + .01); g.gain.setValueAtTime(.32, t + dur * .8); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.3, t + .01); g.gain.setValueAtTime(.3, t + dur * .8); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
     o.connect(lp); o2.connect(lp); lp.connect(g); toBus(g, 0); o.start(t); o2.start(t); o.stop(t + dur + .05); o2.stop(t + dur + .05); },
   arp(t, f){ const o = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain(); o.type = STYLE_NAME === "noir" ? "triangle" : "sawtooth"; o.frequency.value = f;
-    lp.type = "lowpass"; lp.frequency.setValueAtTime(3200, t); lp.frequency.exponentialRampToValueAtTime(500, t + .14); env(g, t, .003, .09, .16); o.connect(lp); lp.connect(g); toBus(g, .15); g.connect(DELAY); o.start(t); o.stop(t + .25); },
-  pad(t, fs, dur, v = .045){ fs.forEach(f => { [-6, 6].forEach(dt => { const o = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain(); o.type = "sawtooth"; o.frequency.value = f / 2; o.detune.value = dt;
-      lp.type = "lowpass"; lp.frequency.value = 1100; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v / fs.length, t + Math.min(1.2, dur * .3)); g.gain.linearRampToValueAtTime(0, t + dur);
+    lp.type = "lowpass"; lp.frequency.setValueAtTime(3200, t); lp.frequency.exponentialRampToValueAtTime(500, t + .14); env(g, t, .003, .08, .16); o.connect(lp); lp.connect(g); toBus(g, .15); g.connect(DELAY); o.start(t); o.stop(t + .25); },
+  pad(t, fs, dur, v = .045){ fs.forEach(f => { (PHONE ? [0] : [-6, 6]).forEach(dt => { const o = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain(); o.type = "sawtooth"; o.frequency.value = f / 2; o.detune.value = dt;
+      lp.type = "lowpass"; lp.frequency.value = 1100; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v / fs.length * (PHONE ? 1.6 : 1), t + Math.min(1.2, dur * .3)); g.gain.linearRampToValueAtTime(0, t + dur);
       o.connect(lp); lp.connect(g); toBus(g, .6); o.start(t); o.stop(t + dur + .1); }); }); },
   braam(t, big = 1){ const r = STYLE.roots[0]; [r, r * 1.5, r * 2, r * 1.19].forEach((f, k) => { const o = AC.createOscillator(), g = AC.createGain(), lp = AC.createBiquadFilter(), sh = AC.createWaveShaper();
       const cv = new Float32Array(256); for (let i = 0; i < 256; i++){ const x = i / 128 - 1; cv[i] = Math.tanh(x * 3.5); } sh.curve = cv;
@@ -231,95 +265,192 @@ const I = {
   heart(t){ I.kick(t, .7); I.kick(t + .18, .45); },
   ping(t, f = 1760){ const o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = f; env(g, t, .002, .12, 1.2); o.connect(g); toBus(g, .7, MASTER); g.connect(DELAY); o.start(t); o.stop(t + 1.4); },
 };
+function duck(t0, dur){ if (!MUSIC) return; const g = MUSIC.gain; g.setTargetAtTime(.45, t0, .05); g.setTargetAtTime(1, t0 + dur, .25); }
 
-// ---------------------------------------------------------------- the voice-over (JARVIS's real voice from the laptop, else the device's)
-const VOICE = [];
-async function loadVoice(lines){
-  VOICE.length = 0;
-  await Promise.all(lines.map(async ([beat, agent, s]) => { let buf = null;
-    if (location.protocol !== "file:"){ try { const r = await fetch("/api/tts", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent, text: s})});
-      if (r.ok) buf = await AC.decodeAudioData(await r.arrayBuffer()); } catch {} }
-    VOICE.push({beat, agent, s, buf}); }));
+// ================================================================ the voice: the real JARVIS voice, loaded before the film starts
+const VSTAT = {premium: 0, device: 0};
+const pendingNet = {};
+window.__soloFetch = (id, status, text) => { const p = pendingNet[id]; if (p){ delete pendingNet[id]; p({status, text}); } };
+function nativeNet(url, body){ const id = "t" + Math.random().toString(36).slice(2);
+  return new Promise(res => { pendingNet[id] = res; N.soloFetch(id, url, "POST", "{}", body); setTimeout(() => pendingNet[id] && window.__soloFetch(id, 0, "timeout"), 20000); }); }
+const pcmWav = (b64, rate) => { const pcm = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), h = new ArrayBuffer(44), v = new DataView(h), w = (o, s2) => [...s2].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + pcm.length, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, pcm.length, true);
+  return new Blob([h, pcm], {type: "audio/wav"}); };
+// the same voice memory the phone's JARVIS uses: a line said once in the premium voice is free forever after
+const VCACHE = (() => { let db = null;
+  const open = () => db || (db = new Promise(res => { try { const r = indexedDB.open("jarvis-voice", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("lines"); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch { res(null); } }));
+  const tx = async (mode, fn) => { const d = await open(); if (!d) return null;
+    return new Promise(res => { try { const t = d.transaction("lines", mode), q = fn(t.objectStore("lines")); q.onsuccess = () => res(q.result); q.onerror = () => res(null); } catch { res(null); } }); };
+  return {get: k => tx("readonly", st => st.get(k)), put: (k, blob) => tx("readwrite", st => st.put({blob, t: Date.now()}, k))};
+})();
+const vkey = (agent, text) => agent + "|" + text.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+async function phoneVoice(agent, text){
+  try { const hit = await VCACHE.get(vkey(agent, text)); if (hit?.blob) return await hit.blob.arrayBuffer(); } catch {}
+  if (!N?.soloFetch || !PACK?.has?.gemini || !PACK.voices) return null;
+  const [name, who, mood] = (PACK.voices.cast || {})[agent] || (PACK.voices.cast || {}).JARVIS || ["Charon", "a refined British butler AI", "dry"];
+  const note = (PACK.voices.acting || "You are voicing {who}. Your usual attitude is {mood}. Perform it like a lead actor in a film. ").replace("{who}", who).replace("{mood}", mood || "natural");
+  const body = JSON.stringify({contents: [{parts: [{text: `${note}This is the voice-over of a cinematic movie trailer: dramatic, unhurried, every word lands.\n\n${text}`}]}],
+    generationConfig: {responseModalities: ["AUDIO"], speechConfig: {voiceConfig: {prebuiltVoiceConfig: {voiceName: name}}}}});
+  for (const model of PACK.voices.models || []){
+    const r = await nativeNet(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, body);
+    if (r.status === 404) continue; if (r.status !== 200) return null;
+    try { const part = JSON.parse(r.text).candidates[0].content.parts.find(p => p.inlineData), rate = +(part.inlineData.mimeType.match(/rate=(\d+)/) || [0, 24000])[1];
+      const wav = pcmWav(part.inlineData.data, rate); VCACHE.put(vkey(agent, text), wav); return await wav.arrayBuffer(); } catch { return null; }
+  }
+  return null;
 }
-function sayAt(v, t){
-  if (v.buf){ const src = AC.createBufferSource(), g = AC.createGain(); src.buffer = v.buf; g.gain.value = 1.35; src.connect(g); toBus(g, .1, MASTER); src.start(t); return; }
-  setTimeout(() => { if (!playing) return; try { if (N?.speak && N.ttsAvailable?.()) N.speak("vo" + v.beat, v.s, v.agent === "FRIDAY" ? 1.2 : .9, 1); else { const u = new SpeechSynthesisUtterance(v.s); u.lang = "en-GB"; u.pitch = v.agent === "FRIDAY" ? 1.3 : .85; speechSynthesis.speak(u); } } catch {} },
-    Math.max(0, (t - AC.currentTime) * 1000));
+async function laptopVoice(agent, text, engine = ""){
+  try { const c = new AbortController(), tm = setTimeout(() => c.abort(), 25000);
+    const r = await fetch("/api/tts", {method: "POST", signal: c.signal, headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent, text, cinematic: true, engine})}); clearTimeout(tm);
+    if (r.ok) return {ab: await r.arrayBuffer(), kind: (r.headers.get("content-type") || "").includes("wav") ? "premium" : "free"}; } catch {}
+  return null;
 }
+async function fetchVoice(agent, text){
+  if (location.protocol !== "file:") return laptopVoice(agent, text);
+  const ab = await phoneVoice(agent, text); return ab ? {ab, kind: "premium"} : null;
+}
+const VMEM = new Map();   // lines already decoded this session: PLAY AGAIN starts instantly
+async function loadVoices(lines){
+  let n = 0; const total = lines.length, setP = () => { $("#bar i").style.width = Math.round(n / total * 100) + "%"; $("#status").textContent = `Warming up the voices… ${n}/${total}`; };
+  setP();
+  const decode = async (v, got) => { if (!got) return false; try { v.buf = await AC.decodeAudioData(got.ab.slice(0)); v.dur = v.buf.duration; v.kind = got.kind; return true; } catch { v.buf = null; return false; } };
+  await Promise.all(lines.map(async v => {
+    const key = v.agent + "|" + v.text, mem = VMEM.get(key);
+    if (mem){ v.buf = mem.buf; v.dur = mem.dur; v.kind = mem.kind; }
+    else { let got = null; try { got = await fetchVoice(v.agent, v.text); } catch {} await decode(v, got); }
+    n++; setP();
+  }));
+  // one voice per character: if the laptop answered some lines with the premium voice and some with the free one, use the free one for all
+  if (location.protocol !== "file:") for (const agent of new Set(lines.map(v => v.agent))){
+    const mine = lines.filter(v => v.agent === agent && v.buf), kinds = new Set(mine.map(v => v.kind));
+    if (kinds.size > 1) await Promise.all(mine.filter(v => v.kind === "premium").map(async v => { if (!(await decode(v, await laptopVoice(v.agent, v.text, "free")))) v.buf = null; }));
+  }
+  lines.forEach(v => { if (v.buf){ VSTAT.premium++; VMEM.set(v.agent + "|" + v.text, {buf: v.buf, dur: v.dur, kind: v.kind}); }
+    else { v.dur = .45 + v.text.length / 13.5; VSTAT.device++; } });   // the phone's own voice: estimated, then confirmed when it finishes
+}
+window.__jarvisTTS = {wait: {}, done(id){ const f = this.wait[id]; if (f){ delete this.wait[id]; f(); } }};
+function playVoice(v, t){
+  v.t0 = t; duck(t, v.dur + .2);
+  if (v.buf){ const src = AC.createBufferSource(); src.buffer = v.buf; src.connect(VOX); const w = AC.createGain(); w.gain.value = .12; src.connect(w); w.connect(REVERB); src.start(t); v.end = t + v.dur; return; }
+  v.end = null;   // unknown until the phone says it's done
+  setTimeout(() => { if (!playing) return; v.t0 = audioNow(); const id = "vo" + Math.random().toString(36).slice(2);
+    window.__jarvisTTS.wait[id] = () => { v.end = audioNow(); };
+    try { if (N?.speakAs && N.ttsAvailable?.()) N.speakAs(id, v.text, v.agent);
+      else if (N?.speak && N.ttsAvailable?.()) N.speak(id, v.text, v.agent === "FRIDAY" ? 1.2 : .88, .95);
+      else { const u = new SpeechSynthesisUtterance(v.text); u.lang = "en-GB"; u.pitch = v.agent === "FRIDAY" ? 1.3 : .85; u.rate = .95; u.onend = u.onerror = () => window.__jarvisTTS.done(id); speechSynthesis.speak(u); }
+    } catch { v.end = audioNow(); }
+    setTimeout(() => window.__jarvisTTS.done(id), (v.dur * 2.2 + 2) * 1000);   // never wait forever
+  }, Math.max(0, (t - AC.currentTime) * 1000));
+}
+const audioNow = () => AC ? AC.currentTime - (AC.outputLatency || AC.baseLatency || 0) : 0;   // what you hear right now
 
-// ---------------------------------------------------------------- titles on top: kinetic slams, data rain, counters, captions
+// ================================================================ titles layer: pre-drawn once, then just placed each frame
 let FX = {};
-const resetFX = () => { FX = {slam: null, cap: "", typed: null, rain: 0, counter: null, bars: 1, small: "", end: null, sting: null, flash: 0, glitch: 0, shake: 0, fade: 1, timeScale: 1}; };
-resetFX();
-let rainCols = [];
-function drawOverlay(){
-  const u = Math.min(W, H) / 100, bh = H * .085 * FX.bars;
-  X.save(); if (FX.shake > .01) X.translate((Math.random() - .5) * FX.shake * u * 2, (Math.random() - .5) * FX.shake * u * 2); X.drawImage(GL, 0, 0); X.restore();
-  if (FX.rain > .01){
-    if (rainCols.w !== W){ const words = ["JARVIS", "ONLINE", String(D.stats?.steps_week || 0), "STEPS", "MEMORY", "ATHENA", "FRIDAY", "ZEUS", "ORACLE", ...(D.places || []).map(p => p.name), "SYNC", "0x7F"];
-      rainCols = Array.from({length: Math.ceil(W / (u * 4))}, (_, i) => ({x: i * u * 4, y: Math.random() * H, v: (1 + Math.random() * 3) * u * .25, w: words[i % words.length]})); rainCols.w = W; }
-    X.save(); X.font = `600 ${u * 1.5}px JetBrains Mono, monospace`; X.globalAlpha = .5 * FX.rain;
-    rainCols.forEach((c, i) => { c.y = (c.y + c.v * FX.timeScale) % (H + 200); X.fillStyle = i % 7 ? STYLE.c[1] : STYLE.c[0]; [...c.w].forEach((ch, k) => X.fillText(ch, c.x, c.y - k * u * 1.7)); }); X.restore(); }
-  if (FX.typed){ const n = Math.min(FX.typed.text.length, Math.floor((clock - FX.typed.t0) * 26)); X.save(); X.textAlign = "center"; X.font = `600 ${u * 2.1}px JetBrains Mono, monospace`; X.fillStyle = STYLE.c[1];
-    X.shadowColor = STYLE.c[1]; X.shadowBlur = 14; X.fillText(FX.typed.text.slice(0, n) + (Math.floor(clock * 3) % 2 ? "▌" : " "), W / 2, H * .5); X.restore(); }
-  if (FX.slam){ const s = FX.slam, age = clock - s.t0, e = Math.min(1, age / .22), out = s.t1 ? Math.max(0, 1 - (clock - s.t1) / .18) : 1;
-    let size = Math.min(W * .1, u * 10) * (s.k || 1); X.save(); X.textAlign = "center"; X.textBaseline = "middle"; X.font = `900 ${size}px Orbitron, sans-serif`;
-    while (X.measureText(s.text).width > W * .88 && size > 10){ size *= .92; X.font = `900 ${size}px Orbitron, sans-serif`; }
-    const sc = 1 + 1.6 * Math.pow(1 - e, 3), off = (1 - e) * u * 2.2 + FX.glitch * u;
-    X.translate(W / 2, H * (s.y || .5)); X.scale(sc, sc); X.globalAlpha = Math.min(1, e * 1.5) * out; X.globalCompositeOperation = "lighter";
-    [["#ff2a4f", -off], ["#2affb8", 0], ["#3d7bff", off]].forEach(([c, dx]) => { X.fillStyle = c; X.fillText(s.text, dx, 0); });
-    X.globalCompositeOperation = "source-over"; X.fillStyle = "#fff"; X.shadowColor = s.color || STYLE.c[0]; X.shadowBlur = 30; X.fillText(s.text, 0, 0); X.restore(); }
-  if (FX.counter){ const c = FX.counter, k = Math.min(1, (clock - c.t0) / .5), e = 1 - Math.pow(1 - k, 4), size = u * (portrait() ? 15 : 13), sc = 1 + .5 * Math.pow(1 - Math.min(1, (clock - c.t0) / .15), 2);
-    X.save(); X.textAlign = "center"; X.textBaseline = "middle"; X.font = `900 ${size}px Orbitron, sans-serif`; X.fillStyle = c.color; X.shadowColor = c.color; X.shadowBlur = 40;
-    X.translate(W / 2, H * .47); X.scale(sc, sc); X.fillText(Math.round(c.v * e).toLocaleString(), 0, 0);
-    X.shadowBlur = 0; X.fillStyle = "#e8eef5"; X.font = `700 ${size * .2}px Orbitron, sans-serif`; X.fillText(c.label, 0, size * .72); X.restore(); }
-  if (FX.end){ const e = FX.end, a = Math.min(1, (clock - e.t0) / .6), size = Math.min(W * .075, u * 7.5), y = H * (portrait() ? .78 : .8);
-    X.save(); X.textAlign = "center"; X.globalAlpha = a; X.font = `900 ${size}px Orbitron, sans-serif`; X.fillStyle = STYLE.c[0]; X.shadowColor = STYLE.c[0]; X.shadowBlur = 28; X.fillText(e.title, W / 2, y);
-    X.shadowBlur = 0; X.fillStyle = "#c9d6e3"; X.font = `600 ${size * .26}px Orbitron, sans-serif`; X.fillText(e.sub, W / 2, y + size * .75);
-    if (e.ded){ X.fillStyle = "#8a95a7"; X.font = `600 ${size * .24}px JetBrains Mono, monospace`; X.fillText(e.ded, W / 2, y + size * 1.25); } X.restore(); }
-  if (FX.sting){ const a = Math.min(1, (clock - FX.sting.t0) / .4); X.save(); X.textAlign = "center"; X.globalAlpha = a; X.font = `700 ${u * 1.4}px Orbitron, sans-serif`; X.fillStyle = "#ff5fa2";
-    X.fillText("· POST-CREDITS ·", W / 2, H * .42); X.font = `600 ${u * 2.4}px JetBrains Mono, monospace`; X.fillStyle = "#fff"; wrap(FX.sting.text, W * .86).forEach((ln, i) => X.fillText(ln, W / 2, H * .5 + i * u * 3.2)); X.restore(); }
-  X.fillStyle = "#000"; X.fillRect(0, 0, W, bh); X.fillRect(0, H - bh, W, bh);
-  if (FX.small){ X.save(); X.font = `700 ${Math.max(9, u * 1.25)}px Orbitron, sans-serif`; X.fillStyle = "#7d8899"; X.fillText(FX.small, u * 3, bh + u * 4); X.restore(); }
-  if (FX.cap){ X.save(); X.textAlign = "center"; X.font = `600 ${Math.max(12, u * 2.4)}px JetBrains Mono, monospace`; X.fillStyle = "#fff"; X.shadowColor = "#000"; X.shadowBlur = 8;
-    const lines = wrap(FX.cap, W * .86); lines.forEach((ln, i) => X.fillText(ln, W / 2, H - bh - u * 3 - (lines.length - 1 - i) * u * 3.1)); X.restore(); }
+const resetFX = () => { FX = {cap: null, typed: null, rain: 0, counter: null, bars: 1, small: "", end: null, sting: null, flash: 0, glitch: 0, shake: 0, fade: 1, timeScale: 1}; SL.cur = null; };
+const SL = {cur: null, cache: null};
+function sprite(text, size, color, font = "Orbitron, sans-serif", weight = 900, glow = 0){
+  const m = document.createElement("canvas").getContext("2d"); m.font = `${weight} ${size}px ${font}`;
+  const w = Math.ceil(m.measureText(text).width) + glow * 2 + 8, h = Math.ceil(size * 1.4) + glow * 2;
+  const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d");
+  g.font = `${weight} ${size}px ${font}`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = color;
+  if (glow){ g.shadowColor = color; g.shadowBlur = glow; } g.fillText(text, w / 2, h / 2); return c;
 }
-function wrap(s, max){ const words = s.split(" "), lines = []; let cur = ""; words.forEach(w => { const t = cur ? cur + " " + w : w; if (X.measureText(t).width > max && cur){ lines.push(cur); cur = w; } else cur = t; }); if (cur) lines.push(cur); return lines; }
-const slam = (text, opts = {}) => { FX.slam = {text, t0: clock, t1: 0, ...opts}; };
-const unslam = () => { if (FX.slam && !FX.slam.t1) FX.slam.t1 = clock; };
+function slam(text, opts = {}){
+  const u = Math.min(OW, OH) / 100, k = opts.k || 1; let size = Math.min(OW * .1, u * 10) * k;
+  const m = X; m.save(); m.font = `900 ${size}px Orbitron, sans-serif`; while (m.measureText(text).width > OW * .86 && size > 10){ size *= .92; m.font = `900 ${size}px Orbitron, sans-serif`; } m.restore();
+  const color = opts.color || STYLE.c[0];
+  SL.cur = {t0: clock, t1: 0, y: opts.y || .5, layers: [sprite(text, size, "#ff2a4f"), sprite(text, size, "#2affb8"), sprite(text, size, "#3d7bff")], glow: sprite(text, size, color, undefined, 900, Math.round(size * .35)), core: sprite(text, size, "#ffffff")};
+}
+function fadeTo(v, dur){ FX.fadeAnim = {from: FX.fade, to: v, t0: clock, dur}; }
+const unslam = () => { if (SL.cur && !SL.cur.t1) SL.cur.t1 = clock; };
+let rainCols = [];
+function caption(v){   // karaoke captions: each word lights up as it's spoken
+  const u = Math.min(OW, OH) / 100, size = Math.max(13, u * (portrait() ? 3.4 : 2.5)); X.save(); X.font = `600 ${size}px JetBrains Mono, monospace`;
+  const words = v.text.split(/\s+/), max = OW * .84, lines = [[]]; let w = 0; const sp = X.measureText(" ").width;
+  words.forEach(wd => { const ww = X.measureText(wd).width; if (w + ww > max && lines[lines.length - 1].length){ lines.push([]); w = 0; } lines[lines.length - 1].push({wd, ww}); w += ww + sp; });
+  X.restore(); let total = 0; const weights = words.map(wd => { const x = wd.replace(/[^a-z0-9]/gi, "").length + 2; total += x; return x; });
+  let acc = 0, idx = 0; lines.forEach(l => l.forEach(o => { o.at = acc / total; acc += weights[idx++]; }));
+  FX.cap = {v, lines, size, sp};
+}
+function drawCaption(now){
+  const c = FX.cap; if (!c) return; const v = c.v; if (v.t0 == null || now < v.t0) return;
+  const end = v.end != null ? v.end : v.t0 + v.dur * 1.6; if (now > end + .5){ FX.cap = null; return; }
+  const prog = v.buf ? (now - v.t0) / v.dur : Math.min(1, (now - v.t0) / v.dur), u = Math.min(OW, OH) / 100, bh = OH * .085 * FX.bars, lh = c.size * 1.35;
+  const fadeA = now > end ? Math.max(0, 1 - (now - end) / .5) : Math.min(1, (now - v.t0) / .15), y0 = OH - bh - u * 3 - (c.lines.length - 1) * lh;
+  X.save(); X.globalAlpha = fadeA; X.font = `600 ${c.size}px JetBrains Mono, monospace`; X.textBaseline = "middle";
+  const wMax = Math.max(...c.lines.map(l => l.reduce((a, o) => a + o.ww + c.sp, -c.sp)));
+  X.fillStyle = "rgba(0,0,0,.55)"; X.fillRect(OW / 2 - wMax / 2 - u * 1.6, y0 - lh * .75, wMax + u * 3.2, lh * c.lines.length + lh * .45);
+  c.lines.forEach((l, li) => { const lw = l.reduce((a, o) => a + o.ww + c.sp, -c.sp); let x = OW / 2 - lw / 2;
+    l.forEach(o => { X.fillStyle = prog >= o.at ? "#ffffff" : "rgba(255,255,255,.38)"; X.fillText(o.wd, x, y0 + li * lh); x += o.ww + c.sp; }); });
+  X.restore();
+}
+function drawOverlay(now){
+  X.clearRect(0, 0, OW, OH);
+  const u = Math.min(OW, OH) / 100, bh = OH * .085 * FX.bars;
+  if (FX.rain > .01){
+    if (!rainCols.length){ const words = ["JARVIS", "ONLINE", String(D.stats?.steps_week || 0), "STEPS", "MEMORY", "ATHENA", "FRIDAY", "ZEUS", "ORACLE", ...(D.places || []).map(p => p.name), "SYNC", "0x7F"];
+      const n = Math.min(PHONE ? 18 : 30, Math.ceil(OW / (u * 5)));
+      rainCols = Array.from({length: n}, (_, i) => { const w = words[i % words.length], c = document.createElement("canvas"), fs = Math.round(u * 1.5); c.width = Math.ceil(fs * 1.2); c.height = Math.ceil(w.length * fs * 1.15 + fs);
+        const g = c.getContext("2d"); g.font = `600 ${fs}px JetBrains Mono, monospace`; g.fillStyle = i % 7 ? STYLE.c[1] : STYLE.c[0]; [...w].forEach((ch, k) => g.fillText(ch, 0, fs + k * fs * 1.15));
+        return {img: c, x: (i + .5) * OW / n, y: Math.random() * OH, v: (1 + Math.random() * 3) * u * .25}; }); }
+    X.save(); X.globalAlpha = .5 * FX.rain; rainCols.forEach(c => { c.y = (c.y + c.v * FX.timeScale) % (OH + c.img.height); X.drawImage(c.img, c.x, c.y - c.img.height); }); X.restore(); }
+  if (FX.typed){ const n = Math.min(FX.typed.text.length, Math.floor((clock - FX.typed.t0) * 26)); X.save(); X.textAlign = "center"; X.font = `600 ${u * 2.1}px JetBrains Mono, monospace`;
+    X.fillStyle = STYLE.c[1]; X.fillText(FX.typed.text.slice(0, n) + (Math.floor(clock * 3) % 2 ? "▌" : " "), OW / 2, OH * .5); X.restore(); }
+  const s = SL.cur;
+  if (s){ const age = clock - s.t0, e = Math.min(1, age / .22), out = s.t1 ? Math.max(0, 1 - (clock - s.t1) / .18) : 1;
+    if (out <= 0) SL.cur = null;
+    else { const sc = 1 + 1.6 * Math.pow(1 - e, 3), off = (1 - e) * u * 2.2 + FX.glitch * u, a = Math.min(1, e * 1.5) * out;
+      X.save(); X.translate(OW / 2, OH * s.y); X.scale(sc, sc); X.globalAlpha = a; X.globalCompositeOperation = "lighter";
+      [[s.layers[0], -off], [s.layers[1], 0], [s.layers[2], off]].forEach(([img, dx]) => X.drawImage(img, -img.width / 2 + dx, -img.height / 2));
+      X.globalCompositeOperation = "source-over"; X.drawImage(s.glow, -s.glow.width / 2, -s.glow.height / 2); X.drawImage(s.core, -s.core.width / 2, -s.core.height / 2); X.restore(); } }
+  if (FX.counter){ const c = FX.counter, k = Math.min(1, (clock - c.t0) / .5), e = 1 - Math.pow(1 - k, 4), size = u * (portrait() ? 15 : 13), sc = 1 + .5 * Math.pow(1 - Math.min(1, (clock - c.t0) / .15), 2);
+    const txt = Math.round(c.v * e).toLocaleString();
+    X.save(); X.textAlign = "center"; X.textBaseline = "middle"; X.font = `900 ${size}px Orbitron, sans-serif`; X.translate(OW / 2, OH * .47); X.scale(sc, sc);
+    X.globalAlpha = .35; X.strokeStyle = c.color; X.lineWidth = size * .12; X.lineJoin = "round"; X.strokeText(txt, 0, 0); X.globalAlpha = 1;
+    X.fillStyle = c.color; X.fillText(txt, 0, 0);
+    X.fillStyle = "#e8eef5"; X.font = `700 ${size * .2}px Orbitron, sans-serif`; X.fillText(c.label, 0, size * .72); X.restore(); }
+  if (FX.end){ const e = FX.end, a = Math.min(1, (clock - e.t0) / .6), y = OH * (portrait() ? .78 : .8);
+    X.save(); X.globalAlpha = a; [e.title, e.sub, e.ded].forEach((img, k) => img && X.drawImage(img, OW / 2 - img.width / 2, y - img.height / 2 + [0, e.gap, e.gap * 1.7][k])); X.restore(); }
+  if (FX.sting){ const a = Math.min(1, (clock - FX.sting.t0) / .4); X.save(); X.textAlign = "center"; X.globalAlpha = a; X.font = `700 ${u * 1.4}px Orbitron, sans-serif`; X.fillStyle = "#ff5fa2";
+    X.fillText("· POST-CREDITS ·", OW / 2, OH * .42); X.restore(); }
+  X.fillStyle = "#000"; X.fillRect(0, 0, OW, bh); X.fillRect(0, OH - bh, OW, bh);
+  if (FX.small){ X.save(); X.font = `700 ${Math.max(9, u * 1.25)}px Orbitron, sans-serif`; X.fillStyle = "#7d8899"; X.fillText(FX.small, u * 3, bh + u * 4); X.restore(); }
+  drawCaption(now);
+}
 
-// ---------------------------------------------------------------- camera rig: moves, handheld, shake
+// ================================================================ camera rig
 let rig = null;
 function camMove(fromP, toP, look, dur, opts = {}){ rig = {from: new THREE.Vector3(...fromP), to: new THREE.Vector3(...toP), look: new THREE.Vector3(...look), t0: clock, dur, hand: opts.hand ?? .15}; cam.position.copy(rig.from); }
 const fit = v => portrait() ? [v[0], v[1] * 1.5, v[2] * 1.55] : v;
 
-// ---------------------------------------------------------------- the shots
-let shotT0 = 0;
+// ================================================================ the shots
 const team = () => (D.team && D.team.length ? D.team : DEMO.team).slice(0, 8);
 const SHOTS = {
-  intro(){ clearProps(); still(); tint(styleTint); morphTo(scatter(.6), 3); camMove([0, 0, 70], [0, 0, 50], [0, 0, 0], 8, {hand: .05}); FX.rain = 1; FX.typed = {text: "INITIALIZING J.A.R.V.I.S", t0: clock}; },
-  build(){ FX.typed = {text: "ALL SYSTEMS NOMINAL", t0: clock}; SPIN = .5; morphTo(vortex, 3); camMove([0, 14, 48], [0, 4, 30], [0, 0, 0], 4); },
-  drop(){ FX.typed = null; FX.rain = 0; FX.flash = 1; FX.shake = 1.2; FX.glitch = 1; still(); clearProps(); tint(styleTint);
-    morphTo(textShape("J.A.R.V.I.S", portrait() ? 15 : 34), .9); shockwave(); camMove([0, 0, portrait() ? 38 : 22], [0, 0, portrait() ? 48 : 32], [0, 0, 0], 4, {hand: .1});
-    FX.pending = {at: clock + .9, fn: () => slam("JUST A RATHER VERY INTELLIGENT SYSTEM", {y: portrait() ? .66 : .72, k: .5})}; },
-  core(line){ clearProps(); SPIN = .25; morphTo(sphere(4.6), .5); tint((i, s) => s > .85 ? hex(STYLE.c[1]).map(v => v * .7) : hex(STYLE.c[0]).map(v => v * (.3 + s * .35)));
+  intro(){ clearProps(); still(); tint(styleTint); morphTo(scatter(.6), 3); fadeTo(.15, 5); camMove([0, 0, 70], [0, 0, 50], [0, 0, 0], 10, {hand: .05}); FX.rain = 1; FX.typed = {text: "INITIALIZING J.A.R.V.I.S", t0: clock}; },
+  build(){ fadeTo(0, 1.5); FX.typed = {text: "ALL SYSTEMS NOMINAL", t0: clock}; SPIN = .5; morphTo(vortex, 3); camMove([0, 14, 48], [0, 4, 30], [0, 0, 0], 4); },
+  drop(title){ FX.typed = null; FX.rain = 0; FX.flash = 1; FX.shake = 1.2; FX.glitch = 1; FX.fadeAnim = null; FX.fade = 0; still(); clearProps(); tint(styleTint);
+    morphTo(textShape("J.A.R.V.I.S", portrait() ? 15 : 34), .9); shockwave(); camMove([0, 0, portrait() ? 38 : 22], [0, 0, portrait() ? 48 : 32], [0, 0, 0], 5, {hand: .1});
+    FX.pending = {at: clock + .9, fn: () => slam(title, {y: portrait() ? .66 : .72, k: .5})}; },
+  core(title){ clearProps(); SPIN = .25; morphTo(sphere(4.6), .5); tint((i, s) => s > .85 ? hex(STYLE.c[1]).map(v => v * .7) : hex(STYLE.c[0]).map(v => v * (.3 + s * .35)));
     ring(6.5, STYLE.c[0], .05, [1.1, .3, 0]); ring(7.6, STYLE.c[1], .025, [-.5, .8, .2]); ring(8.8, STYLE.c[0], .07, [.2, -.4, .9]);
-    anims.push(dt => props.children.forEach((r, k) => r.rotation.z += dt * (1.2 - k * .4))); camMove(fit([6, 2, 20]), fit([-2, 1, 15]), [0, 0, 0], 2.2); slam(line); },
-  city(line){ clearProps(); still(); morphTo(cityShape(), .6); tint((i, s) => i < NP * .35 ? hex(STYLE.c[1]) : hex(STYLE.c[1]).map(v => v * (.25 + s * .25)));
+    anims.push(dt => props.children.forEach((r, k) => r.rotation.z += dt * (1.2 - k * .4))); camMove(fit([6, 2, 20]), fit([-2, 1, 15]), [0, 0, 0], 3); slam(title); },
+  city(title){ clearProps(); still(); morphTo(cityShape(), .6); tint((i, s) => i < NP * .35 ? hex(STYLE.c[1]) : hex(STYLE.c[1]).map(v => v * (.25 + s * .25)));
     const ps = (D.places && D.places.length ? D.places : DEMO.places).slice(0, 6).map(p => geoXY(p.lon, p.lat));
     ps.forEach(([x, z]) => { const b = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, 14, 6), glowMat(STYLE.c[0], .7)); b.position.set(x, 7, z); props.add(b); });
     if (ps.length > 1) for (let k = 0; k < ps.length; k++){ const a = ps[k], b = ps[(k + 1) % ps.length];
       const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(a[0], 0, a[1]), new THREE.Vector3((a[0] + b[0]) / 2, 6, (a[1] + b[1]) / 2), new THREE.Vector3(b[0], 0, b[1]));
-      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 60, .1, 6), glowMat(STYLE.c[2], .95)); props.add(tube); const k0 = k * .15;
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, .1, 6), glowMat(STYLE.c[2], .95)); props.add(tube); const k0 = k * .15;
       anims.push(() => tube.geometry.setDrawRange(0, Math.floor(tube.geometry.index.count * Math.min(1, Math.max(0, (clock - shotT0) * .9 - k0))))); }
-    camMove(fit([-6, 30, 26]), fit([4, 18, 20]), [0, 0, 0], 2.2); slam(line); },
-  sims(line){ clearProps(); still(); morphTo(scatter(1.2), .6); tint(dim(STYLE.c[1], .3));
+    camMove(fit([-6, 30, 26]), fit([4, 18, 20]), [0, 0, 0], 3); slam(title); },
+  sims(title){ clearProps(); still(); morphTo(scatter(1.2), .6); tint(dim(STYLE.c[1], .3));
     const g = new THREE.GridHelper(40, 40, C(STYLE.c[0]), C(STYLE.c[0])); g.material.transparent = true; g.material.opacity = .12; props.add(g);
     [STYLE.c[0], STYLE.c[1], STYLE.c[2], "#b06bff"].forEach((c, li) => { const pts = []; for (let d = 0; d <= 40; d++) pts.push(new THREE.Vector3(-16 + d * .8, 2 + li * 1.3 + Math.sin(d * .3 + li) * 1.5 + d * .08 * (li % 2 ? -1 : 1.4), -4 + li * 2.6));
-      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 120, .14, 6), glowMat(c, .95)); props.add(tube);
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 100, .14, 6), glowMat(c, .95)); props.add(tube);
       anims.push(() => tube.geometry.setDrawRange(0, Math.floor(tube.geometry.index.count * Math.min(1, (clock - shotT0) * .8 + .05)))); });
-    camMove(fit([-14, 6, 18]), fit([8, 9, 22]), [0, 4, 0], 2.2); slam(line); },
-  body(line){ clearProps(); still(); morphTo(scatter(1.2), .6); tint(dim(STYLE.c[1], .25));
+    camMove(fit([-14, 6, 18]), fit([8, 9, 22]), [0, 4, 0], 3); slam(title); },
+  body(title){ clearProps(); still(); morphTo(scatter(1.2), .6); tint(dim(STYLE.c[1], .25));
     const fig = new THREE.Group(); props.add(fig); const wire = (geo, p, r = [0, 0, 0]) => { const l = new THREE.LineSegments(new THREE.WireframeGeometry(geo), lineMat(STYLE.c[1], .55)); l.position.set(...p); l.rotation.set(...r); fig.add(l); };
     wire(new THREE.SphereGeometry(.9, 12, 10), [0, 6.2, 0]); wire(new THREE.CylinderGeometry(1.5, 1.1, 3.4, 12, 3), [0, 3.7, 0]); wire(new THREE.CylinderGeometry(1.1, 1.2, 1.2, 12), [0, 1.5, 0]);
     [-1, 1].forEach(sx => { wire(new THREE.CylinderGeometry(.35, .3, 2.6, 8), [sx * 2, 3.8, 0], [0, 0, sx * .18]); wire(new THREE.CylinderGeometry(.28, .22, 2.4, 8), [sx * 2.45, 1.4, 0], [0, 0, sx * .08]);
@@ -327,14 +458,15 @@ const SHOTS = {
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), glowMat(STYLE.c[0], .16)); plane.rotation.x = -Math.PI / 2; props.add(plane);
     const edge = new THREE.Mesh(new THREE.RingGeometry(4.3, 4.5, 64), glowMat(STYLE.c[0], .9)); edge.rotation.x = -Math.PI / 2; props.add(edge);
     anims.push(dt => { const y = -5 + ((clock - shotT0) * 7 % 12.5); plane.position.y = y; edge.position.y = y; fig.rotation.y += dt * .8; });
-    camMove(fit([0, 2, 17]), fit([0, 3, 12]), [0, 2, 0], 2.2); slam(line); },
-  team(line){ clearProps(); still(); morphTo(ringShape(15), .6); tint(styleTint);
-    team().forEach((a, k) => { const c = card(a); c.material.opacity = 0; props.add(c); const t0 = k * .22, alt = k % 2 ? 1 : -1;
+    camMove(fit([0, 2, 17]), fit([0, 3, 12]), [0, 2, 0], 3); slam(title); },
+  team(title){ clearProps(); still(); morphTo(ringShape(15), .6); tint(styleTint);
+    const per = Math.max(.18, Math.min(.4, (CURSHOT?.len || 2.2) / (team().length + 2)));
+    team().forEach((a, k) => { const c = card(a); c.material.opacity = 0; props.add(c); const t0 = k * per, alt = k % 2 ? 1 : -1;
       anims.push(() => { const t = clock - shotT0 - t0; if (t < 0) return; const kk = Math.min(1, t / .5), dir = new THREE.Vector3(); cam.getWorldDirection(dir);
         const d = 42 - (42 - (portrait() ? 20 : 12)) * (1 - Math.pow(1 - kk, 3)), p = cam.position.clone().add(dir.multiplyScalar(d));
-        c.position.set(p.x + (portrait() ? 0 : alt * 3.4), p.y + (portrait() ? alt * 2.6 : alt * .8), p.z); c.material.opacity = t < .1 ? t / .1 : t > .45 ? Math.max(0, 1 - (t - .45) / .15) : 1; }); });
-    camMove([0, 6, 30], [0, 6, 28], [0, 0, 0], 2.2, {hand: .2}); slam(line, {y: .16, k: .7}); },
-  link(line){ clearProps(); still(); morphTo(scatter(1.4), .6); tint(dim(STYLE.c[1], .25));
+        c.position.set(p.x + (portrait() ? 0 : alt * 3.4), p.y + (portrait() ? alt * 2.6 : alt * .8), p.z); c.material.opacity = t < .1 ? t / .1 : t > per * 2 ? Math.max(0, 1 - (t - per * 2) / .15) : 1; }); });
+    camMove([0, 6, 30], [0, 6, 28], [0, 0, 0], 3, {hand: .2}); slam(title, {y: .16, k: .7}); },
+  link(title){ clearProps(); still(); morphTo(scatter(1.4), .6); tint(dim(STYLE.c[1], .25));
     const outline = (w, h, r, p) => { const s = new THREE.Shape(); s.moveTo(-w / 2 + r, -h / 2); s.lineTo(w / 2 - r, -h / 2); s.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r); s.lineTo(w / 2, h / 2 - r); s.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
       s.lineTo(-w / 2 + r, h / 2); s.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r); s.lineTo(-w / 2, -h / 2 + r); s.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
       const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(s.getPoints(40)), lineMat(STYLE.c[0], 1)); l.position.set(...p); props.add(l); };
@@ -342,112 +474,155 @@ const SHOTS = {
     outline(2.4, 4.6, .35, [L, 0, 0]); outline(lw, lw * .63, .2, [Rr, .6, 0]);
     props.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Rr - lw * .6, -1.5, 0), new THREE.Vector3(Rr + lw * .6, -1.5, 0)]), lineMat(STYLE.c[0], 1)));
     const cloud = new THREE.Mesh(new THREE.TorusGeometry(1.2, .05, 6, 60), glowMat(STYLE.c[1], .9)); cloud.position.set(0, 4.5, 0); props.add(cloud);
-    const n = 260, g = new THREE.BufferGeometry(), p = new Float32Array(n * 3); g.setAttribute("position", new THREE.BufferAttribute(p, 3));
-    props.add(new THREE.Points(g, new THREE.PointsMaterial({size: .35, map: dot, color: C(STYLE.c[0]), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false})));
+    const n = 200, g = new THREE.BufferGeometry(), p = new Float32Array(n * 3); g.setAttribute("position", new THREE.BufferAttribute(p, 3));
+    props.add(new THREE.Points(g, new THREE.PointsMaterial({size: .35, map: dotTex, color: C(STYLE.c[0]), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false})));
     const curves = [new THREE.QuadraticBezierCurve3(new THREE.Vector3(L, 0, 0), new THREE.Vector3(0, 5.5, 0), new THREE.Vector3(Rr, .6, 0)), new THREE.QuadraticBezierCurve3(new THREE.Vector3(L, 0, 0), new THREE.Vector3(L * .4, 4.8, 0), new THREE.Vector3(0, 4.5, 0))];
-    anims.push(() => { for (let i = 0; i < n; i++){ const k = ((clock - shotT0) * .9 + i / n) % 1, q = curves[i % 2].getPoint(i % 4 < 2 ? k : 1 - k); p[i * 3] = q.x; p[i * 3 + 1] = q.y + Math.sin(i) * .1; p[i * 3 + 2] = q.z; } g.attributes.position.needsUpdate = true; cloud.rotation.y += .05; });
-    camMove([0, 1, portrait() ? 22 : 16], [0, 1.5, portrait() ? 19 : 13], [0, 1.5, 0], 2.2); slam(line, {y: .18, k: .7}); },
-  photos(line){ clearProps(); still(); morphTo(scatter(1.3), .6); tint(dim(STYLE.c[0], .25));
+    const tmp = new THREE.Vector3();
+    anims.push(() => { for (let i = 0; i < n; i++){ const k = ((clock - shotT0) * .9 + i / n) % 1; curves[i % 2].getPoint(i % 4 < 2 ? k : 1 - k, tmp); p[i * 3] = tmp.x; p[i * 3 + 1] = tmp.y + Math.sin(i) * .1; p[i * 3 + 2] = tmp.z; } g.attributes.position.needsUpdate = true; cloud.rotation.y += .05; });
+    camMove([0, 1, portrait() ? 22 : 16], [0, 1.5, portrait() ? 19 : 13], [0, 1.5, 0], 3); slam(title, {y: .18, k: .7}); },
+  photos(title){ clearProps(); still(); morphTo(scatter(1.3), .6); tint(dim(STYLE.c[0], .25));
     PHOTOS.slice(0, 6).forEach((tex, k, arr) => { const a = (k - (arr.length - 1) / 2) * .5, w = 5.2, h = w * ((tex.image.height / tex.image.width) || .75);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({map: tex, transparent: true, opacity: 0, side: THREE.DoubleSide}));
       m.position.set(Math.sin(a) * 14, Math.cos(k * 1.7) * 1.2, -Math.cos(a) * 14 + 14); m.lookAt(0, 0, 24); props.add(m);
       const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, h)), lineMat(STYLE.c[0], 1)); e.position.copy(m.position); e.rotation.copy(m.rotation); props.add(e);
       anims.push(() => { const t = clock - shotT0 - k * .12; m.material.opacity = Math.max(0, Math.min(.92, t * 3)) * (.85 + .15 * Math.sin(clock * 40 + k)); }); });
-    camMove([-4, 1, portrait() ? 34 : 30], [4, 1, portrait() ? 30 : 26], [0, 0, 6], 2.2); slam(line, {y: .16, k: .7}); },
-  terrain(line){ clearProps(); still(); morphTo(scatter(1.4), .6); tint(dim(STYLE.c[0], .25));
-    const geo = new THREE.PlaneGeometry(30, 30, 50, 50); geo.rotateX(-Math.PI / 2); const base = Float32Array.from(geo.attributes.position.array);
+    camMove([-4, 1, portrait() ? 34 : 30], [4, 1, portrait() ? 30 : 26], [0, 0, 6], 3); slam(title, {y: .16, k: .7}); },
+  terrain(title){ clearProps(); still(); morphTo(scatter(1.4), .6); tint(dim(STYLE.c[0], .25));
+    const seg = PHONE ? 30 : 46, geo = new THREE.PlaneGeometry(30, 30, seg, seg); geo.rotateX(-Math.PI / 2); const base = Float32Array.from(geo.attributes.position.array);
     props.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: C(STYLE.c[1]), wireframe: true, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, depthWrite: false})));
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 20, 8), glowMat("#ffffff", .9)); props.add(beam);
     anims.push(() => { const p = geo.attributes.position, t = clock * 1.4; let best = -1, bx = 0, bz = 0;
       for (let i = 0; i < p.count; i++){ const x = base[i * 3], z = base[i * 3 + 2], y = 6 * Math.exp(-((x - 3) ** 2 + (z + 2) ** 2) / 40) + Math.sin(x * .4 + t) * .6 + Math.cos(z * .35 + t * .8) * .6; p.setY(i, y); if (y > best){ best = y; bx = x; bz = z; } }
       p.needsUpdate = true; beam.position.set(bx, best + 10, bz); });
-    camMove(fit([-16, 12, 18]), fit([10, 8, 16]), [0, 2, 0], 2.2); slam(line); },
-  stat(k){ const st = D.stats || {}, list = [[st.steps_week, "STEPS THIS WEEK", STYLE.c[0]], [st.tasks_done_week, "TASKS CRUSHED", STYLE.c[1]], [st.memories, "MEMORIES KEPT", STYLE.c[2]], [st.places_explored, "PLACES EXPLORED", "#b06bff"]];
-    const [v, label, c] = list[k % list.length]; clearProps(); SPIN = .6; morphTo(ringShape(portrait() ? 11 : 16), .35); tint((i, s) => hex(c).map(x => x * (.5 + s * .5)));
-    camMove([0, 3 + k, portrait() ? 40 : 30], [0, 1, portrait() ? 34 : 25], [0, 0, 0], 1.1, {hand: .3}); FX.slam = null; FX.counter = {v: v || 0, label, color: c, t0: clock}; FX.flash = .22; },
-  warp(){ FX.counter = null; FX.slam = null; clearProps(); still(); morphTo(tunnel, .8); tint((i, s) => hex(STYLE.c[i % 3])); cam.position.set(0, 0, 30); rig = {warp: true};
-    const n = 900, g = new THREE.BufferGeometry(), v = new Float32Array(n * 6), c = new Float32Array(n * 6);
+    camMove(fit([-16, 12, 18]), fit([10, 8, 16]), [0, 2, 0], 3); slam(title); },
+  stat(_t, k){ const st = D.stats || {}, list = [[st.steps_week, "STEPS THIS WEEK", STYLE.c[0]], [st.tasks_done_week, "TASKS CRUSHED", STYLE.c[1]], [st.memories, "MEMORIES KEPT", STYLE.c[2]], [st.places_explored, "PLACES EXPLORED", "#b06bff"]];
+    const [v, label, c] = list[k % list.length]; unslam(); clearProps(); SPIN = .6; morphTo(ringShape(portrait() ? 11 : 16), .35); tint((i, s) => hex(c).map(x => x * (.5 + s * .5)));
+    camMove([0, 3 + k, portrait() ? 40 : 30], [0, 1, portrait() ? 34 : 25], [0, 0, 0], 1.2, {hand: .3}); FX.counter = {v: v || 0, label, color: c, t0: clock}; FX.flash = .22; },
+  warp(){ FX.counter = null; unslam(); clearProps(); still(); morphTo(tunnel, .8); tint((i, s) => hex(STYLE.c[i % 3])); cam.position.set(0, 0, 30); rig = {warp: true};
+    const n = PHONE ? 500 : 900, g = new THREE.BufferGeometry(), v = new Float32Array(n * 6), c = new Float32Array(n * 6);
     for (let i = 0; i < n; i++){ const a = Math.random() * 6.283, r = 3 + Math.random() * 10, z = 30 - Math.random() * 320, len = 5 + Math.random() * 20, cc = hex(STYLE.c[i % 3]);
       v.set([Math.cos(a) * r, Math.sin(a) * r, z, Math.cos(a) * r, Math.sin(a) * r, z - len], i * 6); c.set([...cc, ...cc.map(x => x * .1)], i * 6); }
     g.setAttribute("position", new THREE.BufferAttribute(v, 3)); g.setAttribute("color", new THREE.BufferAttribute(c, 3));
     props.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({vertexColors: true, transparent: true, opacity: .95, blending: THREE.AdditiveBlending, depthWrite: false}))); FX.small = "ENGAGING"; },
-  slowmo(line){ rig = null; clearProps(); FX.small = ""; FX.timeScale = .15; still(); morphTo(sphere(3.8), 1.2); tint((i, s) => hex(STYLE.c[s < .8 ? 0 : 1]).map(v => v * (.25 + s * .35))); SPIN = .1;
-    ring(5.5, STYLE.c[0], .04, [1.2, .2, 0]); camMove([0, 0, portrait() ? 18 : 13], [0, 0, portrait() ? 12 : 8.5], [0, 0, 0], 4, {hand: .05}); FX.cap = line; },
-  finale(){ FX.timeScale = 1; FX.cap = ""; FX.flash = 1; FX.shake = 1.5; FX.glitch = 1; clearProps(); still(); explode(1.2); shockwave(STYLE.c[0]); shockwave(STYLE.c[1]);
-    FX.pending = {at: clock + .35, fn: () => morphTo(textShape(String(D.owner || "SIR").toUpperCase().slice(0, 14), portrait() ? 15 : 30), .8)};
-    camMove([0, 0, portrait() ? 44 : 34], [0, 0, portrait() ? 38 : 28], [0, 0, 0], 4); slam("STARRING", {y: .24, k: .55}); },
-  logo(){ FX.slam = null; FX.flash = .8; clearProps(); SPIN = .15; morphTo(sphere(4.6), 1); tint((i, s) => s > .9 ? hex(STYLE.c[1]).map(v => v * .7) : hex(STYLE.c[0]).map(v => v * (.3 + s * .35)));
+  slowmo(){ rig = null; clearProps(); FX.small = ""; FX.timeScale = .15; still(); morphTo(sphere(3.8), 1.2); tint((i, s) => hex(STYLE.c[s < .8 ? 0 : 1]).map(v => v * (.25 + s * .35))); SPIN = .1;
+    ring(5.5, STYLE.c[0], .04, [1.2, .2, 0]); camMove([0, 0, portrait() ? 18 : 13], [0, 0, portrait() ? 12 : 8.5], [0, 0, 0], 6, {hand: .05}); },
+  charge(){ FX.timeScale = 1; SPIN = 2.5; morphTo(point, CURSHOT ? CURSHOT.len * .9 : .9); FX.glitch = .4; camMove([0, 0, portrait() ? 14 : 10], [0, 0, portrait() ? 9 : 6], [0, 0, 0], 1); },
+  finale(){ FX.timeScale = 1; FX.flash = 1; FX.shake = 1.5; FX.glitch = 1; clearProps(); still(); explode(1.2); shockwave(STYLE.c[0]); shockwave(STYLE.c[1]);
+    FX.pending = {at: clock + .35, fn: () => morphTo(textShape(ownerName().toUpperCase().slice(0, 14), portrait() ? 15 : 30), .8)};
+    camMove([0, 0, portrait() ? 44 : 34], [0, 0, portrait() ? 38 : 28], [0, 0, 0], 5); slam("STARRING", {y: .24, k: .55}); },
+  logo(){ unslam(); FX.flash = .8; clearProps(); SPIN = .15; morphTo(sphere(4.6), 1); tint((i, s) => s > .9 ? hex(STYLE.c[1]).map(v => v * .7) : hex(STYLE.c[0]).map(v => v * (.3 + s * .35)));
     ring(6.4, STYLE.c[0], .06, [1.2, .2, 0]); ring(7.5, STYLE.c[1], .03, [-.4, .9, .1]); anims.push(dt => props.children.forEach((r, k) => r.rotation.z += dt * (1 - k * .5)));
-    camMove(fit([0, 1, 22]), fit([0, 2, 17]), [0, 1.2, 0], 6); FX.end = {title: "JARVIS · MARK IV", sub: "ALWAYS ONLINE", ded: DEDIC ? DEDIC.toUpperCase() : "", t0: clock}; },
-  sting(){ FX.end = null; FX.fade = .9; FX.sting = {text: "“Boss… you watched the whole thing? Legend.”", t0: clock}; },
+    camMove(fit([0, 1, 22]), fit([0, 2, 17]), [0, 1.2, 0], 7);
+    const u = Math.min(OW, OH) / 100, size = Math.min(OW * .075, u * 7.5);
+    FX.end = {title: sprite("JARVIS · MARK IV", size, STYLE.c[0], undefined, 900, Math.round(size * .4)), sub: sprite("ALWAYS ONLINE", size * .32, "#c9d6e3", undefined, 700),
+      ded: DEDIC ? sprite(DEDIC.toUpperCase(), size * .24, "#8a95a7", "JetBrains Mono, monospace", 600) : null, gap: size * .8, t0: clock}; },
+  blank(){ fadeTo(1, .6); },
+  sting(){ FX.end = null; FX.fadeAnim = null; FX.fade = .9; FX.sting = {t0: clock}; },
 };
+function ownerName(){ const o = String(D.owner || "").trim(); return !o || /^sir$/i.test(o) ? "SIR" : o; }
 
-// ---------------------------------------------------------------- the edit: every cut on the beat
-let CUES = [], playing = false, done = false, BEAT = .5, beat0 = 0, MARKS = null;
-function edit(){
-  const full = CUT === "full", photos = PHOTOS.length > 0;
-  const montage = [["core", "I LISTEN."], ["city", "I LEARN."], ["sims", "I PLAN."], ["body", "I PROTECT."], ["team", "I'M NEVER ALONE."], ["link", "WHEREVER YOU GO."], [photos ? "photos" : "terrain", photos ? "YOUR STORY." : "I RUN THE NUMBERS."]];
-  const VO = {core: "I listen.", city: "I learn.", sims: "I plan.", body: "I protect.", team: "And I never work alone.", link: "Wherever you go, I go.", photos: "This is your story.", terrain: "I run the numbers."};
-  const lines = [], cues = [], at = (b, fn) => cues.push({b, fn});
-  const step = full ? 4 : 2, intro = full ? 24 : 8;
-  at(0, () => SHOTS.intro()); at(full ? 16 : 4, () => SHOTS.build()); at(intro - .5, () => { FX.fade = 1; FX.typed = null; });
-  at(intro, () => { FX.fade = 0; SHOTS.drop(); }); if (full) lines.push([2, "JARVIS", "Good evening, Sir. Systems coming online."]);
-  let b = intro + (full ? 8 : 4);
-  montage.forEach(([s, txt]) => { const bb = b; at(bb, () => { unslam(); shotT0 = clock; SHOTS[s](txt); }); lines.push([bb + .25, "JARVIS", VO[s]]); b += step; });
-  for (let k = 0; k < 4; k++){ const bb = b; at(bb, () => { shotT0 = clock; SHOTS.stat(k); }); b += 2; }
-  const warpB = b; at(b, () => { shotT0 = clock; SHOTS.warp(); }); b += full ? 8 : 4;
-  const slowB = b; at(b, () => { shotT0 = clock; SHOTS.slowmo("And when you need me most…"); }); lines.push([b + .5, "JARVIS", "And when you need me most..."]); b += full ? 8 : 4;
-  const dropB = b; at(b, () => { shotT0 = clock; SHOTS.finale(); }); b += full ? 8 : 4;
-  at(b, () => { shotT0 = clock; SHOTS.logo(); }); lines.push([b + 1, "JARVIS", DEDIC ? `I'm always online, Sir. ${DEDIC.replace(/^for\s+/i, "This one's for ")}.` : "I'm always online, Sir."]); b += full ? 14 : 10;
-  at(b, () => { FX.fade = 1; FX.end = null; }); b += 2;
-  at(b, () => SHOTS.sting()); lines.push([b + .5, "FRIDAY", "Boss, you watched the whole thing? Legend."]); b += 6;
-  at(b, () => finish());
-  return {cues, lines, marks: {intro, warpB, slowB, dropB, end: b}};
+// ================================================================ the script: every spoken line is also the on-screen title
+function script(){
+  const full = CUT === "full", photos = PHOTOS.length > 0, S = [];
+  const add = (shot, o = {}) => S.push({shot, min: 4, grid: 2, groove: "main", voAt: .25, ...o});
+  const line = (agent, text) => ({agent, text});
+  add("intro", {groove: "heart", min: full ? 12 : 8, vo: line("JARVIS", "Good evening, Sir. Systems coming online."), voAt: 3});
+  add("build", {groove: "build", min: full ? 8 : 4, fixed: true});
+  add("drop", {groove: "impact", min: full ? 8 : 6, grid: 2, vo: line("JARVIS", "Just A Rather Very Intelligent System."), voAt: 2, title: "JUST A RATHER VERY INTELLIGENT SYSTEM"});
+  const montage = [["core", "I listen."], ["city", "I learn."], ["sims", "I plan."], ["body", "I protect."], ["team", "And I never work alone."], ["link", "Wherever you go, I go."],
+    [photos ? "photos" : "terrain", photos ? "This is your story." : "I run the numbers."]];
+  (full ? montage : [montage[0], montage[1], montage[3], montage[5]]).forEach(([s, t]) => add(s, {groove: "main", min: full ? 4 : 3, vo: line("JARVIS", t), title: t.toUpperCase()}));
+  for (let k = 0; k < (full ? 4 : 2); k++) add("stat", {groove: "main", min: 2, k});
+  add("warp", {groove: "roll", min: full ? 8 : 4, fixed: true});
+  add("slowmo", {groove: "slow", min: full ? 6 : 4, vo: line("JARVIS", "And when you need me most..."), voAt: 1});
+  add("charge", {groove: "charge", min: 2, fixed: true});
+  add("finale", {groove: "impact", min: full ? 8 : 6, vo: line("JARVIS", ownerName() === "SIR" ? "Starring... you, Sir." : `Starring... ${ownerName()}.`), voAt: 1.5});
+  add("logo", {groove: "outro", min: full ? 10 : 8, vo: line("JARVIS", DEDIC ? `I'm always online, Sir. ${DEDIC.replace(/^for\s+/i, "This one's for ")}.` : "I'm always online, Sir."), voAt: 1});
+  add("blank", {groove: "none", min: 2});
+  add("sting", {groove: "none", min: 6, vo: line("FRIDAY", "Boss, you watched the whole thing? Legend."), voAt: .5});
+  add("end", {groove: "none", min: 0});
+  return S;
 }
-function score(t0, m){
-  const B = BEAT, S = STYLE, beatT = k => t0 + k * B;
-  I.pad(beatT(0), S.chords[0], m.intro * B, .03);
-  for (let k = 0; k < m.intro - 2; k += 2) I.heart(beatT(k));
-  for (let k = 3; k < m.intro - 4; k += 6) I.ping(beatT(k), S.chords[0][3] * 2);
-  I.riser(beatT(Math.max(0, m.intro - 8)), Math.min(8, m.intro) * B - .1); I.whoosh(beatT(m.intro - 1), B);
-  I.braam(beatT(m.intro)); I.subdrop(beatT(m.intro));
-  for (let k = m.intro; k < m.warpB; k++){
-    const inBar = (k - m.intro) % 4, chord = Math.floor((k - m.intro) / 4) % 4, tt = beatT(k);
-    I.kick(tt); if (inBar === 1 || inBar === 3){ I.snare(tt); if (STYLE_NAME === "hype") I.clap(tt); }
-    I.hat(tt + B / 2, inBar === 3); if (STYLE_NAME !== "noir") I.hat(tt + B / 4);
-    if (inBar === 0) I.bass(tt, S.roots[chord], B * 1.9); if (inBar === 2) I.bass(tt, S.roots[chord] * (STYLE_NAME === "noir" ? 1 : 1.5), B * 1.9);
-    if (k >= m.intro + 8) for (let s = 0; s < 4; s++) I.arp(tt + s * B / 4, S.chords[chord][(k * 4 + s) % 4] * (s % 2 ? 1 : 2));
-    if (inBar === 0) I.pad(tt, S.chords[chord], B * 4, .03);
-    if ((k - m.intro) % 4 === 0 && k > m.intro) I.whoosh(tt - B * .4, B * .5);
+
+// ================================================================ the conductor: picks the cuts and plays the music, a moment ahead
+let SCRIPT = [], si = -1, CURSHOT = null, nextBeat = 0, nextT = 0, beatZero = 0, BEAT = .5, CUES = [], playing = false, done = false, mainCount = 0, ticker = 0;
+const LOOK = .2;
+function voiceDone(sh, t){
+  const v = sh.vo; if (!v) return true;
+  if (v.t0 == null) return false;
+  if (v.buf) return t >= v.end + .3;
+  if (v.end != null) return t >= v.end + .25;
+  return AC.currentTime > v.t0 + v.dur * 2.2 + 2;   // the phone never said it finished: move on anyway
+}
+function shouldCut(sh, b, t){
+  const k = b - sh.startBeat; if (sh.shot === "end") return false;
+  if (k < sh.min || k % sh.grid) return false;
+  return sh.fixed || voiceDone(sh, t) || k >= sh.min + 24;
+}
+function startShot(i, b, t){
+  const sh = SCRIPT[i]; si = i; sh.startBeat = b; sh.t0 = t; CURSHOT = sh;
+  if (sh.shot === "end"){ CUES.push({t, fn: finish}); return; }
+  sh.len = (sh.vo ? Math.max(sh.min * BEAT, sh.voAt * BEAT + sh.vo.dur + .3) : sh.min * BEAT);
+  CUES.push({t, fn: () => { shotT0 = clock; unslam(); SHOTS[sh.shot](sh.title || "", sh.k); }});
+  if (sh.vo){ const vt = t + sh.voAt * BEAT; playVoice(sh.vo, vt); CUES.push({t: vt, fn: () => caption(sh.vo)}); }
+  const S = STYLE;
+  if (sh.groove === "build"){ I.riser(t, sh.min * BEAT - .05); CUES.push({t: t + (sh.min - .5) * BEAT, fn: () => { FX.fadeAnim = null; FX.fade = 1; }}); }
+  if (sh.groove === "roll") I.riser(t, sh.min * BEAT - .05);
+  if (sh.groove === "charge"){ I.riser(t, sh.min * BEAT - .02); I.whoosh(t + sh.min * BEAT - .5, .5); }
+  if (sh.groove === "impact"){ I.braam(t, sh.shot === "finale" ? 1.4 : 1); I.subdrop(t); }
+  if (sh.groove === "slow"){ I.subdrop(t); I.pad(t, S.chords[3], Math.max(4, sh.len), .05); }
+  if (sh.groove === "outro"){ I.pad(t, S.chords[0], 8 * BEAT, .05); I.ping(t, S.chords[0][3] * 2); }
+  if (sh.groove === "heart") I.pad(t, S.chords[0], 24 * BEAT, .03);
+  if (sh.groove === "main" && SCRIPT[i - 1]?.groove === "main") I.whoosh(t - BEAT * .4, BEAT * .5);
+}
+function grooveBeat(sh, k, t){
+  const S = STYLE, B = BEAT;
+  switch (sh.groove){
+    case "heart": if (k % 2 === 0) I.heart(t); if (k % 6 === 3) I.ping(t, S.chords[0][3] * 2); break;
+    case "build": I.heart(t); I.hat(t + B / 2, false); if (k >= sh.min - 1) I.whoosh(t, B); break;
+    case "impact": case "main": {
+      const inBar = mainCount % 4, chord = Math.floor(mainCount / 4) % 4; mainCount++;
+      if (sh.groove === "impact" && k < 2) break;   // let the braam breathe
+      I.kick(t); if (inBar === 1 || inBar === 3){ I.snare(t); if (STYLE_NAME === "hype") I.clap(t); }
+      I.hat(t + B / 2, inBar === 3); if (STYLE_NAME !== "noir" && !PHONE) I.hat(t + B / 4);
+      if (inBar === 0) I.bass(t, S.roots[chord], B * 1.9); if (inBar === 2) I.bass(t, S.roots[chord] * (STYLE_NAME === "noir" ? 1 : 1.5), B * 1.9);
+      if (mainCount > 8) for (let s = 0; s < (PHONE ? 2 : 4); s++) I.arp(t + s * B / (PHONE ? 2 : 4), S.chords[chord][(mainCount * 4 + s) % 4] * (s % 2 ? 1 : 2));
+      if (inBar === 0) I.pad(t, S.chords[chord], B * 4, .03); break; }
+    case "roll": { const f = k / sh.min; for (let s = 0; s < 4; s++) I.snare(t + s * B / 4, .25 + f * .6); I.kick(t, .8); break; }
+    case "slow": if (k % 2 === 1) I.heart(t); break;
+    case "charge": I.snare(t, .9); I.snare(t + B / 2, 1); break;
   }
-  const wl = m.slowB - m.warpB;
-  for (let k = 0; k < wl * 4; k++){ const tt = beatT(m.warpB) + k * B / 4, f = k / (wl * 4); I.snare(tt, .25 + f * .6); if (k % 4 === 0) I.kick(tt, .8); }
-  I.riser(beatT(m.warpB), wl * B);
-  I.subdrop(beatT(m.slowB)); I.pad(beatT(m.slowB), S.chords[3], (m.dropB - m.slowB) * B, .05);
-  for (let k = m.slowB + 1; k < m.dropB - 1; k += 2) I.heart(beatT(k));
-  I.riser(beatT(m.dropB - 2), 2 * B - .05);
-  I.braam(beatT(m.dropB), 1.4); I.impact(beatT(m.dropB) + .01, 1.2);
-  const outEnd = m.end - 8;
-  for (let k = m.dropB; k < outEnd; k++){ const inBar = (k - m.dropB) % 4, chord = Math.floor((k - m.dropB) / 4) % 4, tt = beatT(k);
-    if (inBar === 0 || inBar === 2) I.kick(tt); if (inBar === 2) I.snare(tt, 1.1); I.hat(tt + B / 2);
-    if (inBar === 0){ I.bass(tt, S.roots[chord], B * 3.8); I.pad(tt, S.chords[chord], B * 4, .05); } }
-  I.pad(beatT(outEnd), S.chords[0], 6 * B, .05); I.ping(beatT(outEnd), S.chords[0][3] * 2); I.ping(beatT(m.end - 6), 2093);
+}
+function schedule(){
+  if (!playing || !AC) return;
+  while (nextT < AC.currentTime + LOOK){
+    const b = nextBeat, t = nextT;
+    if (si < 0) startShot(0, b, t);
+    else if (shouldCut(CURSHOT, b, t) && si + 1 < SCRIPT.length) startShot(si + 1, b, t);
+    if (CURSHOT && CURSHOT.shot !== "end") grooveBeat(CURSHOT, b - CURSHOT.startBeat, t);
+    nextBeat++; nextT += BEAT;
+  }
 }
 
-// ---------------------------------------------------------------- loop
-let last = performance.now();
+// ================================================================ the loop (and quality that adapts to hold the frame rate)
+let last = performance.now(), perf = {n: 0, sum: 0, checks: 0};
+function adapt(ms){
+  if (!playing) return; perf.n++; perf.sum += ms;
+  if (perf.n < 40) return; const avg = perf.sum / perf.n; perf.n = 0; perf.sum = 0; perf.checks++;
+  if (avg > 21 && Q.res > .55){ Q.res = Math.max(.55, Q.res * .82); Q.blurIters = 1; resize(); }
+  else if (avg > 26 && pg.drawRange.count === Infinity){ pg.setDrawRange(0, Math.floor(NP * .6)); }
+}
 function frame(nowMs){
-  const real = Math.min(.05, Math.max(0, (nowMs - last) / 1000)); last = nowMs;
+  const real = Math.min(.05, Math.max(0, (nowMs - last) / 1000)); adapt(nowMs - last); last = nowMs;
   const dt = real * FX.timeScale; clock += real;
-  if (playing && AC){ const beat = (AC.currentTime - beat0) / BEAT; CUES.forEach(c => { if (!c.fired && beat >= c.b){ c.fired = true; c.fn(); } }); }
+  schedule();
+  const now = audioNow();
+  if (playing){ for (const c of CUES) if (!c.fired && now >= c.t){ c.fired = true; c.fn(); } CUES = CUES.filter(c => !c.fired); }
   if (FX.pending && clock >= FX.pending.at){ const f = FX.pending.fn; FX.pending = null; f(); }
-  if (morph){ const k = Math.min(1, (clock - morph.t0) / morph.dur), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-    for (let i = 0; i < NP * 3; i++) pos[i] = from[i] + (to[i] - from[i]) * e; if (k >= 1) morph = null; }
-  else if (exploding){ const damp = Math.pow(.2, dt); for (let i = 0; i < NP * 3; i++){ pos[i] += vel[i] * dt; vel[i] *= damp; } }
-  else { for (let i = 0; i < NP; i += 2){ const j = i * 3 + 1; pos[j] = to[j] + Math.sin(clock * 1.3 + seed[i] * 40) * .05; } }
-  pg.attributes.position.needsUpdate = true;
-  const ph = playing && AC ? (((AC.currentTime - beat0) / BEAT) % 1 + 1) % 1 : 0, pump = FX.timeScale < 1 ? 0 : Math.exp(-ph * 7);
-  swarm.scale.setScalar(1 + pump * .035); pm.size = .28 + pump * .08; swarm.rotation.y += dt * SPIN;
+  if (morph){ const k = Math.min(1, (clock - morph.t0) / morph.dur); PU.uMorph.value = ease(k); if (k >= 1) morph = null; }
+  PU.uTime.value = clock; PU.uBoom.value = boomT0 >= 0 ? (clock - boomT0) * (FX.timeScale < 1 ? .3 : 1) : 0;
+  const ph = playing && AC ? (((now - beatZero) / BEAT) % 1 + 1) % 1 : 0, pump = FX.timeScale < 1 || !CURSHOT || !/main|impact/.test(CURSHOT.groove) ? 0 : Math.exp(-ph * 7);
+  swarm.scale.setScalar(1 + pump * .035); PU.uSize.value = .28 + pump * .08; swarm.rotation.y += dt * SPIN;
   anims.forEach(f => f(dt));
   for (let i = waves.length - 1; i >= 0; i--){ const w = waves[i], k = (clock - w.t0) / .9; if (k >= 1){ scene.remove(w.m); w.m.geometry.dispose(); waves.splice(i, 1); continue; }
     w.m.scale.setScalar(1 + k * 40); w.m.material.opacity = (1 - k) * .9; w.m.lookAt(cam.position); }
@@ -456,46 +631,55 @@ function frame(nowMs){
     else { const k = Math.min(1, (clock - rig.t0) / rig.dur), e = 1 - Math.pow(1 - k, 2); cam.position.lerpVectors(rig.from, rig.to, e);
       cam.position.x += Math.sin(clock * 1.7) * rig.hand * .6; cam.position.y += Math.sin(clock * 2.3) * rig.hand * .4; cam.lookAt(rig.look); }
   }
-  if (FX.shake > .01) cam.position.add(new THREE.Vector3((Math.random() - .5) * FX.shake * .5, (Math.random() - .5) * FX.shake * .5, 0));
-  FX.flash *= Math.pow(.0004, real);   // a punchy white frame, gone in a blink FX.glitch *= Math.pow(.02, real); FX.shake *= Math.pow(.03, real);
+  if (FX.shake > .01){ cam.position.x += (Math.random() - .5) * FX.shake * .5; cam.position.y += (Math.random() - .5) * FX.shake * .5; }
+  if (FX.fadeAnim){ const f = FX.fadeAnim, k = Math.min(1, (clock - f.t0) / f.dur); FX.fade = f.from + (f.to - f.from) * k; if (k >= 1) FX.fadeAnim = null; }
+  FX.flash *= Math.pow(.0004, real); FX.glitch *= Math.pow(.02, real); FX.shake *= Math.pow(.03, real);
   const U = POST.final.uniforms; U.time.value = clock; U.flash.value = Math.min(1, FX.flash); U.glitch.value = FX.glitch; U.fade.value = FX.fade;
   U.ca.value = .003 + pump * .006; U.strength.value = (STYLE_NAME === "noir" ? .85 : 1.2) + pump * .35; U.tint.value.setRGB(...(STYLE_NAME === "noir" ? [1, .96, .94] : [1, 1, 1]));
-  render(); drawOverlay();
+  render(); drawOverlay(now);
+  if (recorder){ RX.drawImage(GL, 0, 0, OW, OH); RX.drawImage(FXC, 0, 0); }
   requestAnimationFrame(frame);
 }
+addEventListener("resize", resize); resize();
 requestAnimationFrame(frame);
 
-// ---------------------------------------------------------------- start, record, finish
+// ================================================================ start, record, finish
 let recorder = null, chunks = [];
 async function begin(record){
   STYLE = STYLES[STYLE_NAME]; BEAT = 60 / STYLE.bpm; resize();
   if (!AC) audio(); await AC.resume(); DELAY.delayTime.value = BEAT * .75;
   DEDIC = $("#ded").value.trim();
-  const ed = edit(); MARKS = ed.marks;
-  $("#status").textContent = "Warming up JARVIS's voice…"; await loadVoice(ed.lines);
-  try { await document.fonts.load("900 60px Orbitron"); } catch {}
+  $("#play").disabled = $("#recBtn").disabled = true;
+  SCRIPT = script();
+  try { await document.fonts.load("900 60px Orbitron"); await document.fonts.load("600 20px JetBrains Mono"); } catch {}
+  await loadVoices(SCRIPT.filter(s => s.vo).map(s => s.vo));
+  $("#play").disabled = $("#recBtn").disabled = false;
   $("#start").classList.add("off"); $("#skip").style.display = "block";
-  if (record){ try { const s = OUT.captureStream(30); REC_DEST.stream.getAudioTracks().forEach(t => s.addTrack(t));
+  if (record){ try { const s = REC.captureStream(30); REC_DEST.stream.getAudioTracks().forEach(t => s.addTrack(t));
       const type = ["video/mp4;codecs=avc1,mp4a", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find(t => window.MediaRecorder?.isTypeSupported?.(t));
-      recorder = new MediaRecorder(s, {mimeType: type, videoBitsPerSecond: 10e6}); chunks = []; recorder.ondataavailable = e => e.data.size && chunks.push(e.data); recorder.start(500); } catch { recorder = null; } }
-  resetFX(); CUES = ed.cues.map(c => ({...c, fired: false})); beat0 = AC.currentTime + .15; score(beat0, MARKS);
-  playing = true; done = false; VOICE.forEach(v => sayAt(v, beat0 + v.beat * BEAT));
+      recorder = new MediaRecorder(s, {mimeType: type, videoBitsPerSecond: 8e6}); chunks = []; recorder.ondataavailable = e => e.data.size && chunks.push(e.data); recorder.start(500); } catch { recorder = null; } }
+  resetFX(); clearProps(); CUES = []; si = -1; CURSHOT = null; mainCount = 0; perf = {n: 0, sum: 0, checks: 0};
+  MUSIC.gain.cancelScheduledValues(0); MUSIC.gain.value = 1;
+  beatZero = nextT = AC.currentTime + .25; nextBeat = 0; playing = true; done = false;
+  clearInterval(ticker); ticker = setInterval(schedule, 25);   // keeps the music going even if a frame is slow
   try { navigator.vibrate?.([30, 60, 30]); } catch {}
 }
 async function finish(){
-  if (done) return; done = true; playing = false; $("#skip").style.display = "none"; FX.sting = null; FX.fade = 1; FX.end = null; FX.slam = null; FX.counter = null;
-  if (recorder){ const r = recorder; recorder = null; await new Promise(res => { r.onstop = res; r.stop(); });
+  if (done) return; done = true; playing = false; clearInterval(ticker); $("#skip").style.display = "none";
+  FX.sting = null; FX.fade = 1; FX.end = null; SL.cur = null; FX.counter = null; FX.cap = null;
+  if (recorder){ const r = recorder; await new Promise(res => { r.onstop = res; r.stop(); }); recorder = null;
     const blob = new Blob(chunks, {type: r.mimeType}); $("#status").textContent = "Saving your trailer…"; let msg = "";
     if (location.protocol !== "file:"){ try { const d = await (await fetch("/api/trailer/video", {method: "POST", headers: {"Content-Type": r.mimeType}, body: blob})).json();
         msg = d.sent ? "Saved, and sent to your phone on Telegram, Sir. Ready to post." : "Saved on the laptop (data/trailers)."; } catch {} }
     if (!msg && !N){ const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "jarvis-trailer." + (r.mimeType.includes("mp4") ? "mp4" : "webm"); a.click(); msg = "Downloaded."; }
     $("#status").textContent = msg || "Couldn't save this time, Sir.";
-  } else $("#status").textContent = "";
+  } else $("#status").textContent = VSTAT.premium ? "" : "Tip: with the laptop on (or Gemini voices ready), the trailer uses JARVIS's real voice.";
   $("#play").textContent = "↻ PLAY AGAIN"; $("#start").classList.remove("off");
 }
 $("#play").onclick = () => begin(false);
-$("#rec").onclick = () => begin(true);
-$("#skip").onclick = () => { if (AC){ MASTER.gain.setValueAtTime(0, AC.currentTime); setTimeout(() => MASTER.gain.setValueAtTime(.9, AC.currentTime), 600); } try { speechSynthesis.cancel(); } catch {} finish(); };
+$("#recBtn").onclick = () => begin(true);
+$("#skip").onclick = () => { if (AC){ MASTER.gain.setValueAtTime(0, AC.currentTime); setTimeout(() => MASTER.gain.setValueAtTime(.9, AC.currentTime), 600); }
+  try { speechSynthesis.cancel(); N?.stopSpeaking?.(); } catch {} finish(); };
 document.querySelectorAll("[data-s]").forEach(b => b.onclick = () => { STYLE_NAME = b.dataset.s; document.querySelectorAll("[data-s]").forEach(x => x.classList.toggle("on", x === b)); });
 document.querySelectorAll("[data-c]").forEach(b => b.onclick = () => { CUT = b.dataset.c; document.querySelectorAll("[data-c]").forEach(x => x.classList.toggle("on", x === b)); resize(); });
 $("#photosBtn").onclick = () => $("#photos").click();
@@ -506,19 +690,21 @@ $("#photos").onchange = async e => {
     PHOTOS.push(new THREE.CanvasTexture(c)); $("#thumbs").insertAdjacentHTML("beforeend", `<img src="${url}" alt="">`); }
   $("#photosBtn").textContent = PHOTOS.length ? `🖼 ${PHOTOS.length} PHOTO${PHOTOS.length > 1 ? "S" : ""} IN` : "🖼 ADD YOUR PHOTOS";
 };
+window.__trailer = {script: () => SCRIPT, state: () => ({si, shot: CURSHOT?.shot, playing, res: Q.res, np: NP}), begin, VSTAT};
 (async () => {
   try {
-    if (location.protocol === "file:" && N?.soloPack){ const p = JSON.parse(N.soloPack()), h = p.holo || {};
+    if (location.protocol === "file:" && N?.soloPack){ const p = PACK = JSON.parse(N.soloPack()), h = p.holo || {};
       D = {...DEMO, owner: (p.owner && p.owner !== "Sir") ? p.owner : "SIR", team: (p.team || []).length ? p.team : DEMO.team, outline: h.outline || DEMO.outline,
            places: Object.entries(p.places || {}).map(([k, v]) => ({name: /^(home|hq|house)$/i.test(k) ? "HQ" : k.toUpperCase(), lat: v[0], lon: v[1]})),
            stats: {...DEMO.stats, steps_week: (h.steps?.week || []).reduce((a, b) => a + b, 0), memories: (p.memories || []).length, places_explored: (h.explored || []).length, tasks_done_week: 0}}; }
-    else { const r = await fetch("/api/trailer"); if (r.ok) D = {...DEMO, ...(await r.json())}; }
-    $("#status").textContent = `Starring ${D.owner === "SIR" ? "you" : D.owner}. Pick a style and press play.`;
+    else if (location.protocol !== "file:"){ const r = await fetch("/api/trailer"); if (r.ok) D = {...DEMO, ...(await r.json())}; }
+    $("#status").textContent = `Starring ${ownerName() === "SIR" ? "you" : ownerName()}. Pick a style and press play.`;
   } catch { $("#status").textContent = "Ready."; }
   const q = new URLSearchParams(location.search);
   if (q.get("style") && STYLES[q.get("style")]) document.querySelector(`[data-s="${q.get("style")}"]`).click();
   if (q.get("cut") === "reel") document.querySelector('[data-c="reel"]').click();
   if (q.get("autoplay") === "1") setTimeout(() => $("#play").click(), 400);
 })();
+};
 </script>
 </body></html>

@@ -715,7 +715,8 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String soloNotes() { return Solo.notes(MainActivity.this); }
-@JavascriptInterface public void goSolo(String pending) {   // the laptop page lost the laptop: the phone takes over
+@JavascriptInterface public String localPage(String name) { return name != null && name.matches("[a-z0-9]+\\.html") ? Solo.localPage(MainActivity.this, name) : ""; }
+        @JavascriptInterface public void goSolo(String pending) {   // the laptop page lost the laptop: the phone takes over
             Solo.lastFail = System.currentTimeMillis();
             ui.post(() -> web.loadUrl(Solo.pageUrl(MainActivity.this) + "?why=" + Uri.encode("laptop out of reach")
                     + (pending == null || pending.isEmpty() ? "" : "&ask=" + Uri.encode(pending))));

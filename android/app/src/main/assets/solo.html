@@ -739,7 +739,7 @@ async function showDay(){
   await showRoute({name: "YOUR DAY"}, line, `${r.steps !== "unknown" ? Number(r.steps).toLocaleString() + " steps · " : ""}${r.km_moved} km` + (r.places_in_order.length ? ` · ${r.places_in_order.join(" → ")}` : ""), true);
 }
 $("#dayBtn").onclick = showDay;
-$("#trailerBtn").onclick = () => { location.href = "file:///android_asset/trailer.html?autoplay=1"; };
+$("#trailerBtn").onclick = () => { location.href = (N?.localPage?.("trailer.html") || "file:///android_asset/trailer.html") + "?autoplay=1"; };
 $("#labBtn").onclick = () => { location.href = "file:///android_asset/holo.html"; };
 
 // ---------------------------------------------------------------- reactor

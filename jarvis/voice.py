@@ -627,6 +627,15 @@ def synthesize_for_phone(agent: str, text: str) -> Path:
     return edge_path
 
 
+def synthesize_free(agent: str, text: str) -> Path:
+    """The agent's free online voice (Edge), whatever the main voice is: used when a set of lines must all match."""
+    path = CACHE / f"{hashlib.sha256(f'edge|{_edge_voice(agent)}|{speakable(text)}'.encode()).hexdigest()[:32]}.mp3"
+    if not path.exists():
+        CACHE.mkdir(parents=True, exist_ok=True)
+        _edge(speakable(text)[:2500], agent, path)
+    return path
+
+
 def long_audio(agent: str, text: str) -> Path:
     """A long read-aloud (an article, notes) as one MP3, made in pieces with the quick free voices."""
     import re as _re
