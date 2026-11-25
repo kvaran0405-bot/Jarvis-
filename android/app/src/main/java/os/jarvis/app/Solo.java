@@ -275,9 +275,14 @@ final class Solo {
     }
 
     /** Notifications from the last day (never bank apps, never codes), for "what did I miss?". */
+    static boolean secret(String app, String title, String text) {
+        return Net.isFinance(app) || Net.isFinance(title) || Net.isFinance(text)
+                || text.matches("(?is).*\\b(otp|one[- ]time|verification|passcode|security code|pin)\\b.*")
+                || text.matches("(?s).*\\b\\d{4,8}\\b.*(code|otp).*");
+    }
+
     static void noteSeen(Context c, String app, String title, String text) {
-        if (Net.isFinance(app) || Net.isFinance(title) || Net.isFinance(text)) return;
-        if (text.matches("(?is).*\\b(otp|one[- ]time|verification|passcode|security code|pin)\\b.*") || text.matches("(?s).*\\b\\d{4,8}\\b.*(code|otp).*")) return;
+        if (secret(app, title, text)) return;
         try {
             try { app = String.valueOf(c.getPackageManager().getApplicationLabel(c.getPackageManager().getApplicationInfo(app, 0))); } catch (Exception ignored) {}
             synchronized (Solo.class) {
@@ -291,7 +296,23 @@ final class Solo {
         } catch (Exception ignored) {}
     }
 
-    static String notes(Context c) { return p(c).getString("notes", "[]"); }
+    /** The day's notifications plus whatever is still in the shade (caught even if it arrived before JARVIS started). */
+    static String notes(Context c) {
+        try {
+            JSONArray a = new JSONArray(p(c).getString("notes", "[]"));
+            java.util.HashSet<String> have = new java.util.HashSet<>();
+            for (int i = 0; i < a.length(); i++) { JSONObject o = a.getJSONObject(i); have.add(o.optString("app") + o.optString("title") + o.optString("text")); }
+            JSONArray now = SmartReplies.active(c);
+            for (int i = 0; i < now.length(); i++) { JSONObject o = now.getJSONObject(i); if (have.add(o.optString("app") + o.optString("title") + o.optString("text"))) a.put(o); }
+            return a.toString();
+        } catch (Exception e) { return p(c).getString("notes", "[]"); }
+    }
+
+    /** Is Notification access on for JARVIS? Without it JARVIS can't see Gmail or anything else. */
+    static boolean notesAccess(Context c) {
+        String on = android.provider.Settings.Secure.getString(c.getContentResolver(), "enabled_notification_listeners");
+        return on != null && on.contains(c.getPackageName());
+    }
 
     /** Phone powers: the same ones the laptop can ask for. Bank and finance apps stay off limits (Powers checks). */
     static String power(Context ctx, String kind, String argsJson) {

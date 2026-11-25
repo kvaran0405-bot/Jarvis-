@@ -1,0 +1,37 @@
+"""Solo mode: cinematic voices in the pack, instant answers, no-tap follow-ups, Gmail from notifications."""
+from jarvis import gemtts, solo
+from jarvis.config import ROOT
+
+SOLO = (ROOT / "android/app/src/main/assets/solo.html").read_text(encoding="utf-8")
+
+
+def test_every_agent_has_a_cinematic_voice():
+    for name, (voice, who) in gemtts.VOICES.items():
+        assert voice and len(who) > 40, name
+    assert "Irish" in gemtts.VOICES["FRIDAY"][1] and "velvety" in gemtts.VOICES["PEPPER"][1]
+
+
+def test_pack_carries_attitude_and_acting_note():
+    v = solo._voices()
+    assert v["cast"]["VERONICA"][2] == "sarcastic"
+    assert "{who}" in v["acting"] and "{mood}" in v["acting"]
+    assert "accent" in gemtts.direction("FRIDAY", "Morning!")
+
+
+def test_solo_follows_up_without_a_tap():
+    assert "followUntil = Date.now() + 8000" in SOLO
+    assert "that'?s (all|it)" in SOLO          # "that's all" ends the conversation
+    assert "stopListening" in SOLO             # stops listening soon after the owner stops talking
+
+
+def test_solo_is_faster():
+    assert "async function quick(" in SOLO and "await quick(text) || await think(text)" in SOLO
+    assert "thinkingBudget: 0" in SOLO
+    assert "function chunks(" in SOLO
+
+
+def test_gmail_comes_from_notifications():
+    java = (ROOT / "android/app/src/main/java/os/jarvis/app").glob("*.java")
+    src = "\n".join(p.read_text(encoding="utf-8") for p in java)
+    assert "getActiveNotifications" in src and "EXTRA_BIG_TEXT" in src
+    assert "soloNotesAccess" in SOLO and "Gmail" in SOLO

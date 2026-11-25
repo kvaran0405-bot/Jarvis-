@@ -560,10 +560,10 @@ public class MainActivity extends Activity {
                 i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, use);
                 i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, partial);
                 i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);   // several guesses: pick the one that fits JARVIS
-                // don't cut the owner off at a short pause
-                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L);
-                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L);
-                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1200L);
+                // finish quickly once the owner stops (solo also wraps up 0.9 s after the last word)
+                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L);
+                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L);
+                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 800L);
                 i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
                 try { recognizer.startListening(i); }
                 catch (Exception e) { emitSpeech("error", "aborted", true); emitSpeech("end", "", true); }
@@ -691,6 +691,8 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String soloNotes() { return Solo.notes(MainActivity.this); }
+        @JavascriptInterface public boolean soloNotesAccess() { return Solo.notesAccess(MainActivity.this); }
+        @JavascriptInterface public void openNotesAccess() { try { startActivity(new Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Exception ignored) {} }
 
         @JavascriptInterface
         public void notify(String title, String text, boolean urgent) { SoloBrain.notifyOwner(MainActivity.this, title, text, urgent); }

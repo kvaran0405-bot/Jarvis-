@@ -106,7 +106,10 @@ def _theme(store) -> dict:
 def _voices() -> dict:
     """The team's premium Gemini voices, so the phone sounds the same with the laptop off."""
     from . import gemtts
-    return {"models": gemtts.MODELS, "cast": {k: list(v) for k, v in gemtts.VOICES.items()}}
+    from .voice import ATTITUDE
+    return {"models": gemtts.MODELS,
+            "cast": {k: [v[0], v[1], ATTITUDE.get(k, "")] for k, v in gemtts.VOICES.items()},
+            "acting": gemtts.acting("{who}", "{mood}")}
 
 
 def _holo(store) -> dict | None:

@@ -36,8 +36,39 @@ public class SmartReplies extends NotificationListenerService {
     static final Map<String, Notification.Action> REPLY_ACTIONS = new HashMap<>();
     private static final Map<String, Long> RECENT = new HashMap<>();
 
+    static volatile SmartReplies live;   // set while Notification access is on, so JARVIS can read what's on screen now
+
+    @Override public void onListenerConnected() { live = this; }
+    @Override public void onListenerDisconnected() { live = null; }
+
+    /** The notifications sitting in the shade right now (Gmail and the rest), for "what did I miss?". */
+    static JSONArray active(android.content.Context c) {
+        JSONArray out = new JSONArray();
+        SmartReplies s = live;
+        if (s == null) return out;
+        try {
+            for (StatusBarNotification sbn : s.getActiveNotifications()) {
+                String pkg = sbn.getPackageName();
+                if (pkg.equals(c.getPackageName()) || Net.isFinance(pkg) || sbn.isOngoing()) continue;
+                Notification n = sbn.getNotification();
+                if ((n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) continue;
+                CharSequence t = n.extras.getCharSequence(Notification.EXTRA_TITLE), x = n.extras.getCharSequence(Notification.EXTRA_TEXT);
+                CharSequence big = n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT);
+                if (big != null && big.length() > (x == null ? 0 : x.length())) x = big;
+                if (t == null || x == null || Solo.secret(pkg, t.toString(), x.toString())) continue;
+                String app = pkg;
+                try { app = String.valueOf(c.getPackageManager().getApplicationLabel(c.getPackageManager().getApplicationInfo(pkg, 0))); } catch (Exception ignored) {}
+                String body = x.toString();
+                out.put(new JSONObject().put("t", sbn.getPostTime()).put("app", app).put("title", t.toString())
+                        .put("text", body.length() > 300 ? body.substring(0, 300) : body));
+            }
+        } catch (Exception ignored) {}
+        return out;
+    }
+
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
+        live = this;
         String pkg = sbn.getPackageName();
         if (pkg.equals(getPackageName()) || Net.isFinance(pkg) || sbn.isOngoing()) return;   // never bank apps
         Notification n = sbn.getNotification();
@@ -50,6 +81,7 @@ public class SmartReplies extends NotificationListenerService {
         CharSequence text = ex.getCharSequence(Notification.EXTRA_TEXT);
         if (title == null || text == null) return;
         String sender = title.toString(), body = text.toString();
+        if (!body.matches("^\\d+ new messages?$")) Solo.noteSeen(this, pkg, sender, body);   // messages count as "missed" too
         if (body.matches("^\\d+ new messages?$") || sender.equals("WhatsApp") || sender.toLowerCase().contains("jarvis")) return;
 
         Notification.Action reply = null;
@@ -78,6 +110,8 @@ public class SmartReplies extends NotificationListenerService {
     /** Any other app's notification: sent to the notification brain (no replies). Bank apps never get here. */
     private void forward(String pkg, Notification n) {
         CharSequence t = n.extras.getCharSequence(Notification.EXTRA_TITLE), x = n.extras.getCharSequence(Notification.EXTRA_TEXT);
+        CharSequence big = n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT);   // Gmail puts the email preview here
+        if (big != null && big.length() > (x == null ? 0 : x.length())) x = big;
         if (t == null || x == null || Net.isFinance(String.valueOf(t)) || Net.isFinance(String.valueOf(x))) return;
         Solo.noteSeen(this, pkg, String.valueOf(t), String.valueOf(x));   // for "what did I miss?", even with the laptop off
         String key = pkg + t + x;

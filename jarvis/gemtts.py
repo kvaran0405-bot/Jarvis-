@@ -23,20 +23,27 @@ MODELS = [m for m in os.environ.get("JARVIS_GEMINI_TTS_MODEL", "").split(",") if
     "gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"]
 
 # agent: (Gemini prebuilt voice, how to perform)
-VOICES = {
-    "JARVIS": ("Charon", "a refined, unhurried British butler AI with bone-dry wit, quietly devoted"),
-    "FRIDAY": ("Leda", "a quick, warm, cheeky young Irish woman, energetic and playful"),
-    "PEPPER": ("Kore", "a poised, confident, warm American businesswoman who is fond of him and very organised"),
-    "ATHENA": ("Gacrux", "a wise, encouraging British teacher, clear and kind"),
-    "ZEUS": ("Alnilam", "a commanding, intense career coach with a deep voice, fired up and competitive"),
-    "HERALD": ("Schedar", "a smooth, charming British diplomat with a gossipy twinkle"),
-    "STEVE": ("Puck", "an upbeat, earnest, old-fashioned American fitness coach with a big heart"),
-    "VERONICA": ("Sulafat", "a shrewd, glamorous woman, frank about money, raised-eyebrow sarcasm"),
-    "BANNER": ("Enceladus", "a gentle, soft-spoken, caring man who speaks slowly and kindly"),
-    "EDITH": ("Despina", "a cool, efficient, precise young woman with a faint wry streak"),
-    "SENTINEL": ("Algenib", "a terse, gravelly, vigilant guard with short heavy sentences"),
-    "ORACLE": ("Iapetus", "a calm, precise analyst with quiet confidence"),
-    "GUEST": ("Charon", "a theatrical British butler AI entertaining a guest"),
+VOICES = {   # cinematic cast: every agent has an accent, an attitude and real emotion (like JARVIS's solo voice)
+    "JARVIS": ("Charon", "a refined, unhurried British butler AI with a deep, warm voice and bone-dry wit, quietly devoted "
+                         "and a little theatrical, like the AI in a blockbuster"),
+    "FRIDAY": ("Leda", "a quick, cheeky young Irish woman with a soft lilting brogue, breathy and flirty-playful, always "
+                       "smiling through the words, teasing him like a close friend"),
+    "PEPPER": ("Kore", "a poised, confident American woman with a low, velvety, sultry voice, warm and fond of him, "
+                       "unhurried and a touch seductive, the kind of voice you look forward to every morning"),
+    "ATHENA": ("Gacrux", "a wise, elegant British woman with a smooth, soothing, honeyed voice, encouraging and kind, "
+                         "like a favourite teacher who believes in you"),
+    "ZEUS": ("Alnilam", "a commanding, intense career coach with a deep booming voice, fired up and competitive, like a "
+                        "movie-trailer pep talk before the big fight"),
+    "HERALD": ("Schedar", "a smooth, charming British diplomat with a gossipy twinkle, amused and a bit conspiratorial"),
+    "STEVE": ("Puck", "an upbeat, earnest, old-fashioned American hero coach with a big heart, rallying and sincere"),
+    "VERONICA": ("Sulafat", "a glamorous, shrewd woman with a smoky, sultry, slightly husky voice and a raised-eyebrow "
+                            "sarcasm, frank about money, purring the punchlines like a film-noir femme fatale"),
+    "BANNER": ("Enceladus", "a gentle, soft-spoken, caring man who speaks slowly and kindly, a calm hand on the shoulder"),
+    "EDITH": ("Despina", "a cool, sleek young woman with a silky, low, intimate voice, precise and efficient with a wry, "
+                         "flirtatious streak, like a spy-movie handler in your ear"),
+    "SENTINEL": ("Algenib", "a terse, gravelly, vigilant guard with short heavy sentences, like an action-film soldier"),
+    "ORACLE": ("Iapetus", "a calm, precise analyst with a deep, quietly confident voice, like a thriller narrator"),
+    "GUEST": ("Charon", "a theatrical British butler AI entertaining a guest with grand, cinematic charm"),
 }
 _state = {"down_until": 0.0, "model": None, "secs": 0.0, "chars": 0, "why": ""}
 
@@ -73,12 +80,17 @@ def direction(agent: str, text: str) -> str:
     when = ("It's late at night: keep it soft, close and unhurried." if hour >= 23 or hour < 6 else
             "It's morning: bright and awake, but not loud." if 6 <= hour < 11 else "")
     mood = ATTITUDE.get(agent.upper(), "")
+    return f"{acting(who, mood)}{when}\n\n{line}"
+
+
+def acting(who: str, mood: str = "") -> str:
+    """The cinematic acting note (the phone's solo mode gets the same one in its pack)."""
     return (f"You are voicing {who}. Your usual attitude is {mood or 'natural'}; let it colour the whole line.\n"
-            "Perform it like a real person talking to a close friend, not like a narrator or an assistant: natural "
-            "breaths, small hesitations where someone would think, vary your pace (quick on easy bits, slower on what "
-            "matters), let questions lift, lean on the important word, and let the emotion show in the voice. "
-            "Act the stage directions in brackets (laughs, sighs, moods) as real sounds and tone; never read them aloud. "
-            f"{when}\n\n{line}")
+            "Perform it like a lead actor in a film talking to someone they adore, not like a narrator or an assistant: "
+            "keep your accent strong and consistent, natural breaths, small hesitations where someone would think, vary "
+            "your pace (quick on easy bits, slower and lower on what matters), let questions lift, lean on the important "
+            "word, and let real emotion and attitude show in the voice. "
+            "Act the stage directions in brackets (laughs, sighs, moods) as real sounds and tone; never read them aloud. ")
 
 
 def synthesize(agent: str, text: str, path: Path) -> Path:

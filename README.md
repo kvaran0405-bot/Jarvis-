@@ -614,6 +614,18 @@ What works on the phone alone:
 - **Phone powers:** call, alarm, timer, torch, volume, music, open apps, camera, email drafts. Banks and finance apps
   stay off limits, and it never messages anyone by itself.
 
+- **A normal conversation:** after JARVIS answers, the mic opens by itself for 8 seconds, so just keep talking (no
+  tapping). Say "that's all" or "bye" to end it, or tap the core to cut JARVIS off. It also stops listening about
+  a second after you stop talking, and answers easy things (time, date, next plan, tasks, steps, thanks) instantly
+  on the phone. Longer replies start speaking after the first sentence is voiced.
+- **Cinematic voices:** every agent has their own accent, attitude and emotion (JARVIS the dry British butler,
+  FRIDAY the cheeky Irish one, PEPPER low and velvety, VERONICA smoky film-noir, EDITH a silky spy-movie handler...),
+  softer late at night. Same cast on the laptop and the phone.
+- **What did I miss / any emails?** JARVIS reads the phone's notifications, Gmail included (sender, subject and
+  preview), plus messages, and sums them up. Bank apps and codes are never kept. This needs **Notification access**
+  for JARVIS (Settings → Notifications → Device & app notifications); if it's off, JARVIS opens that page for you.
+  To read your whole inbox (not just notifications) send `/email` to the bot once.
+
 Everything it does alone (things to remember, tasks, events, notes, reminders and the conversation) syncs back to
 the laptop the next time it's on, so both stay the same JARVIS.
 

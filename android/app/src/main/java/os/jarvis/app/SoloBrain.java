@@ -257,6 +257,7 @@ final class SoloBrain {
         @JavascriptInterface public String soloLocation() { return Solo.location(c); }
         @JavascriptInterface public String soloDay() { return Solo.day(c); }
         @JavascriptInterface public String soloNotes() { return Solo.notes(c); }
+        @JavascriptInterface public boolean soloNotesAccess() { return Solo.notesAccess(c); }
         @JavascriptInterface public String soloPower(String kind, String args) { return Solo.power(c, kind, args); }
         @JavascriptInterface public void notify(String title, String text, boolean urgent) { notifyOwner(c, title, text, urgent); }
         @JavascriptInterface public boolean telegramOn() { return !tgToken(c).isEmpty(); }
