@@ -49,7 +49,7 @@ final class Solo {
         return lastFail > lastOk && System.currentTimeMillis() - lastFail < 3 * 60_000L;
     }
 
-    private static SharedPreferences p(Context c) { return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
+    static SharedPreferences p(Context c) { return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
 
     // ------------------------------------------------------------ while linked: refresh the pack, send the queue
     static void whileLinked(Context c) {
@@ -69,6 +69,15 @@ final class Solo {
             lastPack = System.currentTimeMillis();
             if (pack != null) backupReminders(c, pack.optJSONArray("reminders"));
         } catch (Exception ignored) { return; }
+        try {   // JARVIS's everyday lines in the laptop's own voice (only when they changed)
+            String have = p(c).getString("voicepack_ver", "");
+            String body = Net.call(c, "/api/phone/voicepack?have=" + Uri.encode(have), null, 60000);
+            JSONObject got = new JSONObject(body);
+            if (got.has("lines") && !got.optString("version").isEmpty()) {   // a new pack (otherwise "same" or still "building")
+                savePage(c, "voicepack.json", body);
+                p(c).edit().putString("voicepack_ver", got.optString("version")).apply();
+            }
+        } catch (Exception ignored) {}
         try {   // the newest trailer too
             String t = Net.call(c, "/api/phone/trailer-page", null, 20000);
             if (t.contains("JARVIS-TRAILER")) savePage(c, "trailer.html", t);
@@ -126,6 +135,11 @@ final class Solo {
     static String localPage(Context c, String name) {
         File f = new File(c.getFilesDir(), name);
         return f.exists() ? Uri.fromFile(f).toString() : "file:///android_asset/" + name;
+    }
+
+    static String voicePack(Context c) {
+        try { return new String(java.nio.file.Files.readAllBytes(new File(c.getFilesDir(), "voicepack.json").toPath()), StandardCharsets.UTF_8); }
+        catch (Exception e) { return "{}"; }
     }
 
     static String pageUrl(Context c) {

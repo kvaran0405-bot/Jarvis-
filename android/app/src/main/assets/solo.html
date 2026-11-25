@@ -709,7 +709,7 @@ const VCACHE = (() => { let db = null;
   const tx = async (mode, fn) => { const d = await open(); if (!d) return null;
     return new Promise(res => { try { const t = d.transaction("lines", mode), q = fn(t.objectStore("lines")); q.onsuccess = () => res(q.result); q.onerror = () => res(null); } catch { res(null); } }); };
   return {get: k => tx("readonly", st => st.get(k)), put: (k, blob) => { if (blob.size < 700e3) tx("readwrite", st => st.put({blob, t: Date.now()}, k)).then(async () => {
-      const keys = await tx("readonly", st => st.getAllKeys()); if (keys && keys.length > 300) tx("readwrite", st => st.delete(keys[0])); }); }};
+      const keys = await tx("readonly", st => st.getAllKeys()); if (keys && keys.length > 600) tx("readwrite", st => st.delete(keys[0])); }); }};
 })();
 const vkey = (agent, text) => agent + "|" + text.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
 async function premiumVoice(agent, text){
@@ -721,14 +721,17 @@ async function premiumVoice(agent, text){
     .replace("{who}", who).replace("{mood}", mood || "natural");
   const body = JSON.stringify({contents: [{parts: [{text: `${note}${when}\n\n${text}`}]}],
     generationConfig: {responseModalities: ["AUDIO"], speechConfig: {voiceConfig: {prebuiltVoiceConfig: {voiceName: name}}}}});
+  let hit429 = false;
   for (const model of PACK.voices.models || []){
     const r = await Promise.race([net(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {method: "POST", body}), new Promise(res => setTimeout(() => res({status: -1}), 8000))]);
     if (r.status === 404) continue;
-    if (r.status !== 200){ voiceDown = Date.now() + (r.status === 429 ? 900e3 : 120e3); return null; }
+    if (r.status === 429){ hit429 = true; continue; }   // this model's free voice allowance is used up: try the next one
+    if (r.status !== 200){ voiceDown = Date.now() + 120e3; return null; }
     try { const part = JSON.parse(r.text).candidates[0].content.parts.find(p => p.inlineData); const rate = +(part.inlineData.mimeType.match(/rate=(\d+)/) || [0, 24000])[1];
       const wav = pcmWav(part.inlineData.data, rate); if (text.length <= 160) VCACHE.put(vkey(agent, text), wav);
       return URL.createObjectURL(wav); } catch { return null; }
   }
+  if (hit429) voiceDown = Date.now() + 900e3;
   return null;
 }
 
@@ -829,6 +832,17 @@ async function soloBrief(force){
   await JarvisBriefing.play(lines, (a, t) => speak(a, t, false));
 }
 setTimeout(() => soloBrief(false), 1800);
+// The voice pack: JARVIS's everyday lines, recorded by the laptop in the exact voice you hear at home, kept on the phone.
+(async () => { try {
+  const ver = N?.voicePackVersion?.(); if (!ver || LS.get("solo:voicepack", "") === ver || N?.headless) return;
+  const pack = JSON.parse(N.voicePack() || "{}");
+  for (const [key, item] of Object.entries(pack.lines || {})){
+    const bytes = Uint8Array.from(atob(item.b64), c => c.charCodeAt(0));
+    await VCACHE.put(key, new Blob([bytes], {type: item.mime || "audio/mpeg"}));
+  }
+  LS.set("solo:voicepack", ver);
+} catch {} })();
+
 // Came over from the laptop page mid-question: answer it here.
 { const pend = new URLSearchParams(location.search).get("ask"); if (pend) setTimeout(() => ask(pend), 900); }
 </script>

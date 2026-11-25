@@ -468,7 +468,7 @@ class Scheduler:
                    "money_sync": every_hours(1), "money_monthly": daily_at("09:07"),
                    "jobs_morning": daily_at("07:50"), "jobs_topup": daily_at("13:10"), "boss_brief_fallback": daily_at("13:00"),
                    "held_flush": every_hours(.25), "deadline_nudges": every_hours(1), "laptop_health": daily_at("03:50"),
-                   "steam_deals": every_hours(12)}
+                   "steam_deals": every_hours(12), "voicepack": daily_at("04:30")}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -516,6 +516,9 @@ class Scheduler:
             elif name == "laptop_health":   # EDITH: disk, memory, restart, backup
                 from . import autopilot
                 autopilot.laptop_check(self.store)
+            elif name == "voicepack":   # the phone's everyday lines in the laptop's voice
+                from . import voicepack
+                voicepack.build()
             elif name == "steam_deals":   # ORACLE: sales on the Steam wishlist
                 from . import deals
                 if self.store.get("deals:steam_id"):

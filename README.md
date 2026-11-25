@@ -798,6 +798,13 @@ What works on the phone alone:
   tapping). Say "that's all" or "bye" to end it, or tap the core to cut JARVIS off. It also stops listening about
   a second after you stop talking, and answers easy things (time, date, next plan, tasks, steps, thanks) instantly
   on the phone. Longer replies start speaking after the first sentence is voiced.
+- **Sounding like home with the laptop off:**
+  - JARVIS's everyday lines ("Very good, Sir", greetings, the briefing, the whole trailer) are recorded by the laptop
+    in the exact voice you hear at home and kept on the phone (the voice pack, refreshed nightly).
+  - Everything else uses the premium Gemini voice, trying every free voice model before giving up, and every line
+    is remembered.
+  - When Google's free daily allowance is used up, each agent gets their own matched backup voice, never the
+    phone's default.
 - **Cinematic voices:** every agent has their own accent, attitude and emotion (JARVIS the dry British butler,
   FRIDAY the cheeky Irish one, PEPPER low and velvety, VERONICA smoky film-noir, EDITH a silky spy-movie handler...),
   softer late at night. Same cast on the laptop and the phone.

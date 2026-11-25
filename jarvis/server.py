@@ -1422,6 +1422,20 @@ def trailer_page():
     return FileResponse(_ROOT / "web" / "trailer.html", media_type="text/html")
 
 
+@app.get("/api/phone/voicepack")
+def voicepack(have: str = ""):
+    """JARVIS's everyday lines in the laptop's own voice, for solo mode. Sends nothing if the phone is up to date."""
+    from fastapi.responses import FileResponse, JSONResponse
+    from . import voicepack as vp
+    ver = vp.version()
+    if not ver:
+        vp.build_soon()
+        return JSONResponse({"version": "", "building": True})
+    if have == ver:
+        return JSONResponse({"version": ver, "same": True})
+    return FileResponse(vp.PACK, media_type="application/json")
+
+
 @app.get("/api/phone/solo-page")
 def solo_page():
     """The phone's own JARVIS page. The app ships with a copy; it fetches this to stay up to date."""

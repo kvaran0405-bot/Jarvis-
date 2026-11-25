@@ -741,6 +741,8 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String soloNotes() { return Solo.notes(MainActivity.this); }
 @JavascriptInterface public String localPage(String name) { return name != null && name.matches("[a-z0-9]+\\.html") ? Solo.localPage(MainActivity.this, name) : ""; }
+        @JavascriptInterface public String voicePackVersion() { return Solo.p(MainActivity.this).getString("voicepack_ver", ""); }
+        @JavascriptInterface public String voicePack() { return Solo.voicePack(MainActivity.this); }
         @JavascriptInterface public String heardGuesses() { return lastGuesses; }
         @JavascriptInterface public void setAnnounce(boolean on) { Announcer.set(MainActivity.this, on); }
         @JavascriptInterface public boolean announcing() { return Announcer.on(MainActivity.this); }
