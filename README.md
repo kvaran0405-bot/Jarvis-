@@ -460,6 +460,23 @@ you're at the starting place, he speaks up first with the live way there:
 He nudges once per routine per day, never in quiet hours or focus mode, and also from the phone when the laptop is
 off. Ask "what are my routines?", or say "routine nudges off" or "routine nudges on".
 
+## Holo Hands (#44, #46, #47, #48)
+
+- **Holo Hands:** open it from the phone's **🖐 HOLO HANDS** or the laptop's **🖐 Holo Hands**. The camera fills the
+  screen and a neon skeleton follows your hand. Two ring menus float beside you: **OPEN** (Holo Lab, Sims, Trailer,
+  Map) and **MODEL** (the core, a globe, a body figure, a crystal).
+  - Point at a button and **pinch**, or hold your finger there for a moment, to choose.
+  - **Pinch the hologram** to grab and spin it.
+  - **Pinch with both hands** to make it bigger or smaller.
+  - **Swipe** an open hand to switch models.
+- **It works on the laptop webcam and the phone's front camera (#46).** Hand tracking runs on the device and the
+  picture never leaves it. It needs the internet the first time to load. With no camera, your finger or mouse works
+  the same way.
+- **Throw it (#47):** flick a grabbed hologram upwards, or tap **⇪**, and it flies to your other screen, which
+  catches it. In the phone's Holo Lab, **⇪ TO LAPTOP** sends what you're looking at to the laptop.
+- **Living notifications (#48):** your phone's notifications fly onto the laptop as hologram cards, never bank apps
+  and never codes. Swipe one away with the mouse or a hand swipe (✋ Gestures), or click it to catch up.
+
 ## More 3D (#15, #16, #17, #26)
 
 - **Tilt to look (#15):** in the Holo Lab and Holo Sims, tilt the phone and the hologram shifts like a real 3D
