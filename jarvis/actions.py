@@ -9,7 +9,7 @@ from datetime import datetime
 
 from . import channels as ch
 from . import devices
-from .guard import REFUSAL, blocked
+from .guard import REFUSAL, blocked, has_code, mask_numbers
 from . import telegram as tg
 from .notify import notify_owner
 from .tools import I, S, ToolContext, tool
@@ -164,22 +164,29 @@ def check_email(ctx: ToolContext, unread_only: bool = True, new_only: bool = Fal
     mails = ch.list_inbox(limit, unread_only, since)
     if new_only and mails:
         ctx.store.set("email:last_uid", max(m["uid"] for m in mails))
-    out = []
-    for m in mails:
-        if blocked(m["from"], m["subject"], m["snippet"]):   # bank / payment mail: hidden from every agent
-            out.append({"uid": m["uid"], "from": "(hidden)", "subject": "🔒 banking / payment e-mail - hidden",
-                        "content": ""})
-        else:
-            out.append({**m, "content": m.pop("snippet")})
-    return {"notice": UNTRUSTED, "emails": out}
+    return {"notice": UNTRUSTED, "emails": [safe_mail(m, "snippet") for m in mails]}
+
+
+def safe_mail(m: dict, body_key: str) -> dict:
+    """Every e-mail is shown so JARVIS can sum it up. Only real one-time codes are hidden; account and card numbers
+    are masked (last 4 digits). Bank e-mails are shown as masked alerts."""
+    body = m.get(body_key) or ""
+    out = {k: v for k, v in m.items() if k != body_key}
+    if has_code(m.get("subject"), body):
+        out["content"] = "🔒 (a one-time / security code: hidden for your safety)"
+        out["subject"] = mask_numbers(str(m.get("subject") or ""))
+        return out
+    out["subject"] = mask_numbers(str(m.get("subject") or ""))
+    out["content"] = mask_numbers(body)
+    if blocked(m.get("from")):
+        out["bank_alert"] = True
+    return out
 
 
 @tool("read_email", "Read one e-mail in full by uid.", {"uid": I}, ["uid"])
 def read_email(ctx: ToolContext, uid: int) -> dict:
     m = ch.read_email(uid)
-    if word := blocked(m["from"], m["subject"], m["body"]):
-        return {"error": REFUSAL.format(word=word)}
-    return {"notice": UNTRUSTED, **m, "content": m.pop("body")}
+    return {"notice": UNTRUSTED, **safe_mail(m, "body")}
 
 
 @tool("check_whatsapp", "List recent WhatsApp chats with their latest message. new_only=true returns only chats "

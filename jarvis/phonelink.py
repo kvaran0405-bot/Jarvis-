@@ -10,7 +10,7 @@ import re
 from datetime import datetime, timedelta
 
 from .config import settings
-from .guard import REFUSAL, blocked, is_secret
+from .guard import REFUSAL, blocked, has_code, is_secret, mask_numbers
 from .tools import S, ToolContext, tool
 
 B = {"type": "boolean"}
@@ -214,8 +214,9 @@ def classify(store, app: str, sender: str, text: str) -> dict:
 
 def note(store, bus, app: str, sender: str, text: str) -> dict:
     _ensure(store)
-    if blocked(app, sender, text) or is_secret(text):
+    if blocked(app) or has_code(text):   # bank apps and one-time codes only: everything else is kept (numbers masked)
         return {"ignored": "private"}
+    text = mask_numbers(text or "")
     c = classify(store, app, sender, text)
     store.execute("INSERT INTO phone_notes (app, sender, text, urgent, created) VALUES (?,?,?,?,?)",
                   (MESSAGING.get(app, app), sender[:80], text[:500], int(c["urgent"]), datetime.now(settings.tz).isoformat()))

@@ -81,7 +81,10 @@ public class SmartReplies extends NotificationListenerService {
         CharSequence text = ex.getCharSequence(Notification.EXTRA_TEXT);
         if (title == null || text == null) return;
         String sender = title.toString(), body = text.toString();
-        if (!body.matches("^\\d+ new messages?$")) Solo.noteSeen(this, pkg, sender, body);   // messages count as "missed" too
+        if (!body.matches("^\\d+ new messages?$")) {
+            Solo.noteSeen(this, pkg, sender, body);   // messages count as "missed" too
+            if (!Solo.secret(pkg, sender, body)) Announcer.heard(this, pkg, sender, body);   // WhatsApp: told straight away
+        }
         if (body.matches("^\\d+ new messages?$") || sender.equals("WhatsApp") || sender.toLowerCase().contains("jarvis")) return;
 
         Notification.Action reply = null;
@@ -112,7 +115,8 @@ public class SmartReplies extends NotificationListenerService {
         CharSequence t = n.extras.getCharSequence(Notification.EXTRA_TITLE), small = n.extras.getCharSequence(Notification.EXTRA_TEXT);
         CharSequence big = n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT);   // Gmail puts the email preview here
         final CharSequence x = big != null && big.length() > (small == null ? 0 : small.length()) ? big : small;
-        if (t == null || x == null || Net.isFinance(String.valueOf(t)) || Net.isFinance(String.valueOf(x))) return;
+        if (t == null || x == null || Solo.secret(pkg, String.valueOf(t), String.valueOf(x))) return;
+        Announcer.heard(this, pkg, String.valueOf(t), String.valueOf(x));   // emails: JARVIS tells you straight away
         Solo.noteSeen(this, pkg, String.valueOf(t), String.valueOf(x));   // for "what did I miss?", even with the laptop off
         String key = pkg + t + x;
         long now = System.currentTimeMillis();

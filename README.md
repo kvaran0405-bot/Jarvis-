@@ -621,6 +621,35 @@ Keep "Background" allowed on the phone's setup page, or Android may pause JARVIS
   predictor, tomorrow played, money future, and wedding day run. They're built into the phone app too, so they work
   with the laptop off. For now they run on sample numbers; your own data comes next.
 
+## JARVIS tells you first: emails and WhatsApp
+
+You don't have to ask. When an email or a WhatsApp message arrives on the phone, JARVIS says it out loud within a
+few seconds, as your filter. Things that arrive together are summed up together. For example:
+
+> "Sir, Grab replied about your interview: it's moved to 3pm Friday. Plus two promos, nothing urgent."
+
+- **What gets flagged:** deadlines, interviews and jobs, school or work, bills, family, and anything that needs a reply.
+- **What gets lumped together:** promos, newsletters and automated mail, in a few words.
+- **Every time:** the same summary also appears as a notification, with a **🔇 Stop announcing** button.
+- **Quiet:** when the phone is on silent or vibrate, during a call, and from 11pm to 7am, it's a notification only.
+- **Voice commands:** "stop announcing" / "announce messages" to switch it, and "what was that?" to hear it again.
+- **What's included:** emails (Gmail, Outlook and others) and WhatsApp direct chats. Telegram and group chats aren't
+  announced.
+- **Nothing is "hidden" any more:**
+  - Every email is read and summed up.
+  - Only real one-time codes (OTPs, PINs with a code) are kept out.
+  - Bank emails come through as masked alerts (card and account numbers show only the last 4 digits).
+  - Bank apps' own notifications stay off limits.
+  - Before, any email that just mentioned a word like "bank", "pin" or "boost" was hidden.
+- **Gmail tip:** in Gmail → Settings → your account → Notifications, choose **All**, so every email makes a
+  notification JARVIS can hear.
+- **Needs:** Notification access for JARVIS (setup page: "Smart replies & notifications").
+
+**Hearing you right:**
+- JARVIS now uses Google's own speech recogniser, the same one as Gboard voice typing, instead of the phone maker's.
+- It's given the team's names and yours as hints.
+- When the recogniser isn't sure, JARVIS's brain sees its other guesses and goes with what you most likely meant.
+
 ## The phone app updates itself
 
 You never have to download and install the app again. About once an hour (and whenever you open it) the app checks

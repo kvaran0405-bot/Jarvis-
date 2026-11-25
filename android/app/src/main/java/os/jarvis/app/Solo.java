@@ -325,10 +325,25 @@ final class Solo {
     }
 
     /** Notifications from the last day (never bank apps, never codes), for "what did I miss?". */
+    private static final java.util.regex.Pattern SECRET_WORD = java.util.regex.Pattern.compile(
+            "(?i)(?<![a-z])(otp|one[\\s-]?time|verification|passcode|security code|login code|tac|pin|password|authori[sz]ation code)(?![a-z])");
+    private static final java.util.regex.Pattern CODE = java.util.regex.Pattern.compile("(?<!\\d)\\d{4,8}(?!\\d)");
+
+    /** Only bank apps and real one-time codes are kept out ("Pin this", "otherwise", "citizen" are fine). */
     static boolean secret(String app, String title, String text) {
-        return Net.isFinance(app) || Net.isFinance(title) || Net.isFinance(text)
-                || text.matches("(?is).*\\b(otp|one[- ]time|verification|passcode|security code|pin)\\b.*")
-                || text.matches("(?s).*\\b\\d{4,8}\\b.*(code|otp).*");
+        if (Net.isFinance(app)) return true;
+        String all = (title == null ? "" : title) + " " + (text == null ? "" : text);
+        return SECRET_WORD.matcher(all).find() && CODE.matcher(all).find();
+    }
+
+    /** Account and card numbers: only the last 4 digits stay. */
+    static String mask(String s) {
+        if (s == null) return "";
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d[\\d\\s-]{5,}\\d").matcher(s);
+        StringBuffer out = new StringBuffer();
+        while (m.find()) { String d = m.group().replaceAll("\\D", ""); m.appendReplacement(out, d.length() < 6 ? m.group() : "•••• " + d.substring(d.length() - 4)); }
+        m.appendTail(out);
+        return out.toString();
     }
 
     static void noteSeen(Context c, String app, String title, String text) {
@@ -339,7 +354,8 @@ final class Solo {
                 JSONArray a = new JSONArray(p(c).getString("notes", "[]")), keep = new JSONArray();
                 long cut = System.currentTimeMillis() - 24 * 3600_000L;
                 for (int i = 0; i < a.length(); i++) if (a.getJSONObject(i).optLong("t") > cut) keep.put(a.get(i));
-                keep.put(new JSONObject().put("t", System.currentTimeMillis()).put("app", app).put("title", title).put("text", text.length() > 300 ? text.substring(0, 300) : text));
+                String body = mask(text);
+                keep.put(new JSONObject().put("t", System.currentTimeMillis()).put("app", app).put("title", mask(title)).put("text", body.length() > 300 ? body.substring(0, 300) : body));
                 while (keep.length() > 300) keep.remove(0);
                 p(c).edit().putString("notes", keep.toString()).apply();
             }

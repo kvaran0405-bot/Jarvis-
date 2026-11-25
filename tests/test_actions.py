@@ -195,10 +195,15 @@ def test_bank_block(env, monkeypatch):
     assert "spotify" in out and "dbs" not in out and "ocbc" not in out
     monkeypatch.setattr(ch, "email_read_ready", lambda: True)
     monkeypatch.setattr(ch, "list_inbox", lambda *a: [
-        {"uid": 1, "from": "DBS Bank <alerts@dbs.com>", "subject": "Transaction alert", "snippet": "S$50 debited"},
-        {"uid": 2, "from": "Prof Tan", "subject": "Slides", "snippet": "Here are the slides"}])
+        {"uid": 1, "from": "DBS Bank <alerts@dbs.com>", "subject": "Transaction alert", "snippet": "S$50 debited from card 1234 5678 9012 3456"},
+        {"uid": 2, "from": "Prof Tan", "subject": "Slides", "snippet": "Here are the slides"},
+        {"uid": 3, "from": "OCBC", "subject": "Your OTP", "snippet": "Your OTP is 829101. Do not share."},
+        {"uid": 4, "from": "Careers", "subject": "Boost your career", "snippet": "Pin this job: bank analyst role, otherwise fine"}])
     out, _ = execute("check_email", ctx, {})
-    assert "debited" not in out and "hidden" in out and "Here are the slides" in out
+    # nothing is hidden except one-time codes; bank alerts are shown masked
+    assert "debited" in out and "3456" in out and "5678 9012" not in out and '"bank_alert": true' in out
+    assert "829101" not in out and "security code" in out
+    assert "Here are the slides" in out and "Boost your career" in out and "bank analyst" in out
     out, _ = execute("run_on_laptop", ctx, {"command": "start https://ibanking.ocbc.com", "reason": "x"})
     assert "Blocked" in out
 

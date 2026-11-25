@@ -392,9 +392,12 @@ ${memories().slice(-120).map(m => "- " + m).join("\n") || "- (nothing yet)"}`;
 }
 let HISTORY = LS.get("solo:history", []);
 let VIA = "app";
+let ALT = [];   // the recogniser's other guesses for what the owner just said
 async function think(text){
   if (!PACK.has?.gemini && N) return basic(text);
-  const contents = [...HISTORY.slice(-14), {role: "user", parts: [{text}]}];
+  const heardAs = ALT.length ? `${text}\n\n(Heard by speech-to-text, which sometimes mishears Singapore English. Other possible hearings: ${ALT.map(a => `"${a}"`).join("; ")}. Go with what the owner most likely meant.)` : text;
+  ALT = [];
+  const contents = [...HISTORY.slice(-14), {role: "user", parts: [{text: heardAs}]}];
   const decl = GUEST ? DECL.filter(d => ["weather", "look_up"].includes(d.name)) : DECL;
   if (/^(what(?:'s| is) this|explain this|translate this|scan this|what am i looking at)\b/i.test(text) && !N?.headless){ openCam(); return "Point the camera at it, Sir, and tap explain."; }
   const body = {systemInstruction: {parts: [{text: systemPrompt()}]}, tools: [{functionDeclarations: decl}],
@@ -433,6 +436,9 @@ async function quick(t){
     return e ? `Next is ${e.title}, ${new Date(e.start).toDateString() === now.toDateString() ? "at " : "on " + new Date(e.start).toLocaleDateString("en-SG", {weekday: "long"}) + " at "}${e.start.slice(11, 16)}${e.location ? ", at " + e.location : ""}.` : "Nothing coming up in the calendar, Sir."; }
   if (/^(how many )?steps( today)?$|^my steps$/.test(t)){ try { const d = await TOOLS.my_day({}); if (d && d.steps != null) return `${d.steps.toLocaleString()} steps so far today, Sir.`; } catch {} }
   if (/^(update|upgrade|check for (an )?updates?( for)?)( (the|your|my))? ?(app|yourself|jarvis)?$/.test(t) && N?.updateApp){ N.updateApp(); return "Checking for a newer me, Sir. If there is one, it installs itself."; }
+  if (/^(stop|don'?t|no more|mute|turn off) (announc\w*|reading|telling)( me)?( my)?( (messages|emails|notifications))?$/.test(t) && N?.setAnnounce){ N.setAnnounce(false); return "Understood, Sir. I'll keep new messages to myself until you say announce messages."; }
+  if (/^(announce|read out|tell me( about)?|turn on announc\w*)( my)?( new)? (messages|emails|notifications)$/.test(t) && N?.setAnnounce){ N.setAnnounce(true); return "Very good, Sir. I'll tell you about new emails and WhatsApp messages the moment they arrive."; }
+  if (/^what was that$|^repeat that$|^say (that )?again$/.test(t)){ const a = LS.get("solo:lastAnnounce", null); if (a && Date.now() - a.at < 3600e3) return a.say; }
   if (/^(thanks|thank you|cheers|ty)( jarvis)?$/.test(t)) return ["Always, Sir.", "My pleasure, Sir.", "Anytime, Sir."][now.getSeconds() % 3];
   if (/^(hi|hello|hey|yo|morning|good (morning|afternoon|evening))$/.test(t)) return `${now.getHours() < 12 ? "Good morning" : now.getHours() < 18 ? "Good afternoon" : "Good evening"}, Sir. What can I do for you?`;
   return null;
@@ -527,6 +533,7 @@ function heard(t){
   $("#mic").classList.remove("on"); t = t.trim(); if (!t) return;
   if (hands){ const m = t.match(/^(?:hey |ok |okay )?jarvis[,\s]*(.*)$/i); if (!m){ setTimeout(listen, 300); return; } if (!m[1]){ speak("JARVIS", "Yes Sir?"); return; } t = m[1]; }
   followUntil = 0;
+  try { const g = JSON.parse(N?.heardGuesses?.() || "[]"); ALT = g.filter(x => x && x.toLowerCase() !== t.toLowerCase()).slice(0, 3); } catch { ALT = []; }
   if (/^(that'?s (all|it)|nothing|no(pe)?|stop|bye|goodbye|good ?night|i'?m (good|done)|never ?mind)( (jarvis|thanks|thank you))?[.!]*$/i.test(t)){
     show("YOU", t); return speak("JARVIS", /night/i.test(t) ? "Good night, Sir." : "Very good, Sir.", false); }
   ask(t);
@@ -577,6 +584,24 @@ window.soloHear = async (id, b64, mime) => {
     queue({kind: "chat", who: "you", text: "(telegram voice) " + heard}); queue({kind: "chat", who: "jarvis", agent: "JARVIS", text: reply});
     answer(id, `🎙 “${heard}”\n\n📱 ${reply}`);
   } catch (e) { answer(id, "🎙 That voice note didn't go through, Sir."); }
+};
+// New e-mails / WhatsApp messages, straight away (#announce): one short spoken line on what matters.
+window.soloAnnounce = async (id, itemsJson) => {
+  let items = []; try { items = JSON.parse(itemsJson); } catch {}
+  if (!items.length) return answer(id, "");
+  const plain = () => items.slice(0, 3).map(o => `${o.kind === "email" ? "New email from" : "WhatsApp from"} ${o.from.split(/[<(]/)[0].trim()}: ${o.text.slice(0, 90)}.`).join(" ");
+  if (!PACK.has?.gemini) return answer(id, plain());
+  const list = items.map((o, i) => `${i + 1}. ${o.kind.toUpperCase()} from ${o.from}: ${o.text}`).join("\n");
+  try {
+    const d = await gemini({systemInstruction: {parts: [{text: `You are JARVIS, the owner's AI (dry British wit, warm, loyal). New notifications just arrived on the owner's phone. The owner rarely opens their inbox, so you are their filter.
+Tell them in 1-2 short spoken sentences (under 40 words total), like a butler at their shoulder: who it's from and the gist, and clearly say what's IMPORTANT (deadlines, interviews and jobs, school or work, bills or money owed, family, anything that needs a reply) versus not important (promotions, newsletters, social media, automated updates: lump these together in a few words, e.g. "plus two promos, nothing urgent").
+For WhatsApp, say who and the gist in a few words. Start with "Sir," only if something is important. Never read out codes, links, or long numbers. Plain text, no emojis, no lists.`}]},
+      contents: [{role: "user", parts: [{text: list}]}], generationConfig: {temperature: .4, maxOutputTokens: 120, ...(LS.get("solo:nothink", true) ? {thinkingConfig: {thinkingBudget: 0}} : {})}});
+    const say = (d.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join(" ").replace(/[*_#`]/g, "").trim();
+    LS.set("solo:lastAnnounce", {at: Date.now(), say, items});
+    queue({kind: "chat", who: "jarvis", agent: "JARVIS", text: "📬 " + (say || plain())});
+    answer(id, say || plain());
+  } catch { answer(id, plain()); }
 };
 window.soloRoutine = async (id, kind) => {
   VIA = "routine";

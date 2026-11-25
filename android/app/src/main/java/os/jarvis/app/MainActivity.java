@@ -31,6 +31,9 @@ import android.webkit.WebViewClient;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import org.json.JSONArray;
+import java.util.List;
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -336,6 +339,19 @@ public class MainActivity extends Activity {
         ui.post(() -> web.evaluateJavascript(code, null));
     }
 
+    private volatile String lastGuesses = "[]";
+
+    /** Google's speech recogniser (what Gboard voice typing uses), not the phone maker's own, if it's installed. */
+    private android.content.ComponentName bestRecognizer() {
+        try {
+            List<android.content.pm.ResolveInfo> list = getPackageManager().queryIntentServices(new Intent(android.speech.RecognitionService.SERVICE_INTERFACE), 0);
+            String[] prefer = {"com.google.android.googlequicksearchbox", "com.google.android.tts", "com.google.android.as"};
+            for (String pkg : prefer) for (android.content.pm.ResolveInfo ri : list)
+                if (ri.serviceInfo != null && pkg.equals(ri.serviceInfo.packageName)) return new android.content.ComponentName(ri.serviceInfo.packageName, ri.serviceInfo.name);
+        } catch (Exception ignored) {}
+        return null;
+    }
+
     private void emitSpeech(String type, String text, boolean isFinal) {
         js("window.__jarvisSR && window.__jarvisSR.emit(" + JSONObject.quote(type) + ","
                 + JSONObject.quote(text == null ? "" : text) + "," + isFinal + ")");
@@ -534,7 +550,9 @@ public class MainActivity extends Activity {
             ui.post(() -> {
                 if (!hasMic()) { askMic(); emitSpeech("error", "not-allowed", true); emitSpeech("end", "", true); return; }
                 if (recognizer == null) {
-                    recognizer = SpeechRecognizer.createSpeechRecognizer(MainActivity.this);
+                    android.content.ComponentName best = bestRecognizer();
+                    recognizer = best != null ? SpeechRecognizer.createSpeechRecognizer(MainActivity.this, best)
+                                              : SpeechRecognizer.createSpeechRecognizer(MainActivity.this);
                     recognizer.setRecognitionListener(new RecognitionListener() {
                         @Override public void onReadyForSpeech(Bundle b) { emitSpeech("start", "", false); }
                         @Override public void onBeginningOfSpeech() { }
@@ -550,7 +568,7 @@ public class MainActivity extends Activity {
 
                         @Override public void onResults(Bundle b) {
                             ArrayList<String> r = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                            if (r != null && !r.isEmpty()) emitSpeech("result", bestGuess(r), true);
+                            if (r != null && !r.isEmpty()) { lastGuesses = new JSONArray(r).toString(); emitSpeech("result", bestGuess(r), true); }
                             else emitSpeech("error", "no-match", true);
                             emitSpeech("end", "", true);
                         }
@@ -574,6 +592,13 @@ public class MainActivity extends Activity {
                 i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L);
                 i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 800L);
                 i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+                i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false);   // Google's online model: the one your keyboard's voice typing uses
+                if (android.os.Build.VERSION.SDK_INT >= 33) {   // words JARVIS should expect: the team and your names
+                    ArrayList<String> bias = new ArrayList<>(Arrays.asList("JARVIS", "FRIDAY", "PEPPER", "ATHENA", "ZEUS", "HERALD", "STEVE",
+                            "VERONICA", "BANNER", "EDITH", "SENTINEL", "ORACLE", "Sir", "lah", "aite", "WhatsApp", "Gmail", "MRT", "Grab"));
+                    try { String owner = new JSONObject(Solo.packForPage(MainActivity.this)).optString("owner", ""); if (!owner.isEmpty()) bias.addAll(Arrays.asList(owner.split("\\s+"))); } catch (Exception ignored) {}
+                    i.putExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, bias);
+                }
                 try { recognizer.startListening(i); }
                 catch (Exception e) { emitSpeech("error", "aborted", true); emitSpeech("end", "", true); }
             });
@@ -716,6 +741,9 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String soloNotes() { return Solo.notes(MainActivity.this); }
 @JavascriptInterface public String localPage(String name) { return name != null && name.matches("[a-z0-9]+\\.html") ? Solo.localPage(MainActivity.this, name) : ""; }
+        @JavascriptInterface public String heardGuesses() { return lastGuesses; }
+        @JavascriptInterface public void setAnnounce(boolean on) { Announcer.set(MainActivity.this, on); }
+        @JavascriptInterface public boolean announcing() { return Announcer.on(MainActivity.this); }
         @JavascriptInterface public void goSolo(String pending) {   // the laptop page lost the laptop: the phone takes over
             Solo.lastFail = System.currentTimeMillis();
             ui.post(() -> web.loadUrl(Solo.pageUrl(MainActivity.this) + "?why=" + Uri.encode("laptop out of reach")

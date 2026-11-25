@@ -128,6 +128,7 @@
         </service>
 
         <receiver android:name=".AppUpdate$Result" android:exported="false" />
+        <receiver android:name=".Announcer$Mute" android:exported="false" />
         <receiver android:name=".AppUpdate$Replaced" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

@@ -476,11 +476,11 @@ def search_email(ctx: ToolContext, query: str, days: int = 60) -> dict:
     from .guard import blocked
     if not ch.email_read_ready():
         return {"error": "E-mail isn't set up yet (JARVIS_SMTP_USER / JARVIS_SMTP_PASSWORD in .env)."}
+    from .actions import safe_mail
     hits = []
     for m in ch.search_mail(query, days=days, limit=15):   # the mail server searches; only matches are downloaded
-        if not blocked(m.get("from"), m.get("subject"), m.get("body")):
-            hits.append({"uid": m["uid"], "date": m["date"], "from": m["from"], "subject": m["subject"],
-                         "excerpt": (m.get("body") or "")[:300]})
+        m = safe_mail({**m, "body": (m.get("body") or "")[:300]}, "body")
+        hits.append({"uid": m["uid"], "date": m["date"], "from": m["from"], "subject": m["subject"], "excerpt": m["content"]})
     return {"results": hits} if hits else {"results": [], "note": f"No e-mail mentioning {query!r} in the last {days} days."}
 
 

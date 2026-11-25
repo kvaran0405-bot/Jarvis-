@@ -47,6 +47,14 @@ def is_secret(*texts: str | None) -> bool:
     return any(t and SECRET_RE.search(str(t)) for t in texts)
 
 
+CODE_RE = re.compile(r"(?<![\d])\d{4,8}(?![\d])")
+
+
+def has_code(*texts: str | None) -> bool:
+    """A real one-time code: a security word AND a 4-8 digit code. ("Pin this post" or "reset your password" is fine.)"""
+    return any(t and SECRET_RE.search(str(t)) and CODE_RE.search(str(t)) for t in texts)
+
+
 def mask_numbers(text: str) -> str:
     """Account and card numbers -> only the last 4 digits stay visible."""
     def mask(m: re.Match) -> str:

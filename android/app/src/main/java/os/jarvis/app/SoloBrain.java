@@ -78,6 +78,9 @@ final class SoloBrain {
     }
 
     /** Run a JS function on the brain page and wait for its answer (null if it took too long). */
+    /** One spoken line summing up new e-mails / WhatsApp messages (the phone's brain decides what matters). */
+    static String announce(Context c, String itemsJson) { return call(c, "soloAnnounce", JSONObject.quote(itemsJson), 12); }
+
     private static String call(Context c, String fn, String argsJs, int seconds) {
         ensure(c);
         for (int i = 0; i < 40 && !ready; i++) { try { Thread.sleep(250); } catch (InterruptedException e) { return null; } }
