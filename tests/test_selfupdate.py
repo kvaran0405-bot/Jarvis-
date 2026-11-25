@@ -11,3 +11,10 @@ def test_app_updates_itself():
     assert "REQUEST_INSTALL_PACKAGES" in man and "AppUpdate$Result" in man and "MY_PACKAGE_REPLACED" in man
     assert "AppUpdate.check" in (A / "java/os/jarvis/app/SoloBrain.java").read_text(encoding="utf-8")
     assert "canSelfUpdate" in (ROOT / "web/access.html").read_text(encoding="utf-8")
+
+
+def test_signing_key_is_a_jarvis_pkcs12():
+    from cryptography.hazmat.primitives.serialization import pkcs12
+    from jarvis.signing import make_keystore
+    k = pkcs12.load_pkcs12(make_keystore("pw123456"), b"pw123456")
+    assert k.key is not None and k.cert.friendly_name == b"jarvis"

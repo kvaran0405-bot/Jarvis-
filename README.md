@@ -604,6 +604,12 @@ this is silent after the first self-update; the first time (or on phones that in
 "Install unknown apps" for JARVIS). Most changes don't even need that: the screens and the phone's own JARVIS brain
 (solo mode) are refreshed from the laptop automatically.
 
+**One-time set-up (needed for this to work):** Android only installs a new version over the old one if both are
+signed with the same key. Double-click **app-signing.bat** on the laptop (or run `python -m jarvis signing-key`):
+it makes a permanent key (backup in `~/JARVIS/Signing`, never in the repository) and walks you through adding the two
+GitHub secrets (`JARVIS_KEYSTORE_B64`, `JARVIS_KEYSTORE_PASSWORD`). Install the next build by hand one last time
+(uninstall the old app first); from then on it updates itself.
+
 ## Solo JARVIS: the phone works without the laptop
 
 When the laptop is off, asleep, in your bag or in another country, the phone app becomes JARVIS by itself, over

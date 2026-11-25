@@ -86,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
     sat = sub.add_parser("satellite", help="link this laptop to your cloud JARVIS and do its laptop jobs")
     sat.add_argument("--cloud", default="", help="the cloud JARVIS address (default: JARVIS_CLOUD_URL)")
 
+    sub.add_parser("signing-key", help="one-time: a permanent key so the phone app updates itself")
+
     args = p.parse_args(argv)
     cmd = args.cmd or "serve"
 
@@ -127,6 +129,9 @@ def main(argv: list[str] | None = None) -> int:
         from .studio import restore
         print("Restored: " + ", ".join(restore(args.zip)) + ". Start JARVIS again.")
         return 0
+    if cmd == "signing-key":
+        from .signing import setup
+        return setup()
     if cmd == "satellite":
         from .satellite import serve_forever
         serve_forever(args.cloud or None)
