@@ -91,10 +91,24 @@ def pack(store) -> dict:
         "speaker": store.get("voice:speaker") or "laptop",
         "theme": _theme(store),
         "voices": _voices(),
+        "money": _money(store),
         "holo": _holo(store),
         "guest": store.get("hud:guest") == "on",
         "routines": json.loads(store.get("predict:routines") or "[]") if (store.get("predict:on") or "on") == "on" else [],
     }
+
+
+def _money(store) -> dict:
+    """VERONICA's books (this month and last), so "what's my P&L?" works with the laptop off."""
+    try:
+        from datetime import timedelta as _td
+        from . import money
+        this = money.report(store)
+        prev = money.report(store, (datetime.now(settings.tz).date().replace(day=1) - _td(days=1)).strftime("%Y-%m"))
+        return {"this_month": money.text(this), "last_month": money.text(prev) if prev["transactions"] else "",
+                "net": this["net"], "spent": this["spent"], "income": this["income"]}
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _theme(store) -> dict:

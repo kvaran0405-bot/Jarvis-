@@ -317,6 +317,7 @@ const TOOLS = {
     if (app) a = a.filter(x => (x.app + " " + x.title).toLowerCase().includes(app.toLowerCase()));
     const by = {}; a.forEach(x => (by[x.app] = by[x.app] || []).push(`${x.title}: ${x.text}`.slice(0, 160)));
     return {count: a.length, by_app: Object.fromEntries(Object.entries(by).map(([k, v]) => [k, v.slice(-8)]))}; },
+  async my_money(){ const m = PACK.money || {}; return m.this_month ? {this_month: m.this_month, last_month: m.last_month, note: "as of the last sync with the laptop"} : {error: "VERONICA's books come from the laptop: open JARVIS once with the laptop on"}; },
   async buses_here(){ const l = await hereFresh(); if (!l) return {error: "no location"}; const st = await nearestStop(l);
     if (!st) return {error: PACK.has?.lta ? "no bus stop within 60 m" : "live buses need /lta"}; return {stop: st.name, code: st.code, buses: await stopArrivals(st.code)}; },
   async look_up({question}){
@@ -346,6 +347,7 @@ const DECL = [
      label: str(""), seconds: num(""), on: {type: "BOOLEAN"}, level: num(""), query: str(""), app: str(""), video: {type: "BOOLEAN"}, to: str(""), subject: str(""), body: str("")}, ["action"])},
   {name: "my_day", description: "Today so far: steps, distance moved, places visited (from the phone).", parameters: S({})},
   {name: "notifications_digest", description: "What the owner missed: recent phone notifications grouped by app, including Gmail emails (sender: subject and preview), messages and other apps (no bank apps, no codes). Use it for any question about emails, Gmail, messages or notifications. Summarise the important ones.", parameters: S({hours: num("how far back, default 12; use 24 for 'today'"), app: str("optional app filter, e.g. Gmail")})},
+  {name: "my_money", description: "The owner's monthly P&L from VERONICA's books (bank alerts): money in, money out by category, net, top spots; this month and last. For spending, income, P&L questions. Answer as VERONICA (start with 'VERONICA:').", parameters: S({})},
   {name: "buses_here", description: "Live arrival times at the bus stop the owner is standing at.", parameters: S({})},
   {name: "look_up", description: "Look something up on the web (news, opening hours, facts, prices).", parameters: S({question: str("the question")}, ["question"])},
 ];

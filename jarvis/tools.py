@@ -359,4 +359,5 @@ from . import explore as _explore  # noqa: E402,F401  (places explored, route pl
 from . import awareness as _awareness  # noqa: E402,F401  (live situation, time at places)
 from . import navigate as _navigate  # noqa: E402,F401  (navigation inside JARVIS)
 from . import predict as _predict  # noqa: E402,F401  (learned routines, nudges before you ask)
+from . import money as _money  # noqa: E402,F401  (VERONICA: bank alerts -> monthly P&L)
 from . import studio as _studio  # noqa: E402,F401  (floor plans, mood boards, portfolio, backups)

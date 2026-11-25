@@ -410,7 +410,8 @@ class Scheduler:
                    "nudge": every_hours(2), "auto_update": daily_at("04:10"),
                    "photo_pull": daily_at("01:30"), "photo_sort": every_hours(1),
                    "screentime_pull": daily_at("23:40"), "phone_link_watch": every_hours(.5),
-                   "self_check": daily_at("03:40"), "routines_learn": daily_at("03:20"), "routines_nudge": every_hours(1 / 12)}
+                   "self_check": daily_at("03:40"), "routines_learn": daily_at("03:20"), "routines_nudge": every_hours(1 / 12),
+                   "money_sync": every_hours(1), "money_monthly": daily_at("09:07")}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -444,6 +445,14 @@ class Scheduler:
                 if self.store.get("predict:routines") is None:
                     predict.learn(self.store)
                 predict.check(self.store, self.bus)
+            elif name == "money_sync":   # VERONICA: new bank alerts into the books
+                from . import money
+                out = money.sync(self.store)
+                if out.get("added"):
+                    self.bus.log("VERONICA", f"Booked {out['added']} new transaction(s) from bank alerts", "job")
+            elif name == "money_monthly":   # on the 1st: last month's P&L
+                from . import money
+                money.monthly(self.store, self.bus)
             elif name == "self_check":
                 from . import selfcheck
                 selfcheck.nightly(self.store, self.bus)

@@ -145,12 +145,14 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           BASE_TOOLS + FITNESS + ["log_habit", "habit_report", "add_event", "add_goal", "update_goal", "list_goals",
                                   "remind_me", "create_routine", "read_aloud"], effort="low"),
     Agent("VERONICA", "Finance", "#ff4f7b",
-          "You manage money: log spending and income, summarise where money goes, build budgets, flag "
-          "unusual spending and upcoming bills, and suggest savings moves. You may read the owner's bank "
-          "transaction-alert e-mails with `bank_alerts` (numbers masked) to build the weekly money report. "
-          "Never move money, never open bank apps or sites.",
-          BASE_TOOLS + ["log_transaction", "spending_summary", "add_goal", "update_goal", "list_goals",
-                        "bank_alerts", "publish_report", "search_email"]),
+          "You manage money. The owner's bank alert e-mails flow into your books automatically: use "
+          "`money_report` for their monthly P&L (money in, money out by category, net, top spots, pace) whenever they "
+          "ask about spending, income, P&L or where money goes, and `money_transactions` for the detail. When a "
+          "merchant lands in the wrong category or 'other', fix it with `money_categorize` (it's remembered). Log cash "
+          "spends they mention with `log_transaction` (negative = spend, positive = income). Be frank about impulse "
+          "buys and praise saving. Never move money, never open bank apps or sites, never read codes.",
+          BASE_TOOLS + ["money_report", "money_transactions", "money_categorize", "log_transaction", "spending_summary",
+                        "add_goal", "update_goal", "list_goals", "bank_alerts", "publish_report", "search_email"]),
     Agent("BANNER", "Health & Wellbeing", "#2de0c0",
           "You look after sleep, energy, stress, nutrition and recovery. Watch the owner's workload for "
           "burnout risk and suggest rest. You are not a doctor - recommend a professional for medical issues. "

@@ -629,6 +629,34 @@ Keep "Background" allowed on the phone's setup page, or Android may pause JARVIS
   predictor, tomorrow played, money future, and wedding day run. They're built into the phone app too, so they work
   with the laptop off. For now they run on sample numbers; your own data comes next.
 
+## VERONICA's books: your monthly P&L from bank alerts
+
+Turn on email alerts in your bank apps (DBS/POSB, OCBC, UOB, Citi, Trust, GXS, PayLah, GrabPay, PayPal, Revolut,
+YouTrip...). From then on VERONICA keeps your books by herself. Every hour she reads the new alert emails in Gmail
+and books each one as a transaction:
+- **Money in** ("You have received SGD 2,000.00": salary, transfers, refunds)
+- **Money out** ("A transaction of SGD 45.90 ... at GRAB*FOOD"), with the merchant and a category: food, groceries,
+  transport (Grab rides, Gojek, MRT), clothes, shopping, subscriptions, bills, entertainment, health, education,
+  travel, grooming, transfers or other
+
+**Getting your P&L:**
+- Ask "VERONICA, what's my P&L?" (or "how much did I spend on Grab this month?") for money in, money out by
+  category with %, the net ("you kept 24%"), top spots, biggest buys, vs last month, and your pace for the month.
+- **On the 1st** of every month she sends last month's P&L to Telegram, puts it on the dashboard and says the headline.
+- **Holo Lab → Money** shows it in 3D: money in, out and net on top, a glowing column per category.
+- **On the phone with the laptop off:** "what's my P&L?" works from the last sync.
+
+**Teaching her:** "VERONICA, Koufu is food" or "Uncle Tan is rent". She remembers it and fixes that month's entries.
+Cash spends you mention ("I spent $12 on lunch in cash") are logged too.
+
+**Safe by design:**
+- Only emails from banks and payment services are read.
+- One-time codes are never read, and declined or failed transactions and statements aren't counted.
+- Transfers between your own accounts don't count as spending.
+- Card and account numbers are never stored, only the amount, merchant, category and bank name.
+- JARVIS still can't open bank apps or sites, and never moves money.
+- Needs: `/email` sent to the bot once (Gmail with an app password).
+
 ## JARVIS tells you first: emails and WhatsApp
 
 You don't have to ask. When an email or a WhatsApp message arrives on the phone, JARVIS says it out loud within a

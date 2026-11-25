@@ -229,18 +229,20 @@ const BUILD = {
     const src = new THREE.Mesh(new THREE.SphereGeometry(.7, 20, 20), mat("#ffffff", .8)); src.position.y = 4.5;
     const sg = glow("#ff4f7b", 4, .5); sg.position.y = 4.5; group.add(src, sg);
     const top = new THREE.Object3D(); top.position.y = 5.6; group.add(top);
-    label(top, `THIS MONTH<small>$${Math.round(sp.reduce((s, x) => s + x.amount, 0)).toLocaleString()} spent${data.income ? " · $" + Math.round(data.income).toLocaleString() + " in" : ""}</small>`, "#ff4f7b");
+    const spent = sp.reduce((s, x) => s + x.amount, 0), net = (data.income || 0) - spent;
+    label(top, `THIS MONTH<small>$${Math.round(data.income || 0).toLocaleString()} in · $${Math.round(spent).toLocaleString()} out · NET ${net >= 0 ? "+" : "-"}$${Math.abs(Math.round(net)).toLocaleString()}</small>`, net >= 0 ? "#3dff9a" : "#ff4f7b");
     sp.forEach((s, i) => {
-      const a = i / Math.max(1, sp.length) * Math.PI * 2, x = Math.cos(a) * 5, z = Math.sin(a) * 5, h = .3 + s.amount / max * 3, col = COLS[i % COLS.length];
-      const pool = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, h, 24, 1, true), mat(col, .3)); pool.position.set(x, -4 + h / 2, z); group.add(pool);
-      const lid = ring(.9, .03, col, .9); lid.rotation.x = Math.PI / 2; lid.position.set(x, -4 + h, z); group.add(lid);
+      const R = innerHeight > innerWidth ? 3.4 : 5;   // tall phone screens: a tighter circle so nothing is cut off
+      const a = i / Math.max(1, sp.length) * Math.PI * 2, x = Math.cos(a) * R, z = Math.sin(a) * R, h = .3 + s.amount / max * 3, col = COLS[i % COLS.length];
+      const pr = innerHeight > innerWidth ? .7 : .9, pool = new THREE.Mesh(new THREE.CylinderGeometry(pr, pr, h, 24, 1, true), mat(col, .3)); pool.position.set(x, -4 + h / 2, z); group.add(pool);
+      const lid = ring(pr, .03, col, .9); lid.rotation.x = Math.PI / 2; lid.position.set(x, -4 + h, z); group.add(lid);
       label(lid, `${esc(s.category)}<small>$${Math.round(s.amount).toLocaleString()}</small>`, col);
       const N = 26, pts = new Float32Array(N * 3), g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
       const dots = new THREE.Points(g, new THREE.PointsMaterial({color: C(col), size: .16, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false})); group.add(dots);
       animators.push(t => { for(let k = 0; k < N; k++){ const f = ((t * .35 + k / N) % 1); pts[k * 3] = x * f; pts[k * 3 + 1] = 4.5 - (8.5 - (3 - h)) * f + Math.sin(f * 3.14) * 1.2; pts[k * 3 + 2] = z * f; }
         g.attributes.position.needsUpdate = true; });
     });
-    if(!sp.length){ const e = new THREE.Object3D(); e.position.y = 0; group.add(e); label(e, `NO SPENDING LOGGED<small>"I spent $12 on lunch"</small>`, "#5fd8ff"); }
+    if(!sp.length){ const e = new THREE.Object3D(); e.position.y = 0; group.add(e); label(e, `NO SPENDING YET<small>bank alerts in Gmail fill this in by themselves</small>`, "#5fd8ff"); }
     animators.push((t, dt) => group.rotation.y += dt * .08);
   },
   singapore(){

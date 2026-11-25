@@ -156,6 +156,44 @@ def search_mail(query: str, days: int = 60, limit: int = 15) -> list[dict]:
         box.logout()
 
 
+BANK_SENDERS = ["dbs", "posb", "ocbc", "uob", "citi", "hsbc", "maybank", "sc.com", "standardchartered", "trustbank",
+                "gxs", "maribank", "revolut", "youtrip", "paypal", "grab", "wise", "boost"]
+
+
+def bank_mail(days: int = 40, skip: set | None = None, limit: int = 400) -> list[dict]:
+    """Bank and payment alert e-mails from the last `days` days. The mail server finds them; only ones not in `skip`
+    (keys like "mail:<uid>:...") are downloaded."""
+    from datetime import date, timedelta
+    done = {k.split(":")[1] for k in (skip or set()) if k.startswith("mail:")}
+    box = _imap()
+    try:
+        uids: list[int] = []
+        if "gmail" in settings.imap_host.lower():
+            raw = (f"newer_than:{days}d (" + " OR ".join(f"from:{s}" for s in BANK_SENDERS)
+                   + " OR subject:(transaction OR credited OR debited OR paynow OR purchase OR received))")
+            typ, data = box.uid("search", "CHARSET", "UTF-8", "X-GM-RAW", '"' + raw + '"')
+            if typ == "OK":
+                uids = [int(u) for u in (data[0] or b"").split()]
+        else:
+            since = (date.today() - timedelta(days=days)).strftime("%d-%b-%Y")
+            for s in BANK_SENDERS:
+                typ, data = box.uid("search", None, f'(SINCE {since} FROM "{s}")')
+                if typ == "OK":
+                    uids += [int(u) for u in (data[0] or b"").split()]
+        out = []
+        for uid in sorted(set(uids))[-limit:]:
+            if str(uid) in done:
+                continue
+            _, msg_data = box.uid("fetch", str(uid), "(BODY.PEEK[])")
+            raw_msg = next((p[1] for p in msg_data if isinstance(p, tuple)), b"")
+            m = email.message_from_bytes(raw_msg)
+            out.append({"uid": uid, "from": _hdr(m["From"]), "subject": _hdr(m["Subject"]), "date": m["Date"],
+                        "message_id": m["Message-ID"] or "", "body": _text_of(m)[:3000]})
+        return out
+    finally:
+        box.logout()
+
+
 def read_email(uid: int) -> dict:
     box = _imap()
     try:
