@@ -176,7 +176,11 @@ function openSheet(list){ $("#sheetList").innerHTML = `<p style="font-size:12px;
 function panels(d){ const p = $("#panels"); p.innerHTML = "";
   if (!d.resume) p.insertAdjacentHTML("beforeend", `<div class="panel warn">📄 <b>Send ZEUS your resume</b> (a PDF on Telegram, caption <b>resume</b>). Then every job is matched to you and every cover letter is written from it.</div>`);
   if (!d.prefs.roles.length) p.insertAdjacentHTML("beforeend", `<div class="panel">🎯 Tell ZEUS what you want: <i>"ZEUS, I want marketing or events roles, at least $2,800, no sales."</i></div>`);
+  if ((d.followups || []).length) p.insertAdjacentHTML("beforeend", `<div class="panel" style="border-color:#5fd8ff66">📨 <b>${d.followups.length} follow-up${d.followups.length === 1 ? "" : "s"} due</b>: applications from a week ago with no reply. ZEUS has a polite nudge ready for each.<br><button class="btn" id="fuAll" style="color:var(--c);border-color:var(--c)">SEND ALL FOLLOW-UPS</button></div>`);
   if (d.can_email.length) p.insertAdjacentHTML("beforeend", `<div class="panel" style="border-color:#3dff9a66">📧 <b>${d.can_email.length} job${d.can_email.length === 1 ? "" : "s"}</b> take${d.can_email.length === 1 ? "s" : ""} email applications: ZEUS can send them all now with your CV and a tailored letter.<br><button class="btn" id="emailAll" style="color:var(--ok);border-color:var(--ok)">REVIEW &amp; SEND ALL</button></div>`);
+  $("#fuAll")?.addEventListener("click", async e => { e.target.disabled = true; e.target.textContent = "SENDING…";
+    const r = await api("/api/jobs/followups", {ids: d.followups.map(x => x.id)}).catch(() => ({error: "couldn't reach the laptop"}));
+    toast(r.error ? "⚠ " + r.error : `📨 Sent ${r.sent} follow-up${r.sent === 1 ? "" : "s"}.`); load(); });
   $("#emailAll")?.addEventListener("click", () => openSheet(d.can_email.map(x => JOBS.find(j => j.id === x.id) || x))); }
 
 async function load(){ try { const d = await api("/api/jobs"); JOBS = d.jobs; STATE = {today: d.today, target: d.target}; panels(d); render(); }

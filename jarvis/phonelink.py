@@ -217,6 +217,11 @@ def note(store, bus, app: str, sender: str, text: str) -> dict:
     if blocked(app) or has_code(text):   # bank apps and one-time codes only: everything else is kept (numbers masked)
         return {"ignored": "private"}
     text = mask_numbers(text or "")
+    try:
+        from .autopilot import scam_watch
+        scam_watch(store, bus, MESSAGING.get(app, app), sender or "", text)
+    except Exception:  # noqa: BLE001
+        pass
     c = classify(store, app, sender, text)
     store.execute("INSERT INTO phone_notes (app, sender, text, urgent, created) VALUES (?,?,?,?,?)",
                   (MESSAGING.get(app, app), sender[:80], text[:500], int(c["urgent"]), datetime.now(settings.tz).isoformat()))

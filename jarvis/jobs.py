@@ -89,6 +89,9 @@ def add_job(store, j: dict) -> bool:
     _ensure(store)
     if not j.get("title") or not (j.get("url") or j.get("apply_email")):
         return False
+    from .scam import check
+    if check(f"{j['title']} {j.get('company', '')} {j.get('descr', '')}")["scam"]:
+        return False   # "earn $300 a day liking videos" is not a job
     key = _key(j["title"], j.get("company", ""), j.get("url", ""))
     try:
         store.execute("INSERT INTO jobs (key, source, title, company, location, salary, url, apply_email, descr, posted, created) "
@@ -352,6 +355,45 @@ def send_all(store, bus, ids: list[int]) -> dict:
     if bus:
         bus.publish({"type": "data", "what": "jobs"})
     return {"sent": sent, "failed": failed, "today": today_count(store)}
+
+
+def followups(store, days: int = 7) -> list[dict]:
+    """E-mailed applications with no reply after a week: time for a polite follow-up (once)."""
+    _ensure(store)
+    cut = (datetime.now(settings.tz) - timedelta(days=days)).isoformat()
+    return store.query("SELECT id, title, company, apply_email, acted FROM jobs WHERE status = 'emailed' AND acted <= ? "
+                       "AND apply_email != '' ORDER BY acted LIMIT 30", (cut,))
+
+
+def followup_text(j: dict) -> str:
+    name = settings.owner_name or ""
+    when = (j.get("acted") or "")[:10]
+    return (f"Dear Hiring Team,\n\nI hope you're well. I applied for the {j['title']} role"
+            + (f" on {datetime.fromisoformat(when).strftime('%d %B')}" if when else "")
+            + " and wanted to follow up, as I remain very interested in the position and in contributing to "
+            + (j['company'] or "your team") + ". I'd be glad to share anything else that would help, or to arrange a "
+            "short call at your convenience.\n\nThank you for your time,\n" + name)
+
+
+def send_followups(store, bus, ids: list[int]) -> dict:
+    """The owner tapped SEND ALL on follow-ups (that tap is their yes)."""
+    from . import channels as ch
+    if not ch.email_ready():
+        return {"error": "E-mail sending isn't set up yet (/email on Telegram)."}
+    sent = 0
+    for jid in ids:
+        rows = store.query("SELECT * FROM jobs WHERE id = ? AND status = 'emailed'", (jid,))
+        if not rows:
+            continue
+        j = rows[0]
+        mid = store.queue_message("email", j["apply_email"], followup_text(j), "ZEUS", subject=f"Following up: {j['title']} application"[:120],
+                                  recipient_name=j["company"] or j["apply_email"], reason="job follow-up (owner tapped SEND ALL)", status="approved")
+        if ch.deliver(store, bus, store.get_message(mid)):
+            sent += 1
+            store.execute("UPDATE jobs SET status = 'followed', acted = ? WHERE id = ?", (datetime.now(settings.tz).isoformat(timespec="minutes"), jid))
+    if bus:
+        bus.publish({"type": "data", "what": "jobs"})
+    return {"sent": sent}
 
 
 def morning(store, bus) -> None:

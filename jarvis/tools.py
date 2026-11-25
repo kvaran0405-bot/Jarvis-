@@ -361,4 +361,5 @@ from . import navigate as _navigate  # noqa: E402,F401  (navigation inside JARVI
 from . import predict as _predict  # noqa: E402,F401  (learned routines, nudges before you ask)
 from . import money as _money  # noqa: E402,F401  (VERONICA: bank alerts -> monthly P&L)
 from . import jobs as _jobs  # noqa: E402,F401  (ZEUS: the daily job hunt)
+from . import deals as _deals  # noqa: E402,F401  (ORACLE: Steam wishlist sales, price watch)
 from . import studio as _studio  # noqa: E402,F401  (floor plans, mood boards, portfolio, backups)

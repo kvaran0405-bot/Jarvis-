@@ -600,7 +600,8 @@ window.soloAnnounce = async (id, itemsJson) => {
   try {
     const d = await gemini({systemInstruction: {parts: [{text: `You are JARVIS, the owner's AI (dry British wit, warm, loyal). New notifications just arrived on the owner's phone. The owner rarely opens their inbox, so you are their filter.
 Tell them in 1-2 short spoken sentences (under 40 words total), like a butler at their shoulder: who it's from and the gist, and clearly say what's IMPORTANT (deadlines, interviews and jobs, school or work, bills or money owed, family, anything that needs a reply) versus not important (promotions, newsletters, social media, automated updates: lump these together in a few words, e.g. "plus two promos, nothing urgent").
-For WhatsApp, say who and the gist in a few words. Start with "Sir," only if something is important. Never read out codes, links, or long numbers. Plain text, no emojis, no lists.`}]},
+For WhatsApp, say who and the gist in a few words. Start with "Sir," only if something is important. Never read out codes, links, or long numbers. Plain text, no emojis, no lists.
+SCAM SHIELD: if a message looks like a scam (parcel fee, "verify your account", prize, fake bank or government officer, "earn $X a day" or Telegram task jobs, asks for an OTP, gift cards or a payment, odd links), start with "Careful, Sir:" and say it looks like a scam and not to tap anything.`}]},
       contents: [{role: "user", parts: [{text: list}]}], generationConfig: {temperature: .4, maxOutputTokens: 120, ...(LS.get("solo:nothink", true) ? {thinkingConfig: {thinkingBudget: 0}} : {})}});
     const say = (d.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join(" ").replace(/[*_#`]/g, "").trim();
     LS.set("solo:lastAnnounce", {at: Date.now(), say, items});

@@ -290,10 +290,87 @@ def monthly(store, bus) -> None:
     from .speech import announce
     from .notify import notify_owner
     body = text(r)
+    subs = subscriptions(store)
+    if subs:
+        body += (f"\n\n🔁 Subscriptions: ${sum(x['monthly'] for x in subs):,.2f}/month: "
+                 + ", ".join(f"{x['merchant']} ${x['monthly']:,.2f}" for x in subs[:8]) + ". Still using all of them?")
     rid = store.save_report("money", "VERONICA", body.splitlines()[0], body)
     bus.publish({"type": "report", "id": rid, "agent": "VERONICA", "title": body.splitlines()[0], "kind": "money"})
     notify_owner(body.splitlines()[0], body)
     announce(bus, "VERONICA", "Last month's books are closed. " + spoken(r))
+
+
+# ---------------------------------------------------------------- budgets: a heads-up at 80% and 100%
+def budgets(store) -> dict:
+    try:
+        return {k: float(v) for k, v in json.loads(store.get("money:budgets") or "{}").items()}
+    except ValueError:
+        return {}
+
+
+def budget_status(store) -> list[dict]:
+    b = budgets(store)
+    if not b:
+        return []
+    r = report(store)
+    spent = {c["category"]: c["amount"] for c in r["by_category"]}
+    out = [{"category": k, "budget": v, "spent": round(spent.get(k, 0), 2), "pct": round(spent.get(k, 0) / v * 100) if v else 0}
+           for k, v in b.items()]
+    if "total" in b:
+        out = [o for o in out if o["category"] != "total"] + [{"category": "total", "budget": b["total"], "spent": r["spent"],
+                                                                "pct": round(r["spent"] / b["total"] * 100) if b["total"] else 0}]
+    return sorted(out, key=lambda o: -o["pct"])
+
+
+def budget_check(store, bus) -> list[str]:
+    """After each sync: VERONICA speaks up once when a category passes 80%, and again at 100%."""
+    month, said = datetime.now(settings.tz).strftime("%Y-%m"), []
+    days_left = (date.fromisoformat(_month_range(month)[1]) - datetime.now(settings.tz).date()).days
+    for o in budget_status(store):
+        for level in (100, 80):
+            key = f"money:budget_alert:{month}:{o['category']}:{level}"
+            if o["pct"] >= level and not store.get(key):
+                store.set(key, "1")
+                what = "your whole budget" if o["category"] == "total" else o["category"]
+                msg = (f"{what.title()} is at ${o['spent']:,.0f} of ${o['budget']:,.0f}" + (" and over budget" if level == 100 else f" ({o['pct']}%)")
+                       + f", with {days_left} day{'s' if days_left != 1 else ''} to go this month.")
+                said.append(msg)
+                from .notify import notify_owner
+                from .speech import announce
+                notify_owner("💸 VERONICA: budget", msg, short=True)
+                announce(bus, "VERONICA", ("[scoffs] " if level == 100 else "") + msg)
+                break
+    return said
+
+
+# ---------------------------------------------------------------- subscriptions: what keeps charging you
+SUB_WORDS = ["netflix", "spotify", "apple.com", "itunes", "youtube", "disney", "icloud", "chatgpt", "openai", "claude", "anthropic",
+             "microsoft", "adobe", "canva", "prime", "google one", "google storage", "gym", "fitness", "singtel", "starhub",
+             "circles", "giga", "simba", "m1", "patreon", "xbox", "playstation", "nintendo", "steam", "crunchyroll", "viu", "hbo"]
+
+
+def subscriptions(store, months: int = 4) -> list[dict]:
+    """Charges that repeat month after month (or come from known subscription services)."""
+    since = (datetime.now(settings.tz).date().replace(day=1) - timedelta(days=31 * (months - 1))).replace(day=1).isoformat()
+    rows = store.query("SELECT day, amount, note, category FROM transactions WHERE amount < 0 AND day >= ?", (since,))
+    by = {}
+    for r in rows:
+        name = (r["note"] or "").split(" · ")[0].strip()
+        key = re.sub(r"[^a-z]", "", name.lower())[:14]
+        if not key:
+            continue
+        by.setdefault(key, {"merchant": name, "rows": []})["rows"].append(r)
+    out = []
+    for g in by.values():
+        amts = [-r["amount"] for r in g["rows"]]
+        months_seen = {r["day"][:7] for r in g["rows"]}
+        typical = sorted(amts)[len(amts) // 2]
+        steady = len(months_seen) >= 2 and all(abs(a - typical) <= max(2, typical * .2) for a in amts)
+        known = any(w in g["merchant"].lower() for w in SUB_WORDS) or g["rows"][0]["category"] == "subscriptions"
+        if (steady and len(g["rows"]) <= len(months_seen) + 1) or known:
+            out.append({"merchant": g["merchant"], "monthly": round(typical, 2), "months": len(months_seen),
+                        "last": max(r["day"] for r in g["rows"])})
+    return sorted(out, key=lambda x: -x["monthly"])
 
 
 # ---------------------------------------------------------------- VERONICA's tools
@@ -323,6 +400,32 @@ def money_transactions(ctx: ToolContext, month: str = "", category: str = "") ->
                            + (" AND category = ?" if category else "") + " ORDER BY day DESC, id DESC LIMIT 200",
                            (a, b, category.lower()) if category else (a, b))
     return rows
+
+
+@tool("money_budget", "Set monthly budgets per category (e.g. food 400, transport 150, total 1500). auto=true sets them "
+      "from last month's spending (+10%, rounded). VERONICA warns at 80% and 100%.",
+      {"category": {"type": "string"}, "amount": {"type": "number"}, "auto": {"type": "boolean"}})
+def money_budget(ctx: ToolContext, category: str = "", amount: float = 0, auto: bool = False) -> dict:
+    b = budgets(ctx.store)
+    if auto:
+        prev = report(ctx.store, (datetime.now(settings.tz).date().replace(day=1) - timedelta(days=1)).strftime("%Y-%m"))
+        for c in prev["by_category"]:
+            if c["category"] not in ("transfers", "other"):
+                b[c["category"]] = float(round(c["amount"] * 1.1 / 10 + .5) * 10)
+    elif category:
+        if amount and amount > 0:
+            b[category.lower()] = float(amount)
+        else:
+            b.pop(category.lower(), None)
+    ctx.store.set("money:budgets", json.dumps(b))
+    return {"budgets": b, "status": budget_status(ctx.store)}
+
+
+@tool("money_subscriptions", "Everything that keeps charging the owner monthly (from the books), with the monthly total. "
+      "Ask which ones they still use; they cancel, you never do.", {})
+def money_subscriptions(ctx: ToolContext) -> dict:
+    subs = subscriptions(ctx.store)
+    return {"subscriptions": subs, "monthly_total": round(sum(x["monthly"] for x in subs), 2)}
 
 
 @tool("money_categorize", "Teach VERONICA a category for a merchant or word (e.g. 'koufu' -> food, 'uncle tan' -> rent). "

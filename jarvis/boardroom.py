@@ -87,6 +87,11 @@ def briefing(store, now: datetime | None = None) -> dict:
             if got:
                 t += f" {_money(got)} came in."
             t += f" Month so far: {_money(m['income'])} in, {_money(m['spent'])} out, net {'+' if m['net'] >= 0 else '-'}{_money(abs(m['net']))}."
+            hot = [b for b in money.budget_status(store) if b["pct"] >= 70]
+            if hot:
+                t += " Budget watch: " + ", ".join(f"{b['category']} at {b['pct']}%" for b in hot[:3]) + "."
+            elif not money.budgets(store) and m["transactions"] >= 10:
+                t += " Say 'set my budgets' and I'll base them on last month."
             lines.append({"agent": "VERONICA", "text": t})
     except Exception:  # noqa: BLE001
         pass
@@ -106,6 +111,10 @@ def briefing(store, now: datetime | None = None) -> dict:
                 t += f" Yesterday: {did} application{'s' if did > 1 else ''}."
             t += " Target today: " + str(jobs.prefs(store)["daily_target"]) + "."
             lines.append({"agent": "ZEUS", "text": t.strip()})
+        fu = jobs.followups(store)
+        if fu:
+            lines.append({"agent": "ZEUS", "text": f"{len(fu)} application{'s' if len(fu) > 1 else ''} from a week ago with no reply: "
+                          "follow-ups are drafted, one tap on JOB HUNT sends them all."})
         interviews = store.list_applications("interview")
         if interviews:
             lines.append({"agent": "ZEUS", "text": f"Interview{'s' if len(interviews) > 1 else ''} in play: "
@@ -126,6 +135,25 @@ def briefing(store, now: datetime | None = None) -> dict:
             if urgent:
                 t += f" Flagged: {', '.join(dict.fromkeys(urgent))[:80]}."
             lines.append({"agent": "HERALD", "text": t})
+    except Exception:  # noqa: BLE001
+        pass
+
+    # ORACLE (today's opportunities) and HERALD (inbox zero), from their reports this morning
+    try:
+        start = now.replace(hour=5, minute=0, second=0, microsecond=0).isoformat()
+        for kind, agent, lead in (("intel", "ORACLE", "Worth knowing today: "), ("inbox_zero", "HERALD", "Your inbox: ")):
+            r = store.query("SELECT title FROM reports WHERE kind = ? AND created >= ? ORDER BY id DESC LIMIT 1", (kind, start))
+            if r:
+                lines.append({"agent": agent, "text": lead + r[0]["title"].rstrip(".") + ". Details on Telegram and the dashboard."})
+    except Exception:  # noqa: BLE001
+        pass
+
+    # EDITH: the laptop
+    try:
+        import json as _json
+        h = _json.loads(store.get("laptop:health") or "{}")
+        if h.get("issues"):
+            lines.append({"agent": "EDITH", "text": "Laptop check: " + "; ".join(h["issues"][:2]) + "."})
     except Exception:  # noqa: BLE001
         pass
 
@@ -166,7 +194,13 @@ def first_open(store, now: datetime | None = None) -> dict:
     if store.get("brief:given") == _today(now):
         return {"new": False}
     store.set("brief:given", _today(now))
-    return {"new": True, **briefing(store, now)}
+    b = briefing(store, now)
+    try:   # the boss is up: anything the team held overnight goes out now
+        from .notify import flush_held
+        flush_held()
+    except Exception:  # noqa: BLE001
+        pass
+    return {"new": True, **b}
 
 
 def fallback(store, bus) -> None:

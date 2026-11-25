@@ -526,7 +526,7 @@ def housekeeping(dry_run: bool = False) -> dict:
             src.close()
             dst.close()
         olds = sorted((devices.WORKSPACE / "Backups").iterdir())
-        for old in olds[:-4]:
+        for old in olds[:-7]:
             shutil.rmtree(old, ignore_errors=True)
         backup = str(folder)
     return {"moved_to_old": len(moved), "examples": moved[:10], "backup": backup}

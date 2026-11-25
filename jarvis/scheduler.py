@@ -143,9 +143,10 @@ BUSINESS = ("Business sweep. list_gigs(): (1) enquiries or quotes with no reply 
             "polite follow-up; (2) balances unpaid after the event or due within 7 days - remind the owner "
             "(`propose` sending the invoice); (3) events in the next 7 days - check crew (crew_for_gig), rundown and "
             "vendor confirmations, `propose` what's missing; (4) clashes with exams or other gigs. Reply in 2 lines.")
-CAREER = ("Weekly career boost: draft one LinkedIn post from a real recent win in the owner's work (events run, "
-          "team led, a skill learned) - natural, not cringe, under 120 words - and save it with save_note. Update "
-          "the applications pipeline next steps. Reply with the post.")
+CAREER = ("Weekly LinkedIn ghostwriter: draft one LinkedIn post from a real recent win (events run, team led, a skill "
+          "learned, applications momentum) - natural, not cringe, under 120 words, 2-3 relevant hashtags - and save it "
+          "with save_note. Update the applications pipeline next steps. Your final answer goes to the owner as it is: "
+          "the post, ready to copy and paste, then one line 'Copy it into LinkedIn when you're happy with it.'")
 FITNESS = ("Sunday fitness plan. Check workout_history(14) and habit_report. Write next week's gym plan around their "
            "schedule (progressive overload from last week), plus 5 cheap high-protein meal ideas and a grocery list. "
            "Save it with save_note and reply with a short, motivating version (under 120 words).")
@@ -178,6 +179,46 @@ SUBS = ("Subscription check. search_email('receipt subscription renewal invoice'
         "cancelling them (the owner cancels; you never do). Reply in 2-3 lines.")
 
 
+RADAR = ("Assignment radar. search_email('assignment due deadline submission quiz exam project eLearn canvas blackboard "
+         "class cancelled', days=14) and phone_notifications(hours=12). For every school deadline, exam, quiz, project or "
+         "class change WITH a date that isn't already in list_tasks / list_events: add_task with that due date (ISO) and "
+         "add_event 'Due: <what>' at that time. Never duplicate, never guess a date. You'll nudge the owner 3 days and 1 day "
+         "before automatically. Reply in one line: what you added, or 'No new deadlines.'")
+INBOX_ZERO = ("Inbox zero, just after the owner wakes. check_email(unread_only=true, limit=40). Sort every e-mail into: "
+              "(1) NEEDS YOU: a real person or something that needs a reply or action: read it, then suggest_replies with "
+              "a one-line gist and 2-3 ready replies they can tap; (2) FYI: one line each; (3) NOISE: newsletters and "
+              "promos: just count them by sender. Flag anything that looks like a scam or phishing (fake bank, parcel "
+              "fee, prize, 'verify your account', too-good job) as ⚠️ SCAM, never suggest replying to those. Then "
+              "publish_report(kind='inbox_zero', title='<n> need you · <m> FYI · <k> noise', body=the three lists plus a "
+              "'People waiting on you' list, spoken=one sentence on the most important one, send=true). If the inbox is "
+              "empty, reply 'Inbox zero already.'")
+ADMIN = ("Life admin autopilot. search_email('renewal expiry expires expiring subscription policy insurance appointment "
+         "booking confirmation reservation shipped out for delivery tracking parcel road tax licence passport', days=30). "
+         "Keep the owner's admin under control: (a) anything that expires or renews: a task due 14 days before, with "
+         "what to do; (b) appointments and bookings: add_event with the place; (c) parcels: one task 'Parcel: <what> "
+         "arriving <date>' (mark done when delivered). Check list_tasks/list_events first and never duplicate. If "
+         "something needs the owner's decision (renew or cancel?), `propose` it. Reply in 2 lines max.")
+INTEL = ("Daily opportunities brief for the owner (they read it when they wake). Use recall and job_queue to know their "
+         "field and goals. Search the web for what's NEW in the last 48 hours: (1) one piece of news in their field or "
+         "the Singapore job market that matters to them, (2) one opportunity: a scholarship, competition, grant, "
+         "free course or event in Singapore with a deadline, (3) one smart move (a skill, a company hiring, a trend). "
+         "Each: one line + why it matters to them + the link. Then publish_report(kind='intel', title=<the single most "
+         "useful line, under 90 characters>, body=the 3 items, spoken=one sentence, send=true).")
+PRICES = ("Price check for the owner's watch list. Call deal_list. For each item of kind 'web' (not Steam: that's "
+          "automatic), search the web for the lowest current price from a real Singapore seller (Shopee/Lazada official "
+          "stores, Courts, Challenger, Best Denki, Amazon.sg, the brand's site). Record it with deal_update. If it's at or "
+          "under their target, say so with the link. Reply in one line per item, or 'Nothing on the watch list.'")
+AFTERNOON = ("3pm check-in, spoken to the owner like a chief of staff (they woke around noon). Check job_queue "
+             "(applications today vs the target), list_tasks (due today), money_report (today's spending) and the "
+             "calendar for the rest of today. In 2 short sentences: where they stand (be specific with numbers) and "
+             "the ONE thing to do next. Be motivating, not naggy. If everything's on track, say so and cheer. Your final "
+             "answer is sent to them as it is.")
+WRAPUP = ("10pm wrap-up, as their friend and chief of staff. Look at today: job_queue (applications done), tasks done, "
+          "money_report (spending), workouts, status_snapshot, and tomorrow's calendar. In 3 short sentences: today's "
+          "wins (with numbers), tomorrow's first thing and when, and one warm question about their day. Your final "
+          "answer is sent to them as it is.")
+
+
 class Scheduler:
     def __init__(self, engine: Engine):
         self.engine = engine
@@ -192,7 +233,12 @@ class Scheduler:
         ]
         from . import channels as _ch
         self.jobs += [
-            Job("evening_checkin", "FRIDAY", "Evening check-in", daily_at("21:30"), CHECKIN, deliver=True),
+            Job("afternoon_checkin", "JARVIS", "3pm check-in", daily_at("15:00"), AFTERNOON, deliver=True),
+            Job("evening_checkin", "JARVIS", "10pm wrap-up", daily_at("22:00"), WRAPUP, deliver=True),
+            Job("intel", "ORACLE", "Opportunities brief", daily_at("11:30"), INTEL),
+            Job("price_check", "ORACLE", "Price watch", daily_at("12:45"), PRICES,
+                when=lambda sc: bool(sc.store.query("SELECT name FROM sqlite_master WHERE name='deals'"))
+                and bool(sc.store.query("SELECT 1 FROM deals WHERE kind = 'web' LIMIT 1"))),
             Job("heart_to_heart", "BANNER", "Sunday heart-to-heart", daily_at("20:30", weekday=6), HEART, deliver=True),
             Job("exam_quiz", "ATHENA", "Exam quiz", daily_at("19:30"), QUIZ, deliver=True,
                 when=lambda sc: bool(sc.store.query("SELECT 1 FROM exams WHERE status='upcoming' AND exam_at BETWEEN ? "
@@ -201,10 +247,10 @@ class Scheduler:
                                                               .isoformat())))),
             Job("business_sweep", "PEPPER", "Business sweep", daily_at("10:00"), BUSINESS,
                 when=lambda sc: bool(sc.store.list_gigs("active", 1))),
-            Job("career_weekly", "ZEUS", "LinkedIn draft", daily_at("11:00", weekday=5), CAREER),
+            Job("career_weekly", "ZEUS", "LinkedIn draft", daily_at("13:30", weekday=5), CAREER, deliver=True),
             Job("fitness_weekly", "STEVE", "Weekly gym & meal plan", daily_at("17:00", weekday=6), FITNESS, deliver=True),
             Job("monthly_report", "FRIDAY", "Monthly life report", monthly_at(1, "10:00"), MONTHLY),
-            Job("anticipate", "JARVIS", "Before-you-ask", daily_at("08:30"), ANTICIPATE),
+            Job("anticipate", "JARVIS", "Before-you-ask", daily_at("11:50"), ANTICIPATE),
             Job("thank_you", "JARVIS", "Weekly thank-you", daily_at("18:30", weekday=5), THANKS, deliver=True),
             Job("team_dinner", "JARVIS", "Friday team dinner", daily_at("20:30", weekday=4), "custom"),
             Job("surprise_note", "JARVIS", "Surprise voice note", daily_at("16:10"), SURPRISE, deliver=True,
@@ -213,11 +259,14 @@ class Scheduler:
             Job("gift", "JARVIS", "A gift from a friend", daily_at("11:20", weekday=5), "custom",
                 when=lambda sc: sc._has_friend(5)),
             Job("team_tuneup", "JARVIS", "Team tune-up", daily_at("22:00", weekday=6), TUNEUP),
-            Job("mission_briefing", "JARVIS", "Mission briefing", daily_at("07:20"), MISSION, deliver=True,
+            Job("mission_briefing", "JARVIS", "Mission briefing", daily_at("11:35"), MISSION, deliver=True,
                 when=lambda sc: sc.big_day()),
         ]
         if _ch.email_read_ready():
-            self.jobs.append(Job("subscriptions", "VERONICA", "Subscription check", monthly_at(15, "12:00"), SUBS))
+            self.jobs.append(Job("subscriptions", "VERONICA", "Subscription check", monthly_at(15, "12:30"), SUBS))
+            self.jobs.append(Job("assignment_radar", "ATHENA", "Assignment radar", every_hours(4), RADAR))
+            self.jobs.append(Job("inbox_zero", "HERALD", "Inbox zero", daily_at("12:15"), INBOX_ZERO))
+            self.jobs.append(Job("life_admin", "FRIDAY", "Life admin", daily_at("12:40"), ADMIN))
         if s.job_hunt_at.lower() != "off":
             self.jobs.append(Job("job_hunt", "ZEUS", "Job hunt", daily_at(s.job_hunt_at), JOB_HUNT))
         from . import channels as ch
@@ -321,7 +370,12 @@ class Scheduler:
         """Send a job's message to the owner like a friend texting: Telegram text + voice note, and remember who
         asked so the owner's reply goes back to the same agent."""
         from . import telegram as tg
+        from .speech import in_quiet_hours
         if not text or text.startswith(("⚠", "⏸")) or not tg.ready():
+            return
+        if in_quiet_hours():   # the owner's asleep: it waits for them (one "while you slept" message)
+            from .notify import hold
+            hold(agent, text)
             return
         tg.send(text if agent == "JARVIS" else f"{agent}: {text}")
         self.store.set("telegram:last_agent", f"{agent}|{datetime.now(self.settings.tz).isoformat()}")
@@ -405,14 +459,16 @@ class Scheduler:
             if due and f"routine:{routine['id']}" not in self._running:
                 threading.Thread(target=self.run_routine, args=(routine,), daemon=True).start()
 
-    MAINTENANCE = {"file_index": every_hours(6), "housekeeping": daily_at("03:00", weekday=6),
+    MAINTENANCE = {"file_index": every_hours(6), "housekeeping": daily_at("03:00"),
                    "wind_down": daily_at("22:45"), "trophies": every_hours(1 / 6), "leave_now": every_hours(1 / 12), "screenshots": every_hours(1 / 60),
                    "nudge": every_hours(2), "auto_update": daily_at("04:10"),
                    "photo_pull": daily_at("01:30"), "photo_sort": every_hours(1),
                    "screentime_pull": daily_at("23:40"), "phone_link_watch": every_hours(.5),
                    "self_check": daily_at("03:40"), "routines_learn": daily_at("03:20"), "routines_nudge": every_hours(1 / 12),
                    "money_sync": every_hours(1), "money_monthly": daily_at("09:07"),
-                   "jobs_morning": daily_at("07:50"), "jobs_topup": daily_at("13:10"), "boss_brief_fallback": daily_at("13:00")}
+                   "jobs_morning": daily_at("07:50"), "jobs_topup": daily_at("13:10"), "boss_brief_fallback": daily_at("13:00"),
+                   "held_flush": every_hours(.25), "deadline_nudges": every_hours(1), "laptop_health": daily_at("03:50"),
+                   "steam_deals": every_hours(12)}
 
     def maintenance(self, now: datetime) -> None:
         """Jobs that need no AI, so they run even while JARVIS is paused."""
@@ -449,6 +505,21 @@ class Scheduler:
             elif name == "jobs_morning":   # ZEUS: today's job hunt, lined up before you wake
                 from . import jobs
                 jobs.morning(self.store, self.bus)
+            elif name == "held_flush":   # the owner's awake: what the team held overnight, in one message
+                from .speech import in_quiet_hours
+                if not in_quiet_hours():
+                    from .notify import flush_held
+                    flush_held()
+            elif name == "deadline_nudges":   # ATHENA: 3 days and 1 day before anything's due
+                from . import autopilot
+                autopilot.deadline_nudges(self.store, self.bus)
+            elif name == "laptop_health":   # EDITH: disk, memory, restart, backup
+                from . import autopilot
+                autopilot.laptop_check(self.store)
+            elif name == "steam_deals":   # ORACLE: sales on the Steam wishlist
+                from . import deals
+                if self.store.get("deals:steam_id"):
+                    deals.check(self.store, self.bus)
             elif name == "boss_brief_fallback":   # not opened JARVIS by 1pm: the team's briefing goes to Telegram
                 from . import boardroom
                 boardroom.fallback(self.store, self.bus)
@@ -460,6 +531,7 @@ class Scheduler:
                 out = money.sync(self.store)
                 if out.get("added"):
                     self.bus.log("VERONICA", f"Booked {out['added']} new transaction(s) from bank alerts", "job")
+                money.budget_check(self.store, self.bus)
             elif name == "money_monthly":   # on the 1st: last month's P&L
                 from . import money
                 money.monthly(self.store, self.bus)

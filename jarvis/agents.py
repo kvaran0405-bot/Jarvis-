@@ -61,7 +61,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "with prices and ratings, recommend one, and draft the message or booking request for the owner to send - "
           "never book, buy or pay yourself. Home manager: keep the grocery list, track expiry dates, and set chores "
           "as routines. Close with a short, confident summary of what was done and what is next.",
-          BASE_TOOLS + ["add_event", "list_events", "delete_event", "add_goal", "update_goal", "list_goals",
+          BASE_TOOLS + ["job_queue", "money_report", "deal_watch", "steam_link", "add_event", "list_events", "delete_event", "add_goal", "update_goal", "list_goals",
                         "log_habit", "habit_report", "log_transaction", "spending_summary", "add_application",
                         "update_application", "list_applications", "publish_report", "delegate"]
           + COMMS + DEVICES + ROUTINES + EMAIL_SMARTS + LECTURES + FRIEND + STUDY + DESK + PHONE
@@ -74,7 +74,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "with `status_snapshot` and other tools, then write a tight Markdown report: headline, today's "
           "schedule, top 3 priorities, deadlines and risks, habits, career and academic progress, money, and "
           "what the agents did overnight. Always finish by calling `publish_report`.",
-          BASE_TOOLS + ["list_events", "list_goals", "habit_report", "list_applications", "spending_summary",
+          BASE_TOOLS + ["search_email", "read_email", "add_event", "list_events", "list_goals", "habit_report", "list_applications", "spending_summary",
                         "publish_report", "list_outbox", "check_email", "check_whatsapp", "list_routines"]
           + FRIEND + ["list_exams", "list_gigs", "workout_history", "publish_newspaper", "network_radar"], web=True),
     Agent("ORACLE", "Research & Intelligence", "#38d6ff",
@@ -82,7 +82,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "compare sources, and save a well-structured note with conclusions, sources and recommended action. "
           "Plan trips (itinerary, budget, packing list - never book or pay) and help with decisions: options, "
           "pros and cons, risks, and a clear recommendation.",
-          BASE_TOOLS + ["publish_report", "read_aloud", "add_event", "list_events", "remind_me", "upcoming_dates"],
+          BASE_TOOLS + ["deal_list", "deal_update", "deal_watch", "steam_link", "job_queue", "publish_report", "read_aloud", "add_event", "list_events", "remind_me", "upcoming_dates"],
           web=True, effort="high"),
     Agent("ATHENA", "Academics", "#5b8cff",
           "You run the owner's academic life: courses, assignments, exams, study plans, revision schedules, "
@@ -110,7 +110,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "'resume'. Tell them to switch on job alerts in JobStreet, LinkedIn and Indeed (more alerts = more jobs "
           "for you to line up). LinkedIn and JobStreet ban bots, so they tap Submit there; jobs that take e-mail "
           "applications go out with the CV only when they tap SEND ALL.",
-          BASE_TOOLS + ["job_prefs", "job_hunt", "job_queue", "add_application", "update_application", "list_applications", "add_goal", "update_goal",
+          BASE_TOOLS + ["search_email", "phone_notifications", "job_prefs", "job_hunt", "job_queue", "add_application", "update_application", "list_applications", "add_goal", "update_goal",
                         "list_goals", "add_event", "send_email", "find_contacts", "add_contact", "search_email", "log_meeting",
                         "network_radar"] + FILES,
           web=True, effort="high"),
@@ -159,7 +159,7 @@ AGENTS: dict[str, Agent] = {a.name: a for a in [
           "merchant lands in the wrong category or 'other', fix it with `money_categorize` (it's remembered). Log cash "
           "spends they mention with `log_transaction` (negative = spend, positive = income). Be frank about impulse "
           "buys and praise saving. Never move money, never open bank apps or sites, never read codes.",
-          BASE_TOOLS + ["money_report", "money_transactions", "money_categorize", "log_transaction", "spending_summary",
+          BASE_TOOLS + ["money_report", "money_transactions", "money_categorize", "money_budget", "money_subscriptions", "log_transaction", "spending_summary",
                         "add_goal", "update_goal", "list_goals", "bank_alerts", "publish_report", "search_email"]),
     Agent("BANNER", "Health & Wellbeing", "#2de0c0",
           "You look after sleep, energy, stress, nutrition and recovery. Watch the owner's workload for "

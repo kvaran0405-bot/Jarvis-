@@ -629,6 +629,27 @@ Keep "Background" allowed on the phone's setup page, or Android may pause JARVIS
   predictor, tomorrow played, money future, and wedding day run. They're built into the phone app too, so they work
   with the laptop off. For now they run on sample numbers; your own data comes next.
 
+## The team on autopilot (the owner's picks)
+
+Nothing reaches you while you sleep: quiet hours are **2am to noon**. Anything the team sends then is held and
+arrives as one **"🌅 While you slept"** message the moment you're up. Only real emergencies (a scam alert, an urgent
+alert) get through. Morning jobs now run just before noon, so everything is ready when you wake.
+
+| Agent | What they do by themselves |
+|---|---|
+| **ATHENA** | **Assignment radar:** every 4 hours she reads school emails and portal notifications, and puts every deadline, quiz, exam and class change in your tasks and calendar. **Nudges:** anything due gets a heads-up 3 days and 1 day before. |
+| **VERONICA** | **Budgets:** "set my budgets" (based on last month) or "food budget 400". She warns at 80% and 100% ("Food is at $340 of $400, 9 days to go"). **Subscriptions:** finds everything that keeps charging you (Netflix, Spotify, gym…) and lists it in the monthly P&L, asking "still using all of them?". |
+| **ZEUS** | **Follow-ups:** a week after an emailed application with no reply, a polite follow-up is drafted. 📨 SEND ALL FOLLOW-UPS on JOB HUNT sends them. **LinkedIn ghostwriter:** every Saturday, a ready-to-paste post from your real wins. **Scam jobs** ("earn $300 a day liking videos") never reach your list. |
+| **HERALD** | **Inbox zero** at 12:15: every unread email sorted into *needs you* (with tap-to-send replies), *FYI* and *noise*, plus a "people waiting on you" list. Scams are flagged. |
+| **FRIDAY** | **Life admin** at 12:40: renewals and expiries become tasks 2 weeks ahead, appointments and bookings go in the calendar, and parcels are tracked until they arrive. |
+| **ORACLE** | **Opportunities brief** at 11:30: one piece of news in your field, one opportunity (scholarship, competition, event) and one smart move, each with a link. **Deal watcher:** your **Steam wishlist** is checked twice a day ("ELDEN RING is 50% off, S$34.90"), and anything else you want ("tell me when AirPods Pro go under $250") is checked daily. |
+| **SENTINEL** | **Scam shield:** every notification is checked for parcel-fee tricks, "verify your account", prizes, fake officers, task-jobs, OTP requests and look-alike links. A likely scam gets an immediate warning, even at night. |
+| **EDITH** | **Laptop care:** a backup every night (a week kept), tidy downloads, and a nightly health check (disk space, memory, days since restart, backup). Problems come up in your briefing. |
+| **JARVIS** | **3pm check-in:** where you stand (applications vs target, tasks due, spending) and the one next thing. **10pm wrap-up:** today's wins, tomorrow's first thing, and a question about your day. Both arrive as a Telegram text and voice note. |
+
+All of it also shows up in the 🏢 daily briefing: budget warnings, follow-ups due, today's intel, your inbox, and
+laptop issues.
+
 ## The boardroom: your team reports in when you wake up
 
 You're the boss, and the agents are your company. The **first time JARVIS opens each day**, on the phone or the laptop

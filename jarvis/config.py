@@ -52,7 +52,7 @@ class Settings:
     schedule_enabled: bool = field(default_factory=lambda: _env("JARVIS_SCHEDULER", "on").lower() != "off")
 
     # Daily schedule (24h HH:MM, local timezone)
-    morning_brief_at: str = field(default_factory=lambda: _env("JARVIS_MORNING_AT", "07:00"))
+    morning_brief_at: str = field(default_factory=lambda: _env("JARVIS_MORNING_AT", "11:40"))   # ready just before the owner wakes
     evening_report_at: str = field(default_factory=lambda: _env("JARVIS_EVENING_AT", "21:00"))
     night_shift_at: str = field(default_factory=lambda: _env("JARVIS_NIGHT_SHIFT_AT", "02:00"))
     money_weekly_at: str = field(default_factory=lambda: _env("JARVIS_MONEY_WEEKLY_AT", "19:00"))  # Sundays
@@ -108,7 +108,7 @@ class Settings:
     whisper_model: str = field(default_factory=lambda: _env("JARVIS_WHISPER_MODEL", "base"))
 
     # Quiet hours: agents don't speak up at night unless it's critical
-    quiet_hours: str = field(default_factory=lambda: _env("JARVIS_QUIET_HOURS", "23:00-07:00"))
+    quiet_hours: str = field(default_factory=lambda: _env("JARVIS_QUIET_HOURS", "02:00-12:00"))   # the owner sleeps ~2am to noon
     # Link to the phone app (e.g. https://your-laptop.tailnet-name.ts.net), used in Telegram alerts
     app_url: str = field(default_factory=lambda: _env("JARVIS_APP_URL"))
     # PIN that protects the dashboard when opened from your phone (not needed on the laptop itself)

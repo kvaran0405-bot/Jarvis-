@@ -1217,7 +1217,8 @@ def jobs_list():
     from . import jobs
     p = jobs.prefs(store)
     return {"jobs": jobs.queue(store, 80), "today": jobs.today_count(store), "target": p["daily_target"], "prefs": p,
-            "can_email": jobs.email_ready(store), "resume": bool(jobs.resume_text()), "hunted": store.get("jobs:hunted")}
+            "can_email": jobs.email_ready(store), "resume": bool(jobs.resume_text()), "hunted": store.get("jobs:hunted"),
+            "followups": jobs.followups(store)}
 
 
 @app.post("/api/jobs/hunt")
@@ -1236,6 +1237,12 @@ async def jobs_prep(job_id: int):
 def jobs_mark(job_id: int, a: JobAct):
     from . import jobs
     return jobs.mark(store, job_id, a.status)
+
+
+@app.post("/api/jobs/followups")
+async def jobs_followups(a: JobAct):
+    from . import jobs
+    return await asyncio.to_thread(jobs.send_followups, store, bus, a.ids)
 
 
 @app.post("/api/jobs/send-all")
