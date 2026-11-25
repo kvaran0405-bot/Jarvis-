@@ -46,3 +46,24 @@ def test_telegram_gemini_setup(monkeypatch):
     assert "aistudio.google.com/apikey" in out[-1]
     bot.handle(msg("here it is AQ.Example-testtesttesttest_xyz", 5))
     assert got == ["AQ.Example-testtesttesttest_xyz"] and ("deleteMessage", {"chat_id": "42", "message_id": 5}) in calls
+
+
+def test_gemini_check_tries_other_free_models(monkeypatch):
+    from jarvis import brains, access
+    monkeypatch.setattr(settings, "gemini_key", "AQ.test-key-1234567890123")
+    monkeypatch.setattr(settings, "gemini_model", "gemini-flash-latest")
+    saved = {}
+    monkeypatch.setattr(access, "_write_env", lambda v: saved.update(v))
+    tried = []
+
+    def call(body, model=None):
+        tried.append(model)
+        if model in ("gemini-flash-latest", "gemini-2.5-flash"):
+            raise brains.LimitReached("Gemini free limit reached: limit: 0")
+        return {"candidates": [{"content": {"parts": [{"text": "OK"}]}}]}
+    monkeypatch.setattr(brains, "_gemini_call", call)
+    ok, _secs, why = brain.gemini_check()
+    assert ok and tried[:3] == ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+    assert saved == {"JARVIS_GEMINI_MODEL": "gemini-2.5-flash-lite"} and settings.gemini_model == "gemini-2.5-flash-lite"
+    monkeypatch.setattr(brains, "_gemini_call", lambda body, model=None: (_ for _ in ()).throw(brains.LimitReached("x")))
+    assert brain.gemini_check() == (False, 0.0, brain.LIMITED)   # a valid key with no allowance left right now

@@ -123,18 +123,37 @@ def gemini_check() -> tuple[bool, float, str]:
     from . import brains
     if not settings.gemini_key:
         return False, 0.0, "there's no Gemini key yet"
-    t0 = time.time()
-    try:
-        brains._gemini_call({"contents": [{"role": "user", "parts": [{"text": "Reply with just: OK"}]}],
-                             "generationConfig": {"maxOutputTokens": 5}})
-        return True, time.time() - t0, ""
-    except brains.LimitReached:
-        return False, 0.0, "Gemini's free limit is used up for now (it resets daily)"
-    except Exception as exc:  # noqa: BLE001
-        msg = str(exc)
-        if "API_KEY_INVALID" in msg or "API key not valid" in msg or " 400" in msg or " 403" in msg:
-            return False, 0.0, "Google says the key isn't valid (copy it again, all of it)"
-        return False, 0.0, f"Gemini didn't answer ({msg[:120]})"
+    # Each Gemini model has its own free allowance, and some have none on some accounts. Try the usual free ones and
+    # keep the first that answers, so one model being "used up" doesn't make a good key look broken.
+    models = list(dict.fromkeys([settings.gemini_model, "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash",
+                                 "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"]))
+    limited, last = False, ""
+    for model in models:
+        t0 = time.time()
+        try:
+            brains._gemini_call({"contents": [{"role": "user", "parts": [{"text": "Reply with just: OK"}]}],
+                                 "generationConfig": {"maxOutputTokens": 5}}, model)
+            if model != settings.gemini_model:   # remember the model that works for this key
+                from . import access
+                access._write_env({"JARVIS_GEMINI_MODEL": model})
+                settings.gemini_model = model
+            return True, time.time() - t0, ""
+        except brains.LimitReached:
+            limited = True
+            continue
+        except Exception as exc:  # noqa: BLE001
+            msg = last = str(exc)
+            if "API_KEY_INVALID" in msg or "API key not valid" in msg or " 403" in msg:
+                return False, 0.0, "Google says the key isn't valid (copy it again, all of it)"
+            if " 404" in msg or " 400" in msg:   # this model isn't offered to the key: try the next
+                continue
+            return False, 0.0, f"Gemini didn't answer ({msg[:120]})"
+    if limited:
+        return False, 0.0, LIMITED
+    return False, 0.0, f"Gemini didn't answer ({last[:120]})"
+
+
+LIMITED = "Google's free limit is used up on every Gemini model for now (it resets daily)"
 
 
 # ---------------------------------------------------------------- spoken / typed control phrases

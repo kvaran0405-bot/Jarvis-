@@ -86,6 +86,12 @@ async def lifespan(_app):
         except ValueError as exc:
             return f"⚠ {exc}\nSend /gemini to try again."
         ok, secs, why = brain.gemini_check()
+        if not ok and why == brain.LIMITED:   # the key is fine (Google recognised it): keep it, use it when the limit resets
+            store.set("voice:fast", "on")
+            bus.publish({"type": "brain", **brain.describe(store)})
+            return ("✅ Key saved: Google recognised it. Its free allowance is used up for the moment, so JARVIS keeps "
+                    "using your main brain and switches to Gemini by itself as soon as Google resets it (daily). "
+                    "Nothing else to do.")
         if not ok:
             if old_key:
                 access.save_key("GEMINI_API_KEY", old_key)
