@@ -166,6 +166,16 @@ def _auth_cookie() -> str:
 
 
 @app.middleware("http")
+async def always_fresh(request: Request, call_next):
+    """Pages and scripts are always re-checked, so after an update every screen shows the new version straight away
+    (no stale cached files). Unchanged files still come back as a quick 304 "not modified"."""
+    response = await call_next(request)
+    if request.url.path.endswith((".html", ".js", ".css", ".webmanifest")) or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+@app.middleware("http")
 async def pin_lock(request: Request, call_next):
     path = request.url.path
     if (_is_local(request) or path in OPEN_PATHS or path.startswith("/mcp/")

@@ -95,3 +95,10 @@ def test_times_are_stored_in_owner_timezone(monkeypatch):
     assert store.list_events("2026-11-23", "2026-11-24")[0]["start"] == "2026-11-23T18:00"
     execute("add_event", ctx, {"title": "Exam", "start": "2026-11-25T09:00"})
     assert store.list_events("2026-11-25", "2026-11-26")[0]["start"] == "2026-11-25T09:00"
+
+
+def test_pages_are_never_stale():
+    from fastapi.testclient import TestClient
+    from jarvis import server
+    r = TestClient(server.app).get("/gestures.js")
+    assert r.status_code == 200 and r.headers.get("cache-control") == "no-cache"
