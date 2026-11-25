@@ -63,7 +63,7 @@ def test_gemini_check_tries_other_free_models(monkeypatch):
         return {"candidates": [{"content": {"parts": [{"text": "OK"}]}}]}
     monkeypatch.setattr(brains, "_gemini_call", call)
     ok, _secs, why = brain.gemini_check()
-    assert ok and tried[:3] == ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
-    assert saved == {"JARVIS_GEMINI_MODEL": "gemini-2.5-flash-lite"} and settings.gemini_model == "gemini-2.5-flash-lite"
+    assert ok and tried[:3] == ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"]
+    assert saved == {"JARVIS_GEMINI_MODEL": "gemini-flash-lite-latest"} and settings.gemini_model == "gemini-flash-lite-latest"
     monkeypatch.setattr(brains, "_gemini_call", lambda body, model=None: (_ for _ in ()).throw(brains.LimitReached("x")))
     assert brain.gemini_check() == (False, 0.0, brain.LIMITED)   # a valid key with no allowance left right now

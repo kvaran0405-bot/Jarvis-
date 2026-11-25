@@ -10,7 +10,11 @@ android {
         targetSdk 34
         versionCode Integer.parseInt(System.getenv("JARVIS_BUILD") ?: "1")
         versionName "1.0." + (System.getenv("JARVIS_BUILD") ?: "1")
+        // the branch this app was built from: with the laptop off, the phone gets brain fixes from there
+        buildConfigField "String", "BRANCH", "\"" + (System.getenv("GITHUB_REF_NAME") ?: "main") + "\""
     }
+
+    buildFeatures { buildConfig true }
 
     signingConfigs {
         // The signing key is never stored in the repository: the build passes its location and password

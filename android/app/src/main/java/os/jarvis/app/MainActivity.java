@@ -231,6 +231,7 @@ public class MainActivity extends Activity {
 
     /** The phone's own JARVIS: thinks with Gemini over Wi-Fi or mobile data, no laptop needed. */
     private void openSolo(String why) {
+        Solo.refreshFromGitHub(this);
         String cur = web.getUrl();
         if (cur != null && cur.startsWith("file:") && cur.contains("solo")) return;
         web.loadUrl(Solo.pageUrl(this) + "?why=" + Uri.encode(why == null ? "" : why));

@@ -79,6 +79,28 @@ final class Solo {
         } catch (Exception ignored) {}
     }
 
+    /** With the laptop away, fetch the phone brain's newest page straight from GitHub (at most every 30 min). */
+    private static long lastGit = 0;
+    static void refreshFromGitHub(Context c) {
+        long now = System.currentTimeMillis();
+        if (now - lastGit < 30 * 60_000L) return;
+        lastGit = now;
+        new Thread(() -> {
+            try {
+                HttpURLConnection h = (HttpURLConnection) new URL("https://raw.githubusercontent.com/kvaran0405-bot/Jarvis-/"
+                        + BuildConfig.BRANCH + "/android/app/src/main/assets/solo.html").openConnection();
+                h.setConnectTimeout(15000); h.setReadTimeout(30000);
+                if (h.getResponseCode() != 200) return;
+                ByteArrayOutputStream b = new ByteArrayOutputStream();
+                try (InputStream in = h.getInputStream()) { byte[] buf = new byte[16384]; for (int n; (n = in.read(buf)) > 0; ) b.write(buf, 0, n); }
+                String page = b.toString(StandardCharsets.UTF_8.name());
+                if (!page.contains("SOLO-JARVIS")) return;
+                File f = new File(c.getFilesDir(), "solo.html");
+                try (FileOutputStream o = new FileOutputStream(f)) { o.write(page.getBytes(StandardCharsets.UTF_8)); }
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
     static String pageUrl(Context c) {
         File f = new File(c.getFilesDir(), "solo.html");
         return f.exists() ? Uri.fromFile(f).toString() : "file:///android_asset/solo.html";
@@ -94,7 +116,8 @@ final class Solo {
             has.put("lta", !k.optString("lta").isEmpty());
             has.put("onemap", !k.optString("onemap_email").isEmpty());
             pack.put("has", has);
-            pack.put("model", k.optString("gemini_model", "gemini-flash-latest"));
+            String model = k.optString("gemini_model", "gemini-flash-latest");
+            pack.put("model", model.matches("gemini-(1\\.|2\\.0).*") ? "gemini-flash-latest" : model);   // retired models
             pack.put("queued", outbox(c).length());
             return pack.toString();
         } catch (Exception e) { return "{}"; }

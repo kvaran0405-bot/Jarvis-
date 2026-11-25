@@ -35,6 +35,11 @@ def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
 
+def _live_gemini(model: str) -> str:
+    """Google retires old Gemini models (1.x, 2.0): never keep using one, fall back to the always-current alias."""
+    return "gemini-flash-latest" if re.match(r"gemini-(1\.|2\.0)", model or "") else (model or "gemini-flash-latest")
+
+
 @dataclass
 class Settings:
     owner_name: str = field(default_factory=lambda: _env("JARVIS_OWNER_NAME", "Sir"))
@@ -93,7 +98,7 @@ class Settings:
     voice_model: str = field(default_factory=lambda: _env("JARVIS_VOICE_MODEL", "haiku"))
     # Google Gemini (free tier) - key from https://aistudio.google.com/apikey
     gemini_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
-    gemini_model: str = field(default_factory=lambda: _env("JARVIS_GEMINI_MODEL", "gemini-flash-latest"))
+    gemini_model: str = field(default_factory=lambda: _live_gemini(_env("JARVIS_GEMINI_MODEL", "gemini-flash-latest")))
 
     # Fast mode: Claude Opus 5.5 writes ~2.5x faster at double the price (on/off)
     fast_mode: bool = field(default_factory=lambda: _env("JARVIS_FAST_MODE", "off").lower() == "on")

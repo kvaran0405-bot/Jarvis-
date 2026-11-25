@@ -275,8 +275,7 @@ _quick_ok = {"on": True}
 
 
 # Each free Gemini model has its own daily allowance: when one is used up, the next one answers instead.
-GEMINI_SPARES = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite",
-                 "gemini-flash-lite-latest"]
+GEMINI_SPARES = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"]
 _gem_spent: dict[str, float] = {}   # model -> time its allowance is expected back
 
 
@@ -316,6 +315,8 @@ def _gemini_call(body: dict, model: str | None = None) -> dict:
                 plain = {**body, "generationConfig": {k: v for k, v in body["generationConfig"].items() if k != "thinkingConfig"}}
                 return _gemini_call(plain, m)
             raise BrainError(f"Gemini error {exc.code}: {detail}") from None
+    if not last:   # nothing was rate-limited: the model(s) just aren't offered (retired or not for this key)
+        raise BrainError(f"Gemini model not available: {', '.join(order)}")
     raise LimitReached("Gemini's free allowance is used up for now" + (" (it refills daily)" if "day" in last.lower() else ""))
 
 

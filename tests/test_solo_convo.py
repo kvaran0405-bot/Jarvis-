@@ -44,3 +44,12 @@ def test_laptop_page_hands_over_to_solo():
     main = (ROOT / "android/app/src/main/java/os/jarvis/app/MainActivity.java").read_text(encoding="utf-8")
     assert "public void goSolo(String pending)" in main and "&ask=" in main
     assert 'get("ask")' in SOLO
+
+
+def test_retired_gemini_models_are_never_used():
+    from jarvis import brains
+    from jarvis.config import _live_gemini
+    assert _live_gemini("gemini-2.0-flash") == "gemini-flash-latest" and _live_gemini("gemini-2.5-flash") == "gemini-2.5-flash"
+    assert not any(m.startswith(("gemini-2.0", "gemini-1.")) for m in brains.GEMINI_SPARES)
+    assert "gemini-2.0" not in SOLO.split("const SPARES")[1].split("\n")[0]
+    assert "refreshFromGitHub" in (ROOT / "android/app/src/main/java/os/jarvis/app/SoloBrain.java").read_text(encoding="utf-8")

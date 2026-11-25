@@ -104,6 +104,7 @@ final class SoloBrain {
         if (laptop) { downSince = 0; Solo.lastOk = now; }
         else { Solo.lastFail = now; if (downSince == 0) downSince = now; }
         boolean solo = !laptop && Net.base(c) != null && now - downSince > 3 * 60_000L;
+        if (!laptop) Solo.refreshFromGitHub(c);   // brain fixes reach the phone even with the laptop off
         if (solo) {
             telegram(c);
             routines(c);

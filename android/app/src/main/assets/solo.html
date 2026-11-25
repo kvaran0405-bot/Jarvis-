@@ -351,16 +351,17 @@ const DECL = [
 ];
 
 // ---------------------------------------------------------------- the brain: Gemini, straight from the phone
-const MODEL = () => PACK.model || "gemini-flash-latest";
+const MODEL = () => /^gemini-(1\.|2\.0)/.test(PACK.model || "") ? "gemini-flash-latest" : PACK.model || "gemini-flash-latest";
 // Each free model has its own daily allowance: if one is used up, the next one answers.
-const SPARES = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-flash-lite-latest"];
+const SPARES = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"];
 async function gemini(body){
   const spent = LS.get("solo:spent", {}), now = Date.now(); let last;
   for (const m of [...new Set([MODEL(), ...SPARES])]){
     if ((spent[m] || 0) > now) continue;
     try { return await json(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {method: "POST", body: JSON.stringify(body)}); }
     catch (e) { last = e; if (/HTTP 429/.test(e.message)){ spent[m] = now + (/PerDay|per day/i.test(e.message) ? 3600e3 : 120e3); LS.set("solo:spent", spent); continue; }
-      if (/HTTP 404/.test(e.message)) continue; throw e; }
+      if (/HTTP 404/.test(e.message) || (/HTTP 400/.test(e.message) && /model/i.test(e.message))){ spent[m] = now + 7 * 864e5; LS.set("solo:spent", spent); continue; }
+      throw e; }
   }
   throw last || new Error("HTTP 429: all free models used up");
 }
@@ -546,7 +547,9 @@ async function ask(text){
   let reply;
   try { reply = await quick(text) || await think(text); }
   catch (e) { reply = /HTTP 4(29|03)/.test(e.message) ? "Google's free limit is used up for a moment, Sir. Try again in a minute." :
-                      /HTTP 0|timeout|Unable|resolve|network/i.test(e.message) ? "I've no internet right now, Sir. Reminders and alarms still work offline." : `That didn't work, Sir: ${e.message.slice(0, 120)}`; }
+                      /HTTP 0|timeout|Unable|resolve|network/i.test(e.message) ? "I've no internet right now, Sir. Reminders and alarms still work offline." :
+                      /HTTP 404|HTTP 400/.test(e.message) ? "Google's having a moment with my brain, Sir. Give me a few seconds and ask again." :
+                      "That didn't go through, Sir. Once more?"; console.warn(e); }
   clearTimeout(ack); busy = false;
   let agent = "JARVIS"; const m = reply.match(/^([A-Z]{3,10}):\s*/);
   if (m && TEAM.some(t => t.name === m[1])){ agent = m[1]; reply = reply.slice(m[0].length); }

@@ -125,8 +125,7 @@ def gemini_check() -> tuple[bool, float, str]:
         return False, 0.0, "there's no Gemini key yet"
     # Each Gemini model has its own free allowance, and some have none on some accounts. Try the usual free ones and
     # keep the first that answers, so one model being "used up" doesn't make a good key look broken.
-    models = list(dict.fromkeys([settings.gemini_model, "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash",
-                                 "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"]))
+    models = list(dict.fromkeys([settings.gemini_model, *brains.GEMINI_SPARES]))
     limited, last = False, ""
     for model in models:
         t0 = time.time()
