@@ -613,7 +613,8 @@ GitHub secrets (`JARVIS_KEYSTORE_B64`, `JARVIS_KEYSTORE_PASSWORD`). Install the 
 ## Solo JARVIS: the phone works without the laptop
 
 When the laptop is off, asleep, in your bag or in another country, the phone app becomes JARVIS by itself, over
-Wi-Fi or mobile data. It switches on its own (within about 8 seconds of the laptop not answering) and shows a
+Wi-Fi or mobile data. It switches on its own (within about 8 seconds of the laptop not answering, and also mid-use:
+if the laptop disappears while its page is open, the phone takes over and answers what you just said) and shows a
 **📱 SOLO** badge. When the laptop is back, tap **💻 LAPTOP IS BACK · SWITCH**.
 
 What works on the phone alone:

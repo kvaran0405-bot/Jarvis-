@@ -261,6 +261,13 @@ public class MainActivity extends Activity {
         super.onResume();
         visible = true;
         AppUpdate.check(this, false);   // a newer app? it installs itself
+        String cur = web.getUrl(), a = address();
+        if (cur != null && a != null && cur.startsWith(a)) {   // showing the laptop's page: is the laptop still there?
+            new Thread(() -> {
+                try { Net.call(this, "/api/speaker", null, 3500); Solo.lastOk = System.currentTimeMillis(); }
+                catch (Exception e) { Solo.lastFail = System.currentTimeMillis(); ui.post(() -> openSolo("laptop out of reach")); }
+            }).start();
+        }
         js("window.onNativeResume && window.onNativeResume()");   // the setup page re-checks what's allowed
     }
 
@@ -692,7 +699,12 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String soloNotes() { return Solo.notes(MainActivity.this); }
-        @JavascriptInterface public boolean canSelfUpdate() { return getPackageManager().canRequestPackageInstalls(); }
+@JavascriptInterface public void goSolo(String pending) {   // the laptop page lost the laptop: the phone takes over
+            Solo.lastFail = System.currentTimeMillis();
+            ui.post(() -> web.loadUrl(Solo.pageUrl(MainActivity.this) + "?why=" + Uri.encode("laptop out of reach")
+                    + (pending == null || pending.isEmpty() ? "" : "&ask=" + Uri.encode(pending))));
+        }
+                @JavascriptInterface public boolean canSelfUpdate() { return getPackageManager().canRequestPackageInstalls(); }
         @JavascriptInterface public void allowSelfUpdate() { try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Exception ignored) {} }
         @JavascriptInterface public void updateApp() { AppUpdate.check(MainActivity.this, true); }
         @JavascriptInterface public boolean soloNotesAccess() { return Solo.notesAccess(MainActivity.this); }

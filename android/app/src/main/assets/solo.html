@@ -765,6 +765,8 @@ $("#back").onclick = () => N?.openLaptop?.();
 show("JARVIS", PACK.has?.gemini || !N ? "Laptop's out of reach, Sir, so I'm running on your phone. Everything still works." : "Laptop's out of reach, Sir. I'm on your phone in basic mode.");
 if (!N?.headless) hereFresh();
 if (new URLSearchParams(location.search).get("talk") === "1") setTimeout(listen, 600);
+// Came over from the laptop page mid-question: answer it here.
+{ const pend = new URLSearchParams(location.search).get("ask"); if (pend) setTimeout(() => ask(pend), 900); }
 </script>
 <script src="file:///android_asset/transitions.js" data-boot defer></script>
 </body></html>

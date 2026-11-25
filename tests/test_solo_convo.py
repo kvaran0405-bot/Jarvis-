@@ -35,3 +35,12 @@ def test_gmail_comes_from_notifications():
     src = "\n".join(p.read_text(encoding="utf-8") for p in java)
     assert "getActiveNotifications" in src and "EXTRA_BIG_TEXT" in src
     assert "soloNotesAccess" in SOLO and "Gmail" in SOLO
+
+
+def test_laptop_page_hands_over_to_solo():
+    home = (ROOT / "web/home.html").read_text(encoding="utf-8")
+    assert "function laptopGone(" in home and "N.goSolo(pending)" in home and "visibilitychange" in home
+    assert "goSolo" in (ROOT / "web/sw.js").read_text(encoding="utf-8")
+    main = (ROOT / "android/app/src/main/java/os/jarvis/app/MainActivity.java").read_text(encoding="utf-8")
+    assert "public void goSolo(String pending)" in main and "&ask=" in main
+    assert 'get("ask")' in SOLO

@@ -112,7 +112,19 @@ function setState(t){ $("#state").textContent = t; }
 function show(who, text){ $("#said").innerHTML = `<small>${who}</small>${String(text).replace(/\[\w+\]\s*/g, "").replace(/[<>&]/g, "").slice(0, 400)}`; }
 // Speech queue: sentences play in order; the next one's audio is fetched while the current one plays (no gaps).
 let chain = Promise.resolve(), pend = 0, gen = 0, cutNow = null, followUntil = 0;
-function clip(agent, text){ return fetch("/api/tts", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent, text})})
+// Laptop gone (off, asleep, out of reach)? The phone becomes JARVIS by itself and answers what you just said.
+let goneOnce = false;
+function laptopGone(pending = ""){
+  if (goneOnce) return; goneOnce = true; setState("GOING SOLO…"); show("JARVIS", "Laptop's out of reach, Sir. Taking over on the phone.");
+  const N = window.JarvisNative;
+  setTimeout(() => { try { if (N?.goSolo) N.goSolo(pending); else N?.retry?.(); } catch {} }, 600);
+}
+async function reachable(ms = 3500){
+  const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
+  try { const r = await fetch("/api/speaker", {signal: c.signal, cache: "no-store"}); return r.status < 500; } catch { return false; } finally { clearTimeout(t); }
+}
+function clip(agent, text){ const c = new AbortController(); setTimeout(() => c.abort(), 9000);
+  return fetch("/api/tts", {method: "POST", signal: c.signal, headers: {"Content-Type": "application/json"}, body: JSON.stringify({agent, text})})
   .then(r => r.ok ? r.blob() : null).catch(() => null); }
 function play(agent, text, blobP, g){
   return new Promise(async res => {
@@ -180,12 +192,13 @@ async function ask(text){
   const [agent, said] = whoFor(text); if (agent !== "JARVIS") text = said;
   show("YOU", text); setState("THINKING"); thinking = true; myRid = Math.random().toString(36).slice(2); streamBuf = ""; streamAny = false; convo = true;
   const ack = setTimeout(() => { if(!speaking && speakerWhere === "phone") speak("JARVIS", "One moment Sir."); }, 1500);
+  const watch = setTimeout(async () => { if (thinking && !streamAny && !(await reachable())) laptopGone(text); }, 4000);
   try { const r = await fetch("/api/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, agent, voice: true, rid: myRid, source: "phone"})});
     if(r.status === 401){ location.href = "/login.html?next=/home.html"; return; }
-    const d = await r.json(); clearTimeout(ack); thinking = false;
+    const d = await r.json(); clearTimeout(ack); clearTimeout(watch); thinking = false;
     if(streamAny){ show(d.agent || "JARVIS", d.reply || ""); feed("", true); }   // already being spoken as it streamed
     else answer(d.agent || "JARVIS", d.reply || "Done."); }
-  catch { clearTimeout(ack); thinking = false; show("JARVIS", "I can't reach your laptop right now, Sir."); setState("OFFLINE"); }
+  catch { clearTimeout(ack); clearTimeout(watch); thinking = false; if (!(await reachable())) return laptopGone(text); show("JARVIS", "That didn't go through, Sir. Once more?"); setState("TAP TO TALK"); }
 }
 function listen(follow){
   if(!SR || speaking || listening) return; const rec = new SR(); rec.lang = "en-SG"; rec.interimResults = false; listening = true; setState(follow ? "GO AHEAD…" : "LISTENING");
@@ -235,7 +248,9 @@ function live(){
     else if(ev.type === "speak"){ if(ev.rid && ev.rid === myRid) return; show(ev.agent, ev.text); if(speakerWhere === "phone" && !speaking) speak(ev.agent, ev.text); }
     else if(ev.type === "say" || ev.type === "ask"){ const t = ev.say || ev.text; if(t){ show(ev.agent, t); if(speakerWhere === "phone" && !speaking) speak(ev.agent, t); } }
   };
-  es.onerror = () => { es.close(); setTimeout(() => { syncSpeaker(); live(); }, 5000); };
+  es.onerror = async () => { es.close(); if (!(await reachable())) return laptopGone(); setTimeout(() => { syncSpeaker(); live();
+// Back on screen after a while (e.g. you left home and the laptop went to sleep): check it's still there.
+document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && !(await reachable())) laptopGone(); }); }, 5000); };
 }
 syncSpeaker(); live();
 setInterval(() => $("#clock").textContent = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}), 1000);

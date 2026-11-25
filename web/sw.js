@@ -1,6 +1,6 @@
 // Makes JARVIS installable as a phone app. Pages load from the network (always live); the app shell is cached
 // only so the app opens with a friendly message when the laptop is offline.
-const CACHE = "jarvis-shell-v1";
+const CACHE = "jarvis-shell-v2";
 const SHELL = ["/command-centre.html", "/call.html", "/login.html", "/icon-192.png", "/manifest.webmanifest"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
@@ -12,6 +12,8 @@ self.addEventListener("fetch", e => {
     return r;
   }).catch(() => caches.match(url.pathname).then(r => r || new Response(
     "<body style='background:#07090d;color:#ffd23f;font-family:sans-serif;display:grid;place-items:center;height:100vh;text-align:center'>" +
-    "<div><h2>JARVIS is offline</h2><p style='color:#8a95a7'>Your laptop is off, asleep, or not connected to Tailscale.</p></div></body>",
+    "<div><h2>JARVIS is offline</h2><p style='color:#8a95a7'>Your laptop is off, asleep, or not connected to Tailscale.</p></div>" +
+    // inside the phone app: switch to the phone's own JARVIS instead of stopping here
+    "<script>setTimeout(function(){var N=window.JarvisNative;try{if(N&&N.goSolo)N.goSolo('');else if(N&&N.retry)N.retry();}catch(e){}},800)</script></body>",
     {headers: {"Content-Type": "text/html"}}))));
 });
